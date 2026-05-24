@@ -1,0 +1,317 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Customer } from "../src/domain/entities/Customer.js";
+import type {
+  DeliveryNote,
+  DeliveryNoteFilters,
+  DeliveryNoteInput,
+  DeliveryNoteStatus
+} from "../src/domain/entities/DeliveryNote.js";
+import { CalculatePriceUseCase } from "../src/application/use-cases/deliveryNotes.js";
+import {
+  ChangeDeliveryNoteStatusUseCase,
+  CreateDeliveryNoteUseCase,
+  DeleteDeliveryNoteUseCase,
+  GetDashboardSummaryUseCase,
+  GetDeliveryNoteUseCase,
+  GetDeliveryNotesUseCase,
+  UpdateDeliveryNoteUseCase
+} from "../src/application/use-cases/deliveryNotes.js";
+
+class InMemoryCustomerRepository {
+  public customers: Customer[] = [];
+
+  public async findAll() {
+    return this.customers;
+  }
+
+  public async findById(id: string) {
+    return this.customers.find((customer) => customer.id === id) ?? null;
+  }
+
+  public async create() {
+    throw new Error("not implemented");
+  }
+
+  public async update() {
+    throw new Error("not implemented");
+  }
+
+  public async delete() {
+    throw new Error("not implemented");
+  }
+
+  public async hasDeliveryNotes() {
+    return false;
+  }
+}
+
+class InMemoryDeliveryNoteRepository {
+  public notes: DeliveryNote[] = [];
+  public create = vi.fn(
+    async (
+      input: DeliveryNoteInput & {
+        customerName: string;
+        totalAmount: number;
+        items: DeliveryNote["items"];
+      }
+    ) => {
+      const created: DeliveryNote = {
+        id: crypto.randomUUID(),
+        number: input.number,
+        customerId: input.customerId,
+        customerName: input.customerName,
+        status: input.status,
+        notes: input.notes ?? null,
+        totalAmount: input.totalAmount,
+        date: input.date ?? new Date(),
+        items: input.items,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      this.notes.push(created);
+      return created;
+    }
+  );
+  public update = vi.fn(
+    async (
+      id: string,
+      input: DeliveryNoteInput & {
+        customerName: string;
+        totalAmount: number;
+        items: DeliveryNote["items"];
+      }
+    ) => {
+      const updated: DeliveryNote = {
+        id,
+        number: input.number,
+        customerId: input.customerId,
+        customerName: input.customerName,
+        status: input.status,
+        notes: input.notes ?? null,
+        totalAmount: input.totalAmount,
+        date: input.date ?? new Date(),
+        items: input.items,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      this.notes = this.notes.map((note) => (note.id === id ? updated : note));
+      return updated;
+    }
+  );
+  public delete = vi.fn(async (id: string) => {
+    this.notes = this.notes.filter((note) => note.id !== id);
+  });
+  public updateStatus = vi.fn(async (id: string, status: DeliveryNoteStatus) => {
+    const note = this.notes.find((entry) => entry.id === id)!;
+    const updated = { ...note, status, updatedAt: new Date() };
+    this.notes = this.notes.map((entry) => (entry.id === id ? updated : entry));
+    return updated;
+  });
+
+  public async findAll(filters: DeliveryNoteFilters) {
+    return this.notes.filter((note) => {
+      if (filters.status && note.status !== filters.status) {
+        return false;
+      }
+      if (filters.customerId && note.customerId !== filters.customerId) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  public async findById(id: string) {
+    return this.notes.find((note) => note.id === id) ?? null;
+  }
+}
+
+const buildCustomer = (): Customer => ({
+  id: "customer-1",
+  name: "Pinturas Lopez",
+  email: null,
+  phone: null,
+  address: null,
+  notes: null,
+  pricePerLinearMeter: 10,
+  pricePerSquareMeter: 20,
+  minimumRate: 15,
+  grosorMm: 3,
+  grosorPrecio: 5,
+  specialPieces: [{ name: "Barandilla", price: 40 }],
+  createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-01T00:00:00.000Z")
+});
+
+const buildNote = (id: string, status: DeliveryNoteStatus): DeliveryNote => ({
+  id,
+  number: `ALB-${id}`,
+  customerId: "customer-1",
+  customerName: "Pinturas Lopez",
+  status,
+  notes: null,
+  totalAmount: status === "REVIEWED" ? 120 : 45,
+  date: new Date("2026-01-01T00:00:00.000Z"),
+  items: [
+    {
+      description: "Perfil",
+      color: "RAL 9005",
+      quantity: status === "REVIEWED" ? 4 : 2,
+      unitPrice: status === "REVIEWED" ? 30 : 22.5,
+      totalPrice: status === "REVIEWED" ? 120 : 45,
+      linearMeters: status === "REVIEWED" ? 3 : null,
+      squareMeters: null,
+      thickness: null
+    }
+  ],
+  createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-01-01T00:00:00.000Z")
+});
+
+describe("delivery note use cases", () => {
+  let customerRepository: InMemoryCustomerRepository;
+  let deliveryNoteRepository: InMemoryDeliveryNoteRepository;
+  let calculatePriceUseCase: CalculatePriceUseCase;
+
+  beforeEach(() => {
+    customerRepository = new InMemoryCustomerRepository();
+    customerRepository.customers = [buildCustomer()];
+    deliveryNoteRepository = new InMemoryDeliveryNoteRepository();
+    deliveryNoteRepository.notes = [
+      buildNote("note-draft", "DRAFT"),
+      buildNote("note-reviewed", "REVIEWED"),
+      buildNote("note-pending", "PENDING")
+    ];
+    calculatePriceUseCase = new CalculatePriceUseCase();
+  });
+
+  it("creates a delivery note with prices calculated by business rules", async () => {
+    const useCase = new CreateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+
+    const result = await useCase.execute({
+      number: "ALB-100",
+      customerId: "customer-1",
+      status: "DRAFT",
+      items: [
+        {
+          description: "Barandilla",
+          color: "RAL 7016",
+          quantity: 2
+        },
+        {
+          description: "Perfil",
+          color: "RAL 9005",
+          linearMeters: 1,
+          thickness: 4,
+          quantity: 1
+        }
+      ]
+    });
+
+    expect(deliveryNoteRepository.create).toHaveBeenCalledOnce();
+    expect(result.customerName).toBe("Pinturas Lopez");
+    expect(result.totalAmount).toBe(100);
+    expect(result.items[0]?.totalPrice).toBe(80);
+    expect(result.items[1]?.totalPrice).toBe(20);
+  });
+
+  it("fails creating a delivery note for an unknown customer", async () => {
+    const useCase = new CreateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+
+    await expect(
+      useCase.execute({
+        number: "ALB-101",
+        customerId: "missing",
+        status: "DRAFT",
+        items: [{ description: "Perfil", color: "RAL 9005", quantity: 1, linearMeters: 2 }]
+      })
+    ).rejects.toMatchObject({
+      message: "Cliente no encontrado",
+      statusCode: 404
+    });
+  });
+
+  it("updates a delivery note recalculating totals", async () => {
+    const useCase = new UpdateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+
+    const result = await useCase.execute("note-draft", {
+      number: "ALB-note-draft",
+      customerId: "customer-1",
+      status: "PENDING",
+      items: [{ description: "Perfil", color: "RAL 9005", quantity: 2, linearMeters: 1 }]
+    });
+
+    expect(deliveryNoteRepository.update).toHaveBeenCalledOnce();
+    expect(result.totalAmount).toBe(30);
+    expect(result.status).toBe("PENDING");
+  });
+
+  it("blocks deleting non-draft delivery notes", async () => {
+    const useCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
+
+    await expect(useCase.execute("note-reviewed")).rejects.toMatchObject({
+      message: "Solo se pueden eliminar albaranes en borrador",
+      statusCode: 409
+    });
+    expect(deliveryNoteRepository.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes draft delivery notes", async () => {
+    const useCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
+
+    await useCase.execute("note-draft");
+
+    expect(deliveryNoteRepository.delete).toHaveBeenCalledWith("note-draft");
+    expect(await deliveryNoteRepository.findById("note-draft")).toBeNull();
+  });
+
+  it("updates status for an existing delivery note", async () => {
+    const useCase = new ChangeDeliveryNoteStatusUseCase(deliveryNoteRepository);
+
+    const result = await useCase.execute("note-pending", "REVIEWED");
+
+    expect(deliveryNoteRepository.updateStatus).toHaveBeenCalledWith("note-pending", "REVIEWED");
+    expect(result.status).toBe("REVIEWED");
+  });
+
+  it("throws when fetching an unknown delivery note", async () => {
+    const useCase = new GetDeliveryNoteUseCase(deliveryNoteRepository);
+
+    await expect(useCase.execute("missing")).rejects.toMatchObject({
+      message: "Albarán no encontrado",
+      statusCode: 404
+    });
+  });
+
+  it("filters delivery notes by status", async () => {
+    const useCase = new GetDeliveryNotesUseCase(deliveryNoteRepository);
+
+    const result = await useCase.execute({ status: "PENDING" });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe("note-pending");
+  });
+
+  it("builds the dashboard summary with totals and counters", async () => {
+    const useCase = new GetDashboardSummaryUseCase(deliveryNoteRepository);
+
+    const result = await useCase.execute();
+
+    expect(result.stats.totalNotes).toBe(3);
+    expect(result.stats.reviewed).toBe(1);
+    expect(result.stats.pending).toBe(1);
+    expect(result.stats.totalPieces).toBe(8);
+    expect(result.stats.totalAmount).toBe(210);
+  });
+});
