@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id                   String         @id @default(uuid())
+  name                 String
+  email                String?
+  phone                String?
+  address              String?
+  notes                String?
+  pricePerLinearMeter  Float          @default(0)
+  pricePerSquareMeter  Float          @default(0)
+  minimumRate          Float          @default(0)
+  grosorMm             Float?
+  grosorPrecio         Float?
+  specialPieces        SpecialPiece[]
+  deliveryNotes        DeliveryNote[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+}
+
+model SpecialPiece {
+  id         String   @id @default(uuid())
+  name       String
+  price      Float
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model DeliveryNote {
+  id           String             @id @default(uuid())
+  number       String             @unique
+  customerId   String
+  customer     Customer           @relation(fields: [customerId], references: [id])
+  customerName String
+  status       DeliveryNoteStatus @default(DRAFT)
+  notes        String?
+  totalAmount  Float              @default(0)
+  date         DateTime           @default(now())
+  items        DeliveryNoteItem[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model DeliveryNoteItem {
+  id             String       @id @default(uuid())
+  deliveryNoteId String
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  description    String
+  color          String
+  linearMeters   Float?
+  squareMeters   Float?
+  thickness      Float?
+  quantity       Int
+  unitPrice      Float
+  totalPrice     Float
+}
+
+enum DeliveryNoteStatus {
+  DRAFT
+  PENDING
+  REVIEWED
+}

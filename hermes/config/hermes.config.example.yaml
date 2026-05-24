@@ -1,0 +1,19 @@
+provider: openrouter
+model: anthropic/claude-sonnet-4-5
+
+toolsets:
+  - web
+  - skills
+  - memory
+
+security:
+  require_approval: dangerous
+
+project_context_files:
+  - .hermes.md
+  - AGENTS.md
+
+epoxiron:
+  api_base_url: http://localhost:3001
+  api_key: change-me
+
