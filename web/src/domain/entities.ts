@@ -93,32 +93,3 @@ export interface DashboardSummary {
     pending: number;
   };
 }
-
-export interface HermesMessage {
-  role: "user" | "assistant" | "tool";
-  content: string;
-}
-
-export interface HermesProposal {
-  id: string;
-  title: string;
-  description: string;
-  toolName: string;
-  status: "PENDING" | "CONFIRMED" | "REJECTED" | "EXECUTED";
-  parameters: Record<string, unknown>;
-}
-
-export interface HermesTask {
-  id: string;
-  title: string;
-  summary: string;
-  status: "PENDING" | "RUNNING" | "DONE" | "FAILED";
-  createdAt: string;
-}
-
-export interface HermesSession {
-  sessionId: string;
-  createdAt?: string;
-  messages: HermesMessage[];
-  proposals: HermesProposal[];
-}

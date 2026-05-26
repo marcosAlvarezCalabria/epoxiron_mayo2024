@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { calculatePricePreview, createDeliveryNote, deleteDeliveryNote, getCustomers, getDeliveryNotes, updateDeliveryNote, updateDeliveryNoteStatus } from "@/application/use-cases";
 import { ApiError } from "@/infrastructure/api/apiClient";
@@ -17,14 +17,12 @@ const emptyItem = () => ({
     quantity: "1"
 });
 const emptyForm = () => ({
-    number: "",
     customerId: "",
     notes: "",
     date: new Date().toISOString().slice(0, 10),
     items: [emptyItem()]
 });
 const noteToFormState = (note) => ({
-    number: note.number,
     customerId: note.customerId,
     notes: note.notes ?? "",
     date: note.date.slice(0, 10),
@@ -50,14 +48,16 @@ const normalizeItem = (item) => ({
     quantity: Number.parseInt(item.quantity || "1", 10)
 });
 const normalizePayload = (form, status) => ({
-    number: form.number.trim(),
     customerId: form.customerId,
     notes: form.notes.trim() ? form.notes.trim() : null,
     status,
     date: new Date(form.date).toISOString(),
     items: form.items.map(normalizeItem)
 });
-const canPreviewItem = (customerId, item) => Boolean(customerId && item.description.trim() && item.color.trim() && Number.parseInt(item.quantity || "0", 10) > 0);
+const canPreviewItem = (customerId, item) => Boolean(customerId &&
+    item.description.trim() &&
+    item.color.trim() &&
+    Number.parseInt(item.quantity || "0", 10) > 0);
 export const DeliveryNotesPage = () => {
     const queryClient = useQueryClient();
     const [editingNoteId, setEditingNoteId] = useState(null);
@@ -132,10 +132,7 @@ export const DeliveryNotesPage = () => {
             }
             void Promise.all(activeEntries.map(async ({ item, index }) => {
                 const result = await calculatePricePreview(form.customerId, normalizeItem(item));
-                return {
-                    index,
-                    preview: result.pricing
-                };
+                return { index, preview: result.pricing };
             }))
                 .then((results) => {
                 startTransition(() => {
@@ -153,10 +150,6 @@ export const DeliveryNotesPage = () => {
     }, [form]);
     const submitForm = async (status) => {
         setFormError(null);
-        if (!form.number.trim()) {
-            setFormError("El número de albarán es obligatorio.");
-            return;
-        }
         if (!form.customerId) {
             setFormError("Selecciona un cliente.");
             return;
@@ -183,7 +176,7 @@ export const DeliveryNotesPage = () => {
                                             setForm(emptyForm());
                                             setPreviews({});
                                             setFormError(null);
-                                        }, type: "button", children: "Cancelar edici\u00F3n" })) : null] }), _jsxs("div", { className: "grid gap-4 md:grid-cols-2", children: [_jsxs("div", { children: [_jsx("label", { className: "mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400", children: "N\u00FAmero" }), _jsx("input", { className: "w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({ ...current, number: event.target.value })), value: form.number })] }), _jsxs("div", { children: [_jsx("label", { className: "mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400", children: "Fecha" }), _jsx("input", { className: "w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({ ...current, date: event.target.value })), type: "date", value: form.date })] }), _jsxs("div", { className: "md:col-span-2", children: [_jsx("label", { className: "mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400", children: "Cliente" }), _jsxs("select", { className: "w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({ ...current, customerId: event.target.value })), value: form.customerId, children: [_jsx("option", { value: "", children: "Selecciona un cliente" }), customersQuery.data?.customers.map((customer) => (_jsx("option", { value: customer.id, children: customer.name }, customer.id)))] })] }), _jsxs("div", { className: "md:col-span-2", children: [_jsx("label", { className: "mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400", children: "Notas" }), _jsx("textarea", { className: "min-h-24 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({ ...current, notes: event.target.value })), value: form.notes })] })] }), _jsxs("div", { className: "space-y-4", children: [_jsxs("div", { className: "flex items-center justify-between", children: [_jsxs("div", { children: [_jsx("h4", { className: "text-sm font-bold uppercase tracking-wider text-gray-300", children: "Items" }), _jsx("p", { className: "text-sm text-gray-400", children: "Preview unitario y total por item." })] }), _jsx("button", { className: "rounded-lg border border-blue-700/50 bg-blue-900/20 px-3 py-2 text-sm text-blue-200", onClick: () => setForm((current) => ({
+                                        }, type: "button", children: "Cancelar edici\u00F3n" })) : null] }), _jsxs("div", { className: "grid gap-4 md:grid-cols-2", children: [_jsxs("div", { children: [_jsx("label", { className: "mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400", children: "Fecha" }), _jsx("input", { className: "w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({ ...current, date: event.target.value })), type: "date", value: form.date })] }), _jsxs("div", { className: "rounded-lg border border-dashed border-gray-700 bg-gray-900/40 px-3 py-2 text-sm text-gray-400", children: ["El n\u00FAmero se genera autom\u00E1ticamente al guardar con formato", " ", _jsx("span", { className: "font-mono", children: "ALB-YYYY-NNNN" }), "."] }), _jsxs("div", { className: "md:col-span-2", children: [_jsx("label", { className: "mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400", children: "Cliente" }), _jsxs("select", { className: "w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({ ...current, customerId: event.target.value })), value: form.customerId, children: [_jsx("option", { value: "", children: "Selecciona un cliente" }), customersQuery.data?.customers.map((customer) => (_jsx("option", { value: customer.id, children: customer.name }, customer.id)))] })] }), _jsxs("div", { className: "md:col-span-2", children: [_jsx("label", { className: "mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400", children: "Notas" }), _jsx("textarea", { className: "min-h-24 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({ ...current, notes: event.target.value })), value: form.notes })] })] }), _jsxs("div", { className: "space-y-4", children: [_jsxs("div", { className: "flex items-center justify-between", children: [_jsxs("div", { children: [_jsx("h4", { className: "text-sm font-bold uppercase tracking-wider text-gray-300", children: "Items" }), _jsx("p", { className: "text-sm text-gray-400", children: "Preview unitario y total por item." })] }), _jsx("button", { className: "rounded-lg border border-blue-700/50 bg-blue-900/20 px-3 py-2 text-sm text-blue-200", onClick: () => setForm((current) => ({
                                                     ...current,
                                                     items: [...current.items, emptyItem()]
                                                 })), type: "button", children: "A\u00F1adir item" })] }), form.items.map((item, index) => (_jsxs("div", { className: "space-y-3 rounded-2xl border border-gray-700 bg-gray-900/40 p-4", children: [_jsxs("div", { className: "grid gap-3 md:grid-cols-2", children: [_jsx("input", { className: "rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100", onChange: (event) => setForm((current) => ({

@@ -1,4 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-export const HermesProposalCard = ({ proposal, onConfirm, onReject }) => {
-    return (_jsxs("div", { className: "rounded-xl border border-yellow-700/50 bg-yellow-900/20 p-4", children: [_jsx("p", { className: "text-sm font-semibold text-yellow-300", children: proposal.title }), _jsx("p", { className: "mt-2 text-sm text-yellow-100", children: proposal.description }), _jsxs("div", { className: "mt-3 flex gap-2", children: [_jsx("button", { className: "rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-500", onClick: () => onConfirm(proposal.id), type: "button", children: "Confirmar" }), _jsx("button", { className: "rounded-lg border border-red-700/50 bg-red-900/30 px-3 py-2 text-sm font-semibold text-red-300", onClick: () => onReject(proposal.id), type: "button", children: "Rechazar" })] })] }));
-};
