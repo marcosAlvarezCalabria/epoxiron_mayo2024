@@ -10,7 +10,6 @@ export const deliveryNoteItemDraftSchema = z.object({
 });
 
 export const deliveryNoteInputSchema = z.object({
-  number: z.string().min(1),
   customerId: z.string().uuid(),
   notes: z.string().nullable().optional(),
   status: z.enum(["DRAFT", "PENDING", "REVIEWED"]),
@@ -26,4 +25,3 @@ export const calculatePriceSchema = z.object({
   customerId: z.string().uuid(),
   item: deliveryNoteItemDraftSchema
 });
-

@@ -36,7 +36,6 @@ export interface DeliveryNoteItemDraft {
 }
 
 export interface DeliveryNoteInput {
-  number: string;
   customerId: string;
   notes?: string | null;
   status: DeliveryNoteStatus;
@@ -49,4 +48,3 @@ export interface DeliveryNoteFilters {
   customerId?: string;
   today?: boolean;
 }
-

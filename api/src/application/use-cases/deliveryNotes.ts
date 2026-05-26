@@ -75,6 +75,19 @@ const materializeItems = (
 const sumTotalAmount = (items: DeliveryNoteItem[]): number =>
   Math.round(items.reduce((sum, item) => sum + item.totalPrice, 0) * 100) / 100;
 
+const buildDeliveryNoteNumber = async (
+  repository: DeliveryNoteRepository,
+  date: Date
+): Promise<string> => {
+  const year = date.getFullYear();
+  const latestNumber = await repository.findLatestNumberForYear(year);
+  const lastSequence = latestNumber
+    ? Number.parseInt(latestNumber.split("-").at(-1) ?? "0", 10)
+    : 0;
+
+  return `ALB-${year}-${(lastSequence + 1).toString().padStart(4, "0")}`;
+};
+
 export class CreateDeliveryNoteUseCase {
   public constructor(
     private readonly customerRepository: CustomerRepository,
@@ -88,9 +101,13 @@ export class CreateDeliveryNoteUseCase {
       throw new DomainException("Cliente no encontrado", 404);
     }
 
+    const date = input.date ?? new Date();
+    const number = await buildDeliveryNoteNumber(this.deliveryNoteRepository, date);
     const items = materializeItems(customer, input.items, this.calculatePriceUseCase);
     return this.deliveryNoteRepository.create({
       ...input,
+      date,
+      number,
       customerName: customer.name,
       items,
       totalAmount: sumTotalAmount(items)
@@ -119,6 +136,8 @@ export class UpdateDeliveryNoteUseCase {
     const items = materializeItems(customer, input.items, this.calculatePriceUseCase);
     return this.deliveryNoteRepository.update(id, {
       ...input,
+      number: existing.number,
+      date: input.date ?? existing.date,
       customerName: customer.name,
       items,
       totalAmount: sumTotalAmount(items)

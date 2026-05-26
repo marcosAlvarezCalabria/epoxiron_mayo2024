@@ -50,6 +50,7 @@ class InMemoryDeliveryNoteRepository {
   public create = vi.fn(
     async (
       input: DeliveryNoteInput & {
+        number: string;
         customerName: string;
         totalAmount: number;
         items: DeliveryNote["items"];
@@ -76,6 +77,7 @@ class InMemoryDeliveryNoteRepository {
     async (
       id: string,
       input: DeliveryNoteInput & {
+        number: string;
         customerName: string;
         totalAmount: number;
         items: DeliveryNote["items"];
@@ -122,6 +124,16 @@ class InMemoryDeliveryNoteRepository {
 
   public async findById(id: string) {
     return this.notes.find((note) => note.id === id) ?? null;
+  }
+
+  public async findLatestNumberForYear(year: number) {
+    const prefix = `ALB-${year}-`;
+    const matches = this.notes
+      .map((note) => note.number)
+      .filter((number) => number.startsWith(prefix))
+      .sort((left, right) => right.localeCompare(left));
+
+    return matches[0] ?? null;
   }
 }
 
@@ -192,7 +204,6 @@ describe("delivery note use cases", () => {
     );
 
     const result = await useCase.execute({
-      number: "ALB-100",
       customerId: "customer-1",
       status: "DRAFT",
       items: [
@@ -212,6 +223,7 @@ describe("delivery note use cases", () => {
     });
 
     expect(deliveryNoteRepository.create).toHaveBeenCalledOnce();
+    expect(result.number).toBe("ALB-2026-0001");
     expect(result.customerName).toBe("Pinturas Lopez");
     expect(result.totalAmount).toBe(100);
     expect(result.items[0]?.totalPrice).toBe(80);
@@ -227,7 +239,6 @@ describe("delivery note use cases", () => {
 
     await expect(
       useCase.execute({
-        number: "ALB-101",
         customerId: "missing",
         status: "DRAFT",
         items: [{ description: "Perfil", color: "RAL 9005", quantity: 1, linearMeters: 2 }]
@@ -246,13 +257,13 @@ describe("delivery note use cases", () => {
     );
 
     const result = await useCase.execute("note-draft", {
-      number: "ALB-note-draft",
       customerId: "customer-1",
       status: "PENDING",
       items: [{ description: "Perfil", color: "RAL 9005", quantity: 2, linearMeters: 1 }]
     });
 
     expect(deliveryNoteRepository.update).toHaveBeenCalledOnce();
+    expect(result.number).toBe("ALB-note-draft");
     expect(result.totalAmount).toBe(30);
     expect(result.status).toBe("PENDING");
   });

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, startTransition } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   calculatePricePreview,
@@ -27,7 +27,6 @@ interface DeliveryNoteItemFormState {
 }
 
 interface DeliveryNoteFormState {
-  number: string;
   customerId: string;
   notes: string;
   date: string;
@@ -55,7 +54,6 @@ const emptyItem = (): DeliveryNoteItemFormState => ({
 });
 
 const emptyForm = (): DeliveryNoteFormState => ({
-  number: "",
   customerId: "",
   notes: "",
   date: new Date().toISOString().slice(0, 10),
@@ -63,7 +61,6 @@ const emptyForm = (): DeliveryNoteFormState => ({
 });
 
 const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
-  number: note.number,
   customerId: note.customerId,
   notes: note.notes ?? "",
   date: note.date.slice(0, 10),
@@ -95,7 +92,6 @@ const normalizePayload = (
   form: DeliveryNoteFormState,
   status: DeliveryNoteStatus
 ): DeliveryNoteInput => ({
-  number: form.number.trim(),
   customerId: form.customerId,
   notes: form.notes.trim() ? form.notes.trim() : null,
   status,
@@ -104,7 +100,12 @@ const normalizePayload = (
 });
 
 const canPreviewItem = (customerId: string, item: DeliveryNoteItemFormState) =>
-  Boolean(customerId && item.description.trim() && item.color.trim() && Number.parseInt(item.quantity || "0", 10) > 0);
+  Boolean(
+    customerId &&
+      item.description.trim() &&
+      item.color.trim() &&
+      Number.parseInt(item.quantity || "0", 10) > 0
+  );
 
 export const DeliveryNotesPage = () => {
   const queryClient = useQueryClient();
@@ -143,7 +144,8 @@ export const DeliveryNotesPage = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: DeliveryNoteInput }) => updateDeliveryNote(id, input),
+    mutationFn: ({ id, input }: { id: string; input: DeliveryNoteInput }) =>
+      updateDeliveryNote(id, input),
     onSuccess: async () => {
       setEditingNoteId(null);
       setForm(emptyForm());
@@ -195,10 +197,7 @@ export const DeliveryNotesPage = () => {
       void Promise.all(
         activeEntries.map(async ({ item, index }) => {
           const result = await calculatePricePreview(form.customerId, normalizeItem(item));
-          return {
-            index,
-            preview: result.pricing
-          };
+          return { index, preview: result.pricing };
         })
       )
         .then((results) => {
@@ -221,10 +220,6 @@ export const DeliveryNotesPage = () => {
 
   const submitForm = async (status: DeliveryNoteStatus) => {
     setFormError(null);
-    if (!form.number.trim()) {
-      setFormError("El número de albarán es obligatorio.");
-      return;
-    }
     if (!form.customerId) {
       setFormError("Selecciona un cliente.");
       return;
@@ -281,16 +276,6 @@ export const DeliveryNotesPage = () => {
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Número
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                onChange={(event) => setForm((current) => ({ ...current, number: event.target.value }))}
-                value={form.number}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
                 Fecha
               </label>
               <input
@@ -299,6 +284,10 @@ export const DeliveryNotesPage = () => {
                 type="date"
                 value={form.date}
               />
+            </div>
+            <div className="rounded-lg border border-dashed border-gray-700 bg-gray-900/40 px-3 py-2 text-sm text-gray-400">
+              El número se genera automáticamente al guardar con formato{" "}
+              <span className="font-mono">ALB-YYYY-NNNN</span>.
             </div>
             <div className="md:col-span-2">
               <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">

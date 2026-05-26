@@ -45,6 +45,21 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
     });
   }
 
+  public async findLatestNumberForYear(year: number) {
+    const latest = await prisma.deliveryNote.findFirst({
+      where: {
+        number: {
+          startsWith: `ALB-${year}-`
+        }
+      },
+      orderBy: {
+        number: "desc"
+      }
+    });
+
+    return latest?.number ?? null;
+  }
+
   public async create(input: {
     customerId: string;
     customerName: string;

@@ -8,10 +8,23 @@ import type {
 export interface DeliveryNoteRepository {
   findAll(filters: DeliveryNoteFilters): Promise<DeliveryNote[]>;
   findById(id: string): Promise<DeliveryNote | null>;
-  create(input: DeliveryNoteInput & { customerName: string; totalAmount: number; items: DeliveryNote["items"] }): Promise<DeliveryNote>;
+  findLatestNumberForYear(year: number): Promise<string | null>;
+  create(
+    input: DeliveryNoteInput & {
+      number: string;
+      customerName: string;
+      totalAmount: number;
+      items: DeliveryNote["items"];
+    }
+  ): Promise<DeliveryNote>;
   update(
     id: string,
-    input: DeliveryNoteInput & { customerName: string; totalAmount: number; items: DeliveryNote["items"] }
+    input: DeliveryNoteInput & {
+      number: string;
+      customerName: string;
+      totalAmount: number;
+      items: DeliveryNote["items"];
+    }
   ): Promise<DeliveryNote>;
   delete(id: string): Promise<void>;
   updateStatus(id: string, status: DeliveryNoteStatus): Promise<DeliveryNote>;

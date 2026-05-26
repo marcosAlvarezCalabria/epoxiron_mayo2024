@@ -69,7 +69,6 @@ export interface DeliveryNote {
 }
 
 export interface DeliveryNoteInput {
-  number: string;
   customerId: string;
   notes?: string | null;
   status: DeliveryNoteStatus;
