@@ -1,6 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
 import clsx from "clsx";
-import { HermesPanel } from "@/features/hermes/components/HermesPanel";
 
 const navItems = [
   { to: "/", label: "Dashboard" },
@@ -38,8 +37,6 @@ export const Layout = () => {
       <main className="mx-auto max-w-7xl px-6 py-8">
         <Outlet />
       </main>
-      <HermesPanel />
     </div>
   );
 };
-

@@ -19,7 +19,30 @@ export interface Customer {
   specialPieces: SpecialPiece[];
 }
 
+export interface CustomerInput {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  pricePerLinearMeter: number;
+  pricePerSquareMeter: number;
+  minimumRate: number;
+  grosorMm?: number | null;
+  grosorPrecio?: number | null;
+  specialPieces: SpecialPiece[];
+}
+
 export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED";
+
+export interface DeliveryNoteItemDraft {
+  description: string;
+  color: string;
+  linearMeters?: number | null;
+  squareMeters?: number | null;
+  thickness?: number | null;
+  quantity: number;
+}
 
 export interface DeliveryNoteItem {
   id?: string;
@@ -43,6 +66,22 @@ export interface DeliveryNote {
   totalAmount: number;
   date: string;
   items: DeliveryNoteItem[];
+}
+
+export interface DeliveryNoteInput {
+  number: string;
+  customerId: string;
+  notes?: string | null;
+  status: DeliveryNoteStatus;
+  date?: string;
+  items: DeliveryNoteItemDraft[];
+}
+
+export interface PricePreview {
+  pricing: {
+    unitPrice: number;
+    totalPrice: number;
+  };
 }
 
 export interface DashboardSummary {

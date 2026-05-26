@@ -1,0 +1,18 @@
+[Unit]
+Description=Hermes Agent for Epoxiron
+After=network.target
+
+[Service]
+Type=simple
+User=epoxiron
+Group=epoxiron
+WorkingDirectory=/opt/hermes-agent
+Environment=HERMES_HOME=/var/lib/hermes
+EnvironmentFile=/etc/epoxiron/hermes.env
+ExecStart=/usr/local/bin/hermes server start --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

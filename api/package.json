@@ -8,7 +8,11 @@
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.8.0",
@@ -31,4 +35,3 @@
     "vitest": "^2.1.8"
   }
 }
-

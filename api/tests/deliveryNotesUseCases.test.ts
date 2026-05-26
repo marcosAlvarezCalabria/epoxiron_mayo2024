@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Customer } from "../src/domain/entities/Customer.js";
+import type { Customer, CustomerInput } from "../src/domain/entities/Customer.js";
 import type {
   DeliveryNote,
   DeliveryNoteFilters,
@@ -28,11 +28,11 @@ class InMemoryCustomerRepository {
     return this.customers.find((customer) => customer.id === id) ?? null;
   }
 
-  public async create() {
+  public async create(_input: CustomerInput): Promise<Customer> {
     throw new Error("not implemented");
   }
 
-  public async update() {
+  public async update(_id: string, _input: CustomerInput): Promise<Customer> {
     throw new Error("not implemented");
   }
 

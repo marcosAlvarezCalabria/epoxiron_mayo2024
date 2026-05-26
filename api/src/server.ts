@@ -20,16 +20,13 @@ import {
   GetDeliveryNotesUseCase,
   UpdateDeliveryNoteUseCase
 } from "./application/use-cases/deliveryNotes.js";
-import { HermesBridgeController } from "./controllers/HermesBridgeController.js";
 import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
-import { HermesClient } from "./integrations/hermes/HermesClient.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { buildCustomersRouter } from "./routes/customers.routes.js";
 import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
-import { buildHermesRouter } from "./routes/hermes.routes.js";
 import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
 
 const customerRepository = new PrismaCustomerRepository();
@@ -78,8 +75,6 @@ const deliveryNotesController = new DeliveryNotesController(
   getDashboardSummaryUseCase
 );
 
-const hermesController = new HermesBridgeController(new HermesClient());
-
 const app = express();
 
 app.use(helmet());
@@ -99,7 +94,6 @@ app.get("/health", (_request, response) => {
 app.use("/api/customers", buildCustomersRouter(customersController));
 app.use("/api/delivery-notes", buildDeliveryNotesRouter(deliveryNotesController));
 app.get("/api/dashboard/summary", deliveryNotesController.getDashboardSummary);
-app.use("/api/hermes", buildHermesRouter(hermesController));
 app.use("/api/hermes-tools", buildHermesToolsRouter(customersController, deliveryNotesController));
 
 app.use(errorHandler);

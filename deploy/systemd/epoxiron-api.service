@@ -1,0 +1,16 @@
+[Unit]
+Description=Epoxiron API
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/epoxiron
+ExecStart=/usr/bin/docker compose -f deploy/docker-compose.vps.yml up -d api postgres
+ExecStop=/usr/bin/docker compose -f deploy/docker-compose.vps.yml stop api postgres
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+

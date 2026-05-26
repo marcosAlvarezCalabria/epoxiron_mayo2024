@@ -1,11 +1,88 @@
 import { apiClient } from "@/infrastructure/api/apiClient";
-import type { Customer, DashboardSummary, DeliveryNote, HermesSession, HermesTask } from "@/domain/entities";
+import type {
+  Customer,
+  CustomerInput,
+  DashboardSummary,
+  DeliveryNote,
+  DeliveryNoteInput,
+  DeliveryNoteItemDraft,
+  DeliveryNoteStatus,
+  HermesSession,
+  HermesTask,
+  PricePreview
+} from "@/domain/entities";
 
-export const getCustomers = async () =>
-  apiClient<{ customers: Customer[] }>("/api/customers");
+export const getCustomers = async (search?: string) =>
+  apiClient<{ customers: Customer[] }>(
+    `/api/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`
+  );
 
-export const getDeliveryNotes = async () =>
-  apiClient<{ deliveryNotes: DeliveryNote[] }>("/api/delivery-notes");
+export const createCustomer = async (input: CustomerInput) =>
+  apiClient<{ customer: Customer }>("/api/customers", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+
+export const updateCustomer = async (id: string, input: CustomerInput) =>
+  apiClient<{ customer: Customer }>(`/api/customers/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+
+export const deleteCustomer = async (id: string) =>
+  apiClient<void>(`/api/customers/${id}`, {
+    method: "DELETE"
+  });
+
+export const getDeliveryNotes = async (filters?: {
+  status?: DeliveryNoteStatus | "ALL";
+  customerId?: string;
+  today?: boolean;
+}) => {
+  const params = new URLSearchParams();
+  if (filters?.status && filters.status !== "ALL") {
+    params.set("status", filters.status);
+  }
+  if (filters?.customerId) {
+    params.set("customerId", filters.customerId);
+  }
+  if (filters?.today) {
+    params.set("today", "true");
+  }
+  const query = params.toString();
+  return apiClient<{ deliveryNotes: DeliveryNote[] }>(
+    `/api/delivery-notes${query ? `?${query}` : ""}`
+  );
+};
+
+export const createDeliveryNote = async (input: DeliveryNoteInput) =>
+  apiClient<{ deliveryNote: DeliveryNote }>("/api/delivery-notes", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+
+export const updateDeliveryNote = async (id: string, input: DeliveryNoteInput) =>
+  apiClient<{ deliveryNote: DeliveryNote }>(`/api/delivery-notes/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+
+export const deleteDeliveryNote = async (id: string) =>
+  apiClient<void>(`/api/delivery-notes/${id}`, {
+    method: "DELETE"
+  });
+
+export const updateDeliveryNoteStatus = async (id: string, status: DeliveryNoteStatus) =>
+  apiClient<{ deliveryNote: DeliveryNote }>(`/api/delivery-notes/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status })
+  });
+
+export const calculatePricePreview = async (customerId: string, item: DeliveryNoteItemDraft) =>
+  apiClient<PricePreview>("/api/delivery-notes/calculate-price", {
+    method: "POST",
+    body: JSON.stringify({ customerId, item })
+  });
 
 export const getDashboardSummary = async () =>
   apiClient<DashboardSummary>("/api/dashboard/summary");
@@ -36,4 +113,3 @@ export const rejectHermesProposal = async (proposalId: string) =>
 
 export const getHermesTasks = async () =>
   apiClient<{ tasks: HermesTask[] }>("/api/hermes/tasks");
-
