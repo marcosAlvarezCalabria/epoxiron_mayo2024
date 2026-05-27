@@ -3,6 +3,24 @@
 @tailwind utilities;
 
 body {
-  @apply bg-gray-900 text-gray-100;
+  @apply bg-slate-950 text-slate-100 antialiased;
 }
 
+#root {
+  @apply min-h-screen;
+}
+
+button,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  @apply bg-cyan-400/25 text-white;
+}
+
+[class*="rounded"] {
+  border-radius: 0 !important;
+}

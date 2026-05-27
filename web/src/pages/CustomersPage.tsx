@@ -1,7 +1,21 @@
-import { useDeferredValue, useMemo, useState } from "react";
+﻿import {
+  ArrowLeftIcon,
+  CalendarDaysIcon,
+  PlusIcon,
+  TrashIcon,
+  UserPlusIcon
+} from "@heroicons/react/24/outline";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createCustomer, deleteCustomer, getCustomers, updateCustomer } from "@/application/use-cases";
-import type { Customer, CustomerInput } from "@/domain/entities";
+import { Link } from "react-router-dom";
+import {
+  createCustomer,
+  deleteCustomer,
+  getDeliveryNotes,
+  getCustomers,
+  updateCustomer
+} from "@/application/use-cases";
+import type { Customer, CustomerInput, DeliveryNote } from "@/domain/entities";
 import { ApiError } from "@/infrastructure/api/apiClient";
 
 interface SpecialPieceFormState {
@@ -22,6 +36,15 @@ interface CustomerFormState {
   grosorPrecio: string;
   specialPieces: SpecialPieceFormState[];
 }
+
+const quickSpecialPieces = [
+  "Barandilla",
+  "Marco",
+  "Puerta",
+  "Bastidor",
+  "Rejilla",
+  "Pletina"
+] as const;
 
 const emptyCustomerForm = (): CustomerFormState => ({
   name: "",
@@ -80,37 +103,91 @@ const normalizeCustomerPayload = (form: CustomerFormState): CustomerInput => ({
     }))
 });
 
-const numberCardClass =
-  "rounded-2xl border border-gray-700 bg-gray-800/70 p-4 shadow-sm shadow-black/10";
+const priceTiles = [
+  {
+    key: "pricePerLinearMeter",
+    label: "ML",
+    accent: "text-cyan-200 border-cyan-500/20 bg-cyan-500/10"
+  },
+  {
+    key: "pricePerSquareMeter",
+    label: "M2",
+    accent: "text-fuchsia-200 border-fuchsia-500/20 bg-fuchsia-500/10"
+  },
+  {
+    key: "minimumRate",
+    label: "Min",
+    accent: "text-emerald-200 border-emerald-500/20 bg-emerald-500/10"
+  }
+] as const;
+
+const badgeByStatus: Record<DeliveryNote["status"], string> = {
+  DRAFT: "text-gray-300 bg-white/5",
+  PENDING: "text-amber-200 bg-amber-500/10 border border-amber-500/20",
+  REVIEWED: "text-emerald-200 bg-emerald-500/10 border border-emerald-500/20"
+};
+
+const statusLabel: Record<DeliveryNote["status"], string> = {
+  DRAFT: "Borrador",
+  PENDING: "Pendiente",
+  REVIEWED: "Revisado"
+};
 
 export const CustomersPage = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const deferredSearch = useDeferredValue(search);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null);
+  const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
   const [form, setForm] = useState<CustomerFormState>(emptyCustomerForm);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["customers", deferredSearch],
-    queryFn: () => getCustomers(deferredSearch)
+    queryKey: ["customers"],
+    queryFn: () => getCustomers()
+  });
+
+  const filteredCustomers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return data?.customers ?? [];
+    }
+
+    return (data?.customers ?? []).filter((customer) =>
+      customer.name.toLowerCase().includes(query)
+    );
+  }, [data?.customers, search]);
+
+  const selectedCustomer =
+    filteredCustomers.find((customer) => customer.id === selectedCustomerId) ?? null;
+
+  const customerNotesQuery = useQuery({
+    queryKey: ["delivery-notes", "customer-detail", selectedCustomer?.id],
+    queryFn: () => getDeliveryNotes({ customerId: selectedCustomer?.id }),
+    enabled: Boolean(selectedCustomer?.id)
   });
 
   const createMutation = useMutation({
     mutationFn: createCustomer,
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       setForm(emptyCustomerForm());
       setFormError(null);
+      setIsComposerOpen(false);
+      setSelectedCustomerId(result.customer.id);
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: CustomerInput }) => updateCustomer(id, input),
-    onSuccess: async () => {
+    mutationFn: ({ id, input }: { id: string; input: CustomerInput }) =>
+      updateCustomer(id, input),
+    onSuccess: async (result) => {
       setEditingCustomerId(null);
       setForm(emptyCustomerForm());
       setFormError(null);
+      setIsComposerOpen(false);
+      setSelectedCustomerId(result.customer.id);
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
@@ -118,6 +195,7 @@ export const CustomersPage = () => {
   const deleteMutation = useMutation({
     mutationFn: deleteCustomer,
     onSuccess: async () => {
+      setSelectedCustomerId(null);
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
@@ -150,293 +228,143 @@ export const CustomersPage = () => {
   };
 
   return (
-    <section className="space-y-8">
-      <div className="flex items-end justify-between gap-4">
+    <section className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-100">Clientes</h2>
-          <p className="text-sm text-gray-400">CRUD completo con tarifas y piezas especiales.</p>
+          <p className="text-sm font-medium text-slate-400">Clientes</p>
+          <h2 className="text-3xl font-semibold tracking-tight text-white">
+            Clientes y tarifas
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-slate-400">
+            Consulta de ficha, tarifas y actividad reciente del cliente desde una
+            vista unica.
+          </p>
         </div>
-        <div className="w-full max-w-sm">
-          <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-            Buscar
-          </label>
-          <input
-            className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 outline-none focus:border-blue-500"
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Nombre del cliente"
-            value={search}
-          />
-        </div>
+        <button
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-50"
+          onClick={() => {
+            setEditingCustomerId(null);
+            setForm(emptyCustomerForm());
+            setFormError(null);
+            setIsComposerOpen(true);
+          }}
+          type="button"
+        >
+          <UserPlusIcon className="h-5 w-5" />
+          Nuevo cliente
+        </button>
       </div>
 
-      <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
-        <form className="space-y-6 rounded-2xl border border-gray-700 bg-gray-800/60 p-6" onSubmit={handleSubmit}>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-gray-100">
-                {editingCustomerId ? "Editar cliente" : "Nuevo cliente"}
-              </h3>
-              <p className="text-sm text-gray-400">Datos, tarifas y piezas especiales.</p>
-            </div>
-            {editingCustomerId ? (
-              <button
-                className="rounded-lg border border-gray-600 px-3 py-2 text-sm text-gray-300"
-                onClick={() => {
-                  setEditingCustomerId(null);
-                  setForm(emptyCustomerForm());
-                  setFormError(null);
-                }}
-                type="button"
-              >
-                Cancelar edición
-              </button>
-            ) : null}
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Nombre
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                value={form.name}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Email
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                value={form.email}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Teléfono
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
-                value={form.phone}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Dirección
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))}
-                value={form.address}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Notas
-              </label>
-              <textarea
-                className="min-h-24 w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                value={form.notes}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className={numberCardClass}>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-blue-300">
-                Precio ML
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-3 text-center text-2xl font-bold text-blue-200"
-                inputMode="decimal"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, pricePerLinearMeter: event.target.value }))
-                }
-                value={form.pricePerLinearMeter}
-              />
-            </div>
-            <div className={numberCardClass}>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-purple-300">
-                Precio M²
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-3 text-center text-2xl font-bold text-purple-200"
-                inputMode="decimal"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, pricePerSquareMeter: event.target.value }))
-                }
-                value={form.pricePerSquareMeter}
-              />
-            </div>
-            <div className={numberCardClass}>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-green-300">
-                Tarifa mínima
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-3 text-center text-2xl font-bold text-green-200"
-                inputMode="decimal"
-                onChange={(event) => setForm((current) => ({ ...current, minimumRate: event.target.value }))}
-                value={form.minimumRate}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Grosor mínimo (mm)
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                inputMode="decimal"
-                onChange={(event) => setForm((current) => ({ ...current, grosorMm: event.target.value }))}
-                value={form.grosorMm}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-400">
-                Suplemento grosor
-              </label>
-              <input
-                className="w-full rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                inputMode="decimal"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, grosorPrecio: event.target.value }))
-                }
-                value={form.grosorPrecio}
-              />
-            </div>
+      <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+        <div
+          className={`space-y-4 ${
+            mobilePane === "detail" ? "hidden xl:block" : "block"
+          }`}
+        >
+          <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+            <input
+              className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-gray-500 focus:border-cyan-500/50"
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar cliente"
+              value={search}
+            />
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-bold uppercase tracking-wider text-gray-300">
-                  Piezas especiales
-                </h4>
-                <p className="text-sm text-gray-400">Precio fijo por nombre exacto de pieza.</p>
-              </div>
-              <button
-                className="rounded-lg border border-blue-700/50 bg-blue-900/20 px-3 py-2 text-sm text-blue-200"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    specialPieces: [...current.specialPieces, { name: "", price: "" }]
-                  }))
-                }
-                type="button"
-              >
-                Añadir pieza
-              </button>
-            </div>
-
-            {form.specialPieces.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-gray-700 p-4 text-sm text-gray-500">
-                Sin piezas especiales configuradas.
-              </p>
+            {isLoading ? (
+              <p className="text-sm text-gray-400">Cargando clientes...</p>
             ) : null}
 
-            {form.specialPieces.map((piece, index) => (
-              <div className="grid gap-3 rounded-xl border border-gray-700 bg-gray-900/40 p-4 md:grid-cols-[1fr_180px_auto]" key={`piece-${index}`}>
-                <input
-                  className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      specialPieces: current.specialPieces.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, name: event.target.value } : entry
-                      )
-                    }))
-                  }
-                  placeholder="Nombre de la pieza"
-                  value={piece.name}
-                />
-                <input
-                  className="rounded-lg border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100"
-                  inputMode="decimal"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      specialPieces: current.specialPieces.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, price: event.target.value } : entry
-                      )
-                    }))
-                  }
-                  placeholder="Precio"
-                  value={piece.price}
-                />
-                <button
-                  className="rounded-lg border border-red-700/50 bg-red-900/20 px-3 py-2 text-sm text-red-300"
-                  onClick={() =>
-                    setForm((current) => ({
-                      ...current,
-                      specialPieces: current.specialPieces.filter((_, entryIndex) => entryIndex !== index)
-                    }))
-                  }
-                  type="button"
-                >
-                  Eliminar
-                </button>
-              </div>
-            ))}
-          </div>
-
-          {formError || mutationError ? (
-            <p className="rounded-lg border border-red-700/50 bg-red-900/20 px-3 py-2 text-sm text-red-300">
-              {formError ?? mutationError}
-            </p>
-          ) : null}
-
-          <div className="flex gap-3">
-            <button
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
-              disabled={createMutation.isPending || updateMutation.isPending}
-              type="submit"
-            >
-              {editingCustomerId ? "Guardar cambios" : "Crear cliente"}
-            </button>
-          </div>
-        </form>
-
-        <div className="space-y-4">
-          {isLoading ? <p className="text-sm text-gray-400">Cargando clientes…</p> : null}
-
-          {data?.customers.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-700 p-6 text-sm text-gray-500">
-              No hay clientes para el filtro actual.
-            </div>
-          ) : null}
-
-          {data?.customers.map((customer) => (
-            <article className="rounded-2xl border border-gray-700 bg-gray-800 p-5" key={customer.id}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-bold text-gray-100">{customer.name}</p>
-                  <p className="mt-1 text-sm text-gray-400">{customer.email ?? "Sin email"}</p>
-                  <p className="text-sm text-gray-500">{customer.phone ?? "Sin teléfono"}</p>
+            {filteredCustomers.map((customer) => (
+              <button
+              className={`w-full rounded-2xl border p-4 text-left transition-colors ${
+                  selectedCustomer?.id === customer.id
+                    ? "border-cyan-400/30 bg-cyan-400/10"
+                    : "border-white/10 bg-slate-900/70 hover:border-white/20"
+                }`}
+                key={customer.id}
+                onClick={() => {
+                  setSelectedCustomerId(customer.id);
+                  setMobilePane("detail");
+                }}
+                type="button"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-semibold text-white">
+                      {customer.name}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {customer.phone ?? customer.email ?? "Sin contacto rapido"}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
+                    {customer.specialPieces.length} piezas
+                  </div>
                 </div>
-                <div className="flex gap-2">
+
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-200">
+                    ML {customer.pricePerLinearMeter.toFixed(2)} €
+                  </span>
+                  <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-3 py-1 text-fuchsia-200">
+                    M2 {customer.pricePerSquareMeter.toFixed(2)} €
+                  </span>
+                </div>
+              </button>
+            ))}
+
+            {!isLoading && filteredCustomers.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-slate-500">
+                No hay clientes que coincidan con la busqueda.
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div
+          className={`space-y-4 ${
+            mobilePane === "list" ? "hidden xl:block" : "block"
+          }`}
+        >
+          {selectedCustomer ? (
+            <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+              <button
+                className="mb-4 inline-flex items-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white xl:hidden"
+                onClick={() => setMobilePane("list")}
+                type="button"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+                Volver a la lista
+              </button>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-400">Ficha activa</p>
+                  <h3 className="mt-1 text-2xl font-semibold text-white">
+                    {selectedCustomer.name}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-400">
+                    {selectedCustomer.address ?? "Sin direccion"}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 sm:flex">
                   <button
-                    className="rounded-lg border border-gray-600 px-3 py-2 text-sm text-gray-300"
+                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white"
                     onClick={() => {
-                      setEditingCustomerId(customer.id);
-                      setForm(customerToFormState(customer));
+                      setEditingCustomerId(selectedCustomer.id);
+                      setForm(customerToFormState(selectedCustomer));
                       setFormError(null);
+                      setIsComposerOpen(true);
                     }}
                     type="button"
                   >
                     Editar
                   </button>
                   <button
-                    className="rounded-lg border border-red-700/50 bg-red-900/20 px-3 py-2 text-sm text-red-300"
+                    className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200"
                     onClick={() => {
-                      if (window.confirm(`Eliminar a ${customer.name}?`)) {
-                        deleteMutation.mutate(customer.id);
+                      if (window.confirm(`Eliminar a ${selectedCustomer.name}?`)) {
+                        deleteMutation.mutate(selectedCustomer.id);
                       }
                     }}
                     type="button"
@@ -446,34 +374,409 @@ export const CustomersPage = () => {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                <span className="rounded-full border border-blue-700/50 bg-blue-900/30 px-3 py-1 text-blue-200">
-                  ML {customer.pricePerLinearMeter.toFixed(2)}€
-                </span>
-                <span className="rounded-full border border-purple-700/50 bg-purple-900/20 px-3 py-1 text-purple-200">
-                  M² {customer.pricePerSquareMeter.toFixed(2)}€
-                </span>
-                <span className="rounded-full border border-green-700/50 bg-green-900/20 px-3 py-1 text-green-200">
-                  Min {customer.minimumRate.toFixed(2)}€
-                </span>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                {priceTiles.map((tile) => (
+                  <div
+                    className={`rounded-2xl border p-4 ${tile.accent}`}
+                    key={tile.key}
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em]">
+                      {tile.label}
+                    </p>
+                    <p className="mt-2 text-2xl font-bold">
+                      {selectedCustomer[tile.key].toFixed(2)} €
+                    </p>
+                  </div>
+                ))}
               </div>
 
-              {customer.specialPieces.length > 0 ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {customer.specialPieces.map((piece, index) => (
-                    <span
-                      className="rounded-full border border-blue-700/50 bg-blue-900/20 px-3 py-1 text-sm text-blue-100"
-                      key={`${customer.id}-piece-${index}`}
-                    >
-                      {piece.name} · {piece.price.toFixed(2)}€
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
+                    Contacto
+                  </p>
+                  <p className="mt-3 text-sm text-white">
+                    {selectedCustomer.email ?? "Sin email"}
+                  </p>
+                  <p className="mt-1 text-sm text-gray-400">
+                    {selectedCustomer.phone ?? "Sin telefono"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
+                    Grosor
+                  </p>
+                  <p className="mt-3 text-sm text-white">
+                    Minimo {selectedCustomer.grosorMm?.toFixed(1) ?? "N/A"} mm
+                  </p>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Suplemento {selectedCustomer.grosorPrecio?.toFixed(2) ?? "0.00"} €
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
+                    Piezas especiales
+                  </h4>
+                  <span className="text-xs text-gray-500">
+                    Toque rapido para futuras entradas
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedCustomer.specialPieces.length ? (
+                    selectedCustomer.specialPieces.map((piece, index) => (
+                      <span
+                        className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
+                        key={`${selectedCustomer.id}-piece-${index}`}
+                      >
+                        {piece.name} · {piece.price.toFixed(2)} €
+                      </span>
+                    ))
+                  ) : (
+                    <span className="rounded-full border border-dashed border-white/10 px-3 py-2 text-sm text-gray-500">
+                      Sin piezas especiales
                     </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
+                      Albaranes
+                    </h4>
+                    <p className="text-sm text-gray-500">
+                      Historial operativo del cliente seleccionado.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white/5 px-3 py-2 text-xs font-semibold text-gray-300">
+                    {customerNotesQuery.data?.deliveryNotes.length ?? 0} registros
+                  </span>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {customerNotesQuery.isLoading ? (
+                    <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4 text-sm text-gray-400">
+                      Cargando albaranes...
+                    </div>
+                  ) : null}
+
+                  {customerNotesQuery.data?.deliveryNotes.length ? (
+                    customerNotesQuery.data.deliveryNotes.map((note) => (
+                      <Link
+                        className="block rounded-2xl border border-white/10 bg-gray-950/50 p-4 transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/5"
+                        key={note.id}
+                        to={`/delivery-notes?noteId=${encodeURIComponent(note.id)}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {note.number}
+                            </p>
+                            <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
+                              <CalendarDaysIcon className="h-4 w-4 text-cyan-300" />
+                              {new Date(note.date).toLocaleDateString("es-ES")}
+                            </div>
+                          </div>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeByStatus[note.status]}`}
+                          >
+                            {statusLabel[note.status]}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between text-sm">
+                          <span className="text-gray-500">
+                            {note.items.length} lineas
+                          </span>
+                          <span className="font-mono text-cyan-300">
+                            {note.totalAmount.toFixed(2)} €
+                          </span>
+                        </div>
+                      </Link>
+                    ))
+                  ) : customerNotesQuery.isLoading ? null : (
+                    <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-gray-500">
+                      Este cliente aun no tiene albaranes.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </article>
+          ) : null}
+
+          {isComposerOpen ? (
+            <div className="fixed inset-0 z-40 flex items-end bg-gray-950/75 backdrop-blur sm:items-center sm:justify-center">
+              <button
+                aria-label="Cerrar formulario de cliente"
+                className="absolute inset-0"
+                onClick={() => {
+                  setEditingCustomerId(null);
+                  setForm(emptyCustomerForm());
+                  setFormError(null);
+                  setIsComposerOpen(false);
+                }}
+                type="button"
+              />
+            <form
+              className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#0b1220] p-5 shadow-2xl shadow-cyan-950/40 sm:max-w-3xl sm:rounded-[2rem] sm:p-6"
+              onSubmit={handleSubmit}
+            >
+              <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
+                <div>
+                  <p className="text-sm font-medium text-cyan-300">
+                    {editingCustomerId ? "Editar cliente" : "Alta rapida"}
+                  </p>
+                  <h3 className="mt-1 text-xl font-bold text-white">
+                    {editingCustomerId ? "Actualizar ficha" : "Nuevo cliente"}
+                  </h3>
+                </div>
+                <button
+                  className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-gray-300"
+                  onClick={() => {
+                    setEditingCustomerId(null);
+                    setForm(emptyCustomerForm());
+                    setFormError(null);
+                    setIsComposerOpen(false);
+                  }}
+                  type="button"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="Nombre del cliente"
+                  value={form.name}
+                />
+                <input
+                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, phone: event.target.value }))
+                  }
+                  placeholder="Telefono"
+                  value={form.phone}
+                />
+                <input
+                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, email: event.target.value }))
+                  }
+                  placeholder="Email"
+                  value={form.email}
+                />
+                <input
+                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, address: event.target.value }))
+                  }
+                  placeholder="Direccion"
+                  value={form.address}
+                />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {priceTiles.map((tile) => (
+                  <label
+                    className={`rounded-2xl border p-4 ${tile.accent}`}
+                    key={tile.key}
+                  >
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em]">
+                      {tile.label}
+                    </p>
+                    <input
+                      className="mt-3 w-full bg-transparent text-center text-2xl font-bold outline-none"
+                      inputMode="decimal"
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          [tile.key]: event.target.value
+                        }))
+                      }
+                      value={form[tile.key]}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                  inputMode="decimal"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, grosorMm: event.target.value }))
+                  }
+                  placeholder="Grosor minimo (mm)"
+                  value={form.grosorMm}
+                />
+                <input
+                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                  inputMode="decimal"
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      grosorPrecio: event.target.value
+                    }))
+                  }
+                  placeholder="Suplemento grosor"
+                  value={form.grosorPrecio}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
+                      Piezas especiales
+                    </h4>
+                    <p className="text-sm text-gray-500">
+                      Crea las frecuentes sin escribir de mas.
+                    </p>
+                  </div>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm text-gray-200"
+                    onClick={() =>
+                      setForm((current) => ({
+                        ...current,
+                        specialPieces: [...current.specialPieces, { name: "", price: "" }]
+                      }))
+                    }
+                    type="button"
+                  >
+                    <PlusIcon className="h-4 w-4" />
+                    Manual
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {quickSpecialPieces.map((piece) => (
+                    <button
+                      className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
+                      key={piece}
+                      onClick={() =>
+                        setForm((current) => {
+                          if (
+                            current.specialPieces.some(
+                              (entry) => entry.name.toLowerCase() === piece.toLowerCase()
+                            )
+                          ) {
+                            return current;
+                          }
+
+                          return {
+                            ...current,
+                            specialPieces: [
+                              ...current.specialPieces,
+                              { name: piece, price: "" }
+                            ]
+                          };
+                        })
+                      }
+                      type="button"
+                    >
+                      {piece}
+                    </button>
                   ))}
                 </div>
+
+                <div className="space-y-3">
+                  {form.specialPieces.map((piece, index) => (
+                    <div
+                      className="grid gap-3 rounded-2xl border border-white/10 bg-gray-950/50 p-3 sm:grid-cols-[1fr_140px_auto]"
+                      key={`piece-${index}`}
+                    >
+                      <input
+                        className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            specialPieces: current.specialPieces.map((entry, entryIndex) =>
+                              entryIndex === index
+                                ? { ...entry, name: event.target.value }
+                                : entry
+                            )
+                          }))
+                        }
+                        placeholder="Nombre de pieza"
+                        value={piece.name}
+                      />
+                      <input
+                        className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                        inputMode="decimal"
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            specialPieces: current.specialPieces.map((entry, entryIndex) =>
+                              entryIndex === index
+                                ? { ...entry, price: event.target.value }
+                                : entry
+                            )
+                          }))
+                        }
+                        placeholder="Precio"
+                        value={piece.price}
+                      />
+                      <button
+                        className="inline-flex items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-red-200"
+                        onClick={() =>
+                          setForm((current) => ({
+                            ...current,
+                            specialPieces: current.specialPieces.filter(
+                              (_, entryIndex) => entryIndex !== index
+                            )
+                          }))
+                        }
+                        type="button"
+                      >
+                        <TrashIcon className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <textarea
+                className="min-h-24 w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, notes: event.target.value }))
+                }
+                placeholder="Notas internas"
+                value={form.notes}
+              />
+
+              {formError || mutationError ? (
+                <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {formError ?? mutationError}
+                </p>
               ) : null}
-            </article>
-          ))}
+
+              <div className="sticky bottom-0 flex gap-3 rounded-2xl border border-white/10 bg-gray-950/90 p-3 backdrop-blur">
+                <button
+                  className="flex-1 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-gray-950"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  type="submit"
+                >
+                  {editingCustomerId ? "Guardar cambios" : "Crear cliente"}
+                </button>
+              </div>
+            </form>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-white/10 p-8 text-sm text-slate-500">
+              Selecciona un cliente de la lista para ver su ficha, tarifas y albaranes.
+            </div>
+          )}
         </div>
       </div>
     </section>
   );
 };
+
