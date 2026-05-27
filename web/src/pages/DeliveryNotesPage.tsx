@@ -145,6 +145,9 @@ const canPreviewItem = (customerId: string, item: DeliveryNoteItemFormState) =>
       Number.parseInt(item.quantity || "0", 10) > 0
   );
 
+const canAddAnotherPiece = (item: DeliveryNoteItemFormState) =>
+  Boolean(item.description.trim() && item.color.trim());
+
 export const DeliveryNotesPage = () => {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -159,6 +162,7 @@ export const DeliveryNotesPage = () => {
   const [todayOnly, setTodayOnly] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
+  const [pendingScrollToItemIndex, setPendingScrollToItemIndex] = useState<number | null>(null);
 
   const customersQuery = useQuery({
     queryKey: ["customers", "all-for-delivery-notes"],
@@ -177,6 +181,8 @@ export const DeliveryNotesPage = () => {
 
   const selectedCustomer =
     customersQuery.data?.customers.find((customer) => customer.id === form.customerId) ?? null;
+  const lastItem = form.items[form.items.length - 1];
+  const canCreateAnotherPiece = !lastItem || canAddAnotherPiece(lastItem);
 
   const filteredCustomerSuggestions = useMemo(() => {
     const query = customerSearch.trim().toLowerCase();
@@ -215,6 +221,20 @@ export const DeliveryNotesPage = () => {
     setSelectedNoteId(requestedNote.id);
     setMobilePane("detail");
   }, [deliveryNotesQuery.data?.deliveryNotes, requestedNoteId]);
+
+  useEffect(() => {
+    if (pendingScrollToItemIndex === null) {
+      return;
+    }
+
+    const element = document.getElementById(`delivery-note-piece-${pendingScrollToItemIndex}`);
+    if (!element) {
+      return;
+    }
+
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+    setPendingScrollToItemIndex(null);
+  }, [form.items.length, pendingScrollToItemIndex]);
 
   const createMutation = useMutation({
     mutationFn: createDeliveryNote,
@@ -622,23 +642,18 @@ export const DeliveryNotesPage = () => {
                 type="button"
               />
             <form
-              className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#0b1220] p-5 shadow-2xl shadow-cyan-950/40 sm:max-w-5xl sm:rounded-[2rem] sm:p-6"
+              className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#0b1220] shadow-2xl shadow-cyan-950/40 sm:max-w-5xl sm:rounded-[2rem]"
               onSubmit={(event) => {
                 event.preventDefault();
                 void submitForm(editingNoteId ? "PENDING" : "DRAFT");
               }}
             >
-              <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
-                <div>
-                  <p className="text-sm font-medium text-cyan-300">
-                    {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
-                  </p>
-                  <h3 className="mt-1 text-xl font-bold text-white">
-                    {editingNoteId ? "Actualizar trabajo" : "Nuevo trabajo"}
-                  </h3>
-                </div>
+              <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220] px-4 py-3 sm:px-5">
+                <h3 className="text-lg font-bold text-white">
+                  {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
+                </h3>
                 <button
-                  className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-gray-300"
+                  className="rounded-2xl border border-white/10 px-3 py-1.5 text-sm text-gray-300"
                   onClick={() => {
                     setEditingNoteId(null);
                     setForm(emptyForm());
@@ -653,6 +668,7 @@ export const DeliveryNotesPage = () => {
                 </button>
               </div>
 
+              <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="rounded-2xl border border-white/10 bg-gray-950/50 px-4 py-3">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
@@ -714,33 +730,41 @@ export const DeliveryNotesPage = () => {
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-                      Lineas del albaran
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Añade piezas y completa solo los datos necesarios.
-                    </p>
-                  </div>
+                <div className="flex justify-end">
                   <button
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm text-white"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        items: [...current.items, emptyItem()]
-                      }))
-                    }
+                    className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:border-white/5 disabled:text-gray-500"
+                    disabled={!canCreateAnotherPiece}
+                    onClick={() => {
+                      if (!canCreateAnotherPiece) {
+                        return;
+                      }
+
+                      setForm((current) => {
+                        const nextIndex = current.items.length;
+                        setPendingScrollToItemIndex(nextIndex);
+                        return {
+                          ...current,
+                          items: [...current.items, emptyItem()]
+                        };
+                      });
+                    }}
                     type="button"
                   >
                     <PlusIcon className="h-4 w-4" />
-                    Item
+                    Pieza
                   </button>
                 </div>
+
+                {!canCreateAnotherPiece ? (
+                  <p className="text-sm text-amber-300">
+                    Completa la ultima pieza antes de añadir otra.
+                  </p>
+                ) : null}
 
                 {form.items.map((item, index) => (
                   <div
                     className="space-y-4 rounded-3xl border border-white/10 bg-gray-950/50 p-4"
+                    id={`delivery-note-piece-${index}`}
                     key={`item-${index}`}
                   >
                     <div className="flex flex-wrap gap-2">
@@ -899,7 +923,7 @@ export const DeliveryNotesPage = () => {
                       <div>
                         <p className="font-semibold text-cyan-100">
                           {previews[index]
-                            ? `Total item ${previews[index].totalPrice.toFixed(2)} €`
+                            ? `Total pieza ${previews[index].totalPrice.toFixed(2)} €`
                             : "Completa cliente, descripcion y color para ver precio"}
                         </p>
                         {previews[index] ? (
@@ -941,38 +965,32 @@ export const DeliveryNotesPage = () => {
                   {formError ?? mutationError}
                 </p>
               ) : null}
+              </div>
 
-              <div className="sticky bottom-0 rounded-3xl border border-white/10 bg-gray-950/90 p-3 backdrop-blur">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-                      Resumen
-                    </p>
-                    <p className="mt-1 text-lg font-bold text-cyan-200">
-                      {liveTotal.toFixed(2)} €
-                    </p>
-                  </div>
-                  {selectedCustomer ? (
-                    <div className="rounded-full bg-white/5 px-3 py-2 text-xs text-gray-300">
-                      {selectedCustomer.name}
-                    </div>
-                  ) : null}
+              <div className="sticky bottom-0 z-10 flex items-center gap-2 border-t border-white/10 bg-[#0b1220] px-4 py-2 sm:px-5">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
+                    Resumen
+                  </p>
+                  <p className="text-base font-bold text-cyan-200">
+                    {liveTotal.toFixed(2)} €
+                  </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex items-center gap-2">
                   <button
-                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white"
+                    className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white"
                     onClick={() => void submitForm("DRAFT")}
                     type="button"
                   >
-                    Guardar borrador
+                    Borrador
                   </button>
                   <button
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-gray-950"
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-gray-950"
                     onClick={() => void submitForm("PENDING")}
                     type="button"
                   >
                     <CheckCircleIcon className="h-5 w-5" />
-                    Marcar pendiente
+                    Pendiente
                   </button>
                 </div>
               </div>
