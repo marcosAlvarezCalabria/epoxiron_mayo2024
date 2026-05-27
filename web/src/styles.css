@@ -2,12 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+html,
 body {
   @apply bg-slate-950 text-slate-100 antialiased;
+  overflow-x: hidden;
 }
 
 #root {
-  @apply min-h-screen;
+  @apply min-h-screen overflow-x-hidden;
 }
 
 button,

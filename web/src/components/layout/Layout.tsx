@@ -14,7 +14,7 @@ const navItems = [
 
 export const Layout = () => {
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] text-slate-100">
+    <div className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] text-slate-100">
       <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/92 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div>
@@ -47,7 +47,7 @@ export const Layout = () => {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 md:pb-8">
+      <main className="mx-auto max-w-7xl overflow-x-hidden px-4 pb-24 pt-6 sm:px-6 md:pb-8">
         <Outlet />
       </main>
 

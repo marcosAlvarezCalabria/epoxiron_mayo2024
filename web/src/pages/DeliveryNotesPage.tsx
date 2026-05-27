@@ -408,7 +408,7 @@ export const DeliveryNotesPage = () => {
                   Hoy
                 </button>
                 <select
-                  className="min-w-52 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white"
+                  className="w-full sm:w-auto sm:min-w-52 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white"
                   onChange={(event) => setCustomerFilter(event.target.value)}
                   value={customerFilter}
                 >
