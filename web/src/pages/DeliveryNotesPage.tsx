@@ -627,7 +627,7 @@ export const DeliveryNotesPage = () => {
           ) : null}
 
           {isComposerOpen ? (
-            <div className="fixed inset-0 z-40 flex items-end bg-gray-950/75 backdrop-blur sm:items-center sm:justify-center">
+            <div className="fixed inset-0 z-40 bg-gray-950/75 backdrop-blur sm:flex sm:items-center sm:justify-center">
               <button
                 aria-label="Cerrar formulario de albaran"
                 className="absolute inset-0"
@@ -642,18 +642,18 @@ export const DeliveryNotesPage = () => {
                 type="button"
               />
             <form
-              className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#0b1220] shadow-2xl shadow-cyan-950/40 sm:max-w-5xl sm:rounded-[2rem]"
+              className="absolute inset-0 z-10 flex h-full w-full flex-col bg-[#0b1220] shadow-2xl shadow-cyan-950/40 sm:relative sm:inset-auto sm:h-auto sm:max-h-[92vh] sm:max-w-5xl sm:rounded-[2rem] sm:border sm:border-white/10"
               onSubmit={(event) => {
                 event.preventDefault();
                 void submitForm(editingNoteId ? "PENDING" : "DRAFT");
               }}
             >
-              <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220] px-4 py-3 sm:px-5">
+              <div className="flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220] px-4 pb-2 pt-1.5 sm:px-5 sm:pb-3 sm:pt-2">
                 <h3 className="text-lg font-bold text-white">
                   {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
                 </h3>
                 <button
-                  className="rounded-2xl border border-white/10 px-3 py-1.5 text-sm text-gray-300"
+                  className="rounded-2xl border border-white/10 px-3 py-1 text-sm text-gray-300"
                   onClick={() => {
                     setEditingNoteId(null);
                     setForm(emptyForm());
@@ -668,7 +668,7 @@ export const DeliveryNotesPage = () => {
                 </button>
               </div>
 
-              <div className="space-y-4 px-4 py-4 sm:px-5 sm:py-5">
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="rounded-2xl border border-white/10 bg-gray-950/50 px-4 py-3">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
@@ -967,7 +967,7 @@ export const DeliveryNotesPage = () => {
               ) : null}
               </div>
 
-              <div className="sticky bottom-0 z-10 flex items-center gap-2 border-t border-white/10 bg-[#0b1220] px-4 py-2 sm:px-5">
+              <div className="flex items-center gap-2 border-t border-white/10 bg-[#0b1220] px-4 py-2 sm:px-5">
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
                     Resumen
