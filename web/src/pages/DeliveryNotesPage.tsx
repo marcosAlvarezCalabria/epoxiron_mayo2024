@@ -344,13 +344,13 @@ export const DeliveryNotesPage = () => {
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-400">Operacion diaria</p>
+          <p className="text-sm font-medium text-slate-400">Albaranes</p>
           <h2 className="text-3xl font-semibold tracking-tight text-white">
             Cola de albaranes
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-slate-400">
-            Registro agil de trabajos con seleccion de cliente, calculo inmediato
-            y numeracion automatica.
+            Gestion de trabajos con seleccion de cliente, calculo de precios y
+            numeracion automatica.
           </p>
         </div>
         <button
@@ -500,7 +500,7 @@ export const DeliveryNotesPage = () => {
               </button>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Ficha activa</p>
+                  <p className="text-sm font-medium text-slate-400">Albaran seleccionado</p>
                   <h3 className="mt-1 text-2xl font-semibold text-white">
                     {selectedNote.number}
                   </h3>
@@ -631,7 +631,7 @@ export const DeliveryNotesPage = () => {
               <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
                 <div>
                   <p className="text-sm font-medium text-cyan-300">
-                    {editingNoteId ? "Editar albaran" : "Alta rapida"}
+                    {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
                   </p>
                   <h3 className="mt-1 text-xl font-bold text-white">
                     {editingNoteId ? "Actualizar trabajo" : "Nuevo trabajo"}
@@ -671,7 +671,7 @@ export const DeliveryNotesPage = () => {
                   </div>
                 </label>
                 <div className="rounded-2xl border border-dashed border-white/10 bg-gray-950/40 px-4 py-3 text-sm text-gray-400">
-                  Numero automatico al guardar:
+                  Numero asignado al guardar:
                   <div className="mt-2 font-mono text-cyan-200">ALB-YYYY-NNNN</div>
                 </div>
               </div>
@@ -717,10 +717,10 @@ export const DeliveryNotesPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-                      Items
+                      Lineas del albaran
                     </p>
                     <p className="text-sm text-gray-500">
-                      Menos escritura, mas toque.
+                      Añade piezas y completa solo los datos necesarios.
                     </p>
                   </div>
                   <button
@@ -946,7 +946,7 @@ export const DeliveryNotesPage = () => {
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-                      Resumen rapido
+                      Resumen
                     </p>
                     <p className="mt-1 text-lg font-bold text-cyan-200">
                       {liveTotal.toFixed(2)} €
@@ -980,7 +980,7 @@ export const DeliveryNotesPage = () => {
             </div>
           ) : (
             <div className="rounded-3xl border border-dashed border-white/10 p-8 text-sm text-gray-500">
-              Selecciona un albaran o crea uno nuevo para trabajar rapido desde el movil.
+              Selecciona un albaran o crea uno nuevo para ver su detalle.
             </div>
           )}
         </div>

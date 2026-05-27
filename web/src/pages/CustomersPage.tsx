@@ -295,7 +295,7 @@ export const CustomersPage = () => {
                       {customer.name}
                     </p>
                     <p className="mt-1 text-sm text-slate-400">
-                      {customer.phone ?? customer.email ?? "Sin contacto rapido"}
+                      {customer.phone ?? customer.email ?? "Sin contacto"}
                     </p>
                   </div>
                   <div className="rounded-lg bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -339,7 +339,7 @@ export const CustomersPage = () => {
               </button>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Ficha activa</p>
+                  <p className="text-sm font-medium text-slate-400">Cliente seleccionado</p>
                   <h3 className="mt-1 text-2xl font-semibold text-white">
                     {selectedCustomer.name}
                   </h3>
@@ -421,7 +421,7 @@ export const CustomersPage = () => {
                     Piezas especiales
                   </h4>
                   <span className="text-xs text-gray-500">
-                    Toque rapido para futuras entradas
+                    Referencia frecuente
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -528,7 +528,7 @@ export const CustomersPage = () => {
               <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
                 <div>
                   <p className="text-sm font-medium text-cyan-300">
-                    {editingCustomerId ? "Editar cliente" : "Alta rapida"}
+                    {editingCustomerId ? "Editar cliente" : "Alta de cliente"}
                   </p>
                   <h3 className="mt-1 text-xl font-bold text-white">
                     {editingCustomerId ? "Actualizar ficha" : "Nuevo cliente"}

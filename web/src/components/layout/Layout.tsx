@@ -22,7 +22,7 @@ export const Layout = () => {
               Epoxiron
             </p>
             <h1 className="mt-1 text-xl font-semibold text-white sm:text-2xl">
-              Taller operativo
+              Gestion del taller
             </h1>
           </div>
 
