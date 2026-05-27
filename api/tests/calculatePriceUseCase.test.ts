@@ -50,4 +50,20 @@ describe("CalculatePriceUseCase", () => {
     expect(result.totalPrice).toBe(20);
     expect(result.unitPrice).toBe(20);
   });
+
+  it("adds linear meters and square meters in the same item", () => {
+    const result = useCase.execute(
+      {
+        description: "Perfil mixto",
+        color: "RAL 9005",
+        linearMeters: 2,
+        squareMeters: 1.5,
+        quantity: 2
+      },
+      customer
+    );
+
+    expect(result.totalPrice).toBe(100);
+    expect(result.unitPrice).toBe(50);
+  });
 });

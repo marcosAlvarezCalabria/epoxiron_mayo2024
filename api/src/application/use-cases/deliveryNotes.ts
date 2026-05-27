@@ -27,10 +27,12 @@ export class CalculatePriceUseCase {
 
     if (specialPiece) {
       totalPrice = specialPiece.price * quantity;
-    } else if (item.linearMeters) {
-      totalPrice = item.linearMeters * customer.pricePerLinearMeter * quantity;
-    } else if (item.squareMeters) {
-      totalPrice = item.squareMeters * customer.pricePerSquareMeter * quantity;
+    } else {
+      const pricePerPiece =
+        (item.linearMeters ?? 0) * customer.pricePerLinearMeter +
+        (item.squareMeters ?? 0) * customer.pricePerSquareMeter;
+
+      totalPrice = pricePerPiece * quantity;
     }
 
     const minimum = customer.minimumRate * quantity;

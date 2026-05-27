@@ -17,6 +17,7 @@ import {
   updateDeliveryNote,
   updateDeliveryNoteStatus
 } from "@/application/use-cases";
+import { RalColorPicker } from "@/components/RalColorPicker";
 import type {
   DeliveryNote,
   DeliveryNoteInput,
@@ -64,15 +65,6 @@ const statusHelp: Record<DeliveryNoteStatus, string> = {
   REVIEWED: "Ya esta revisado y validado para dejarlo cerrado."
 };
 
-const quickRalColors = [
-  "RAL 7016",
-  "RAL 9005",
-  "RAL 9010",
-  "RAL 6005",
-  "RAL 3009",
-  "RAL 5008"
-] as const;
-
 const genericItemTemplates = [
   "Perfil rectangular",
   "Marco soldado",
@@ -84,7 +76,7 @@ const genericItemTemplates = [
 
 const emptyItem = (): DeliveryNoteItemFormState => ({
   description: "",
-  color: quickRalColors[0],
+  color: "RAL 7016",
   linearMeters: "",
   squareMeters: "",
   thickness: "",
@@ -811,28 +803,21 @@ export const DeliveryNotesPage = () => {
                       value={item.description}
                     />
 
-                    <div className="flex flex-wrap gap-2">
-                      {quickRalColors.map((color) => (
-                        <button
-                          className={`rounded-full px-3 py-2 text-sm ${
-                            item.color === color
-                              ? "bg-cyan-500 text-gray-950"
-                              : "border border-white/10 bg-gray-900 text-gray-300"
-                          }`}
-                          key={`${index}-${color}`}
-                          onClick={() =>
-                            setForm((current) => ({
-                              ...current,
-                              items: current.items.map((entry, entryIndex) =>
-                                entryIndex === index ? { ...entry, color } : entry
-                              )
-                            }))
-                          }
-                          type="button"
-                        >
-                          {color}
-                        </button>
-                      ))}
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                        Color
+                      </p>
+                      <RalColorPicker
+                        onChange={(color) =>
+                          setForm((current) => ({
+                            ...current,
+                            items: current.items.map((entry, entryIndex) =>
+                              entryIndex === index ? { ...entry, color } : entry
+                            )
+                          }))
+                        }
+                        value={item.color}
+                      />
                     </div>
 
                     <div className="grid gap-3 sm:grid-cols-[132px_1fr_1fr_1fr]">
@@ -918,6 +903,10 @@ export const DeliveryNotesPage = () => {
                         </label>
                       ))}
                     </div>
+
+                    <p className="text-xs text-gray-500">
+                      Puedes rellenar metros lineales, metros cuadrados o ambos.
+                    </p>
 
                     <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm">
                       <div>
