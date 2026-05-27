@@ -147,7 +147,6 @@ const buildCustomer = (): Customer => ({
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,
-  grosorMm: 3,
   grosorPrecio: 5,
   specialPieces: [{ name: "Barandilla", price: 40 }],
   createdAt: new Date("2026-01-01T00:00:00.000Z"),

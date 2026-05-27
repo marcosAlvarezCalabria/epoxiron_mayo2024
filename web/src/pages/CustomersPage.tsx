@@ -32,7 +32,6 @@ interface CustomerFormState {
   pricePerLinearMeter: string;
   pricePerSquareMeter: string;
   minimumRate: string;
-  grosorMm: string;
   grosorPrecio: string;
   specialPieces: SpecialPieceFormState[];
 }
@@ -55,7 +54,6 @@ const emptyCustomerForm = (): CustomerFormState => ({
   pricePerLinearMeter: "0",
   pricePerSquareMeter: "0",
   minimumRate: "0",
-  grosorMm: "",
   grosorPrecio: "",
   specialPieces: []
 });
@@ -69,7 +67,6 @@ const customerToFormState = (customer: Customer): CustomerFormState => ({
   pricePerLinearMeter: customer.pricePerLinearMeter.toString(),
   pricePerSquareMeter: customer.pricePerSquareMeter.toString(),
   minimumRate: customer.minimumRate.toString(),
-  grosorMm: customer.grosorMm?.toString() ?? "",
   grosorPrecio: customer.grosorPrecio?.toString() ?? "",
   specialPieces: customer.specialPieces.map((piece) => ({
     name: piece.name,
@@ -93,7 +90,6 @@ const normalizeCustomerPayload = (form: CustomerFormState): CustomerInput => ({
   pricePerLinearMeter: parseNumber(form.pricePerLinearMeter),
   pricePerSquareMeter: parseNumber(form.pricePerSquareMeter),
   minimumRate: parseNumber(form.minimumRate),
-  grosorMm: form.grosorMm.trim() ? parseNumber(form.grosorMm) : null,
   grosorPrecio: form.grosorPrecio.trim() ? parseNumber(form.grosorPrecio) : null,
   specialPieces: form.specialPieces
     .filter((piece) => piece.name.trim() && piece.price.trim())
@@ -175,6 +171,7 @@ export const CustomersPage = () => {
       setFormError(null);
       setIsComposerOpen(false);
       setSelectedCustomerId(result.customer.id);
+      setMobilePane("detail");
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
@@ -188,6 +185,7 @@ export const CustomersPage = () => {
       setFormError(null);
       setIsComposerOpen(false);
       setSelectedCustomerId(result.customer.id);
+      setMobilePane("detail");
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
@@ -204,6 +202,14 @@ export const CustomersPage = () => {
     const error = createMutation.error ?? updateMutation.error ?? deleteMutation.error;
     return error instanceof ApiError ? error.message : null;
   }, [createMutation.error, deleteMutation.error, updateMutation.error]);
+
+  const closeComposer = () => {
+    setEditingCustomerId(null);
+    setForm(emptyCustomerForm());
+    setFormError(null);
+    setIsComposerOpen(false);
+    setMobilePane(selectedCustomerId ? "detail" : "list");
+  };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -243,9 +249,11 @@ export const CustomersPage = () => {
         <button
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-50"
           onClick={() => {
+            setSelectedCustomerId(null);
             setEditingCustomerId(null);
             setForm(emptyCustomerForm());
             setFormError(null);
+            setMobilePane("detail");
             setIsComposerOpen(true);
           }}
           type="button"
@@ -354,6 +362,7 @@ export const CustomersPage = () => {
                       setEditingCustomerId(selectedCustomer.id);
                       setForm(customerToFormState(selectedCustomer));
                       setFormError(null);
+                      setMobilePane("detail");
                       setIsComposerOpen(true);
                     }}
                     type="button"
@@ -407,9 +416,6 @@ export const CustomersPage = () => {
                     Grosor
                   </p>
                   <p className="mt-3 text-sm text-white">
-                    Minimo {selectedCustomer.grosorMm?.toFixed(1) ?? "N/A"} mm
-                  </p>
-                  <p className="mt-1 text-sm text-gray-400">
                     Suplemento {selectedCustomer.grosorPrecio?.toFixed(2) ?? "0.00"} €
                   </p>
                 </div>
@@ -513,12 +519,7 @@ export const CustomersPage = () => {
               <button
                 aria-label="Cerrar formulario de cliente"
                 className="absolute inset-0"
-                onClick={() => {
-                  setEditingCustomerId(null);
-                  setForm(emptyCustomerForm());
-                  setFormError(null);
-                  setIsComposerOpen(false);
-                }}
+                onClick={closeComposer}
                 type="button"
               />
             <form
@@ -536,12 +537,7 @@ export const CustomersPage = () => {
                 </div>
                 <button
                   className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-gray-300"
-                  onClick={() => {
-                    setEditingCustomerId(null);
-                    setForm(emptyCustomerForm());
-                    setFormError(null);
-                    setIsComposerOpen(false);
-                  }}
+                  onClick={closeComposer}
                   type="button"
                 >
                   Cerrar
@@ -607,16 +603,7 @@ export const CustomersPage = () => {
                 ))}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                  inputMode="decimal"
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, grosorMm: event.target.value }))
-                  }
-                  placeholder="Grosor minimo (mm)"
-                  value={form.grosorMm}
-                />
+              <div className="grid gap-3">
                 <input
                   className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
                   inputMode="decimal"
@@ -626,7 +613,7 @@ export const CustomersPage = () => {
                       grosorPrecio: event.target.value
                     }))
                   }
-                  placeholder="Suplemento grosor"
+                  placeholder="Suplemento por grosor"
                   value={form.grosorPrecio}
                 />
               </div>

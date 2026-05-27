@@ -12,7 +12,6 @@ const customer: Customer = {
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,
-  grosorMm: 3,
   grosorPrecio: 5,
   specialPieces: [{ name: "Barandilla", price: 40 }],
   createdAt: new Date(),
@@ -36,7 +35,7 @@ describe("CalculatePriceUseCase", () => {
     expect(result.unitPrice).toBe(40);
   });
 
-  it("applies minimum rate and thickness surcharge", () => {
+  it("applies minimum rate and thickness surcharge when thickness is informed", () => {
     const result = useCase.execute(
       {
         description: "Perfil",
@@ -52,4 +51,3 @@ describe("CalculatePriceUseCase", () => {
     expect(result.unitPrice).toBe(20);
   });
 });
-

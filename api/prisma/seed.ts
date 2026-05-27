@@ -13,7 +13,6 @@ const customers = [
     pricePerLinearMeter: 12.5,
     pricePerSquareMeter: 28,
     minimumRate: 45,
-    grosorMm: 3,
     grosorPrecio: 6,
     specialPieces: [
       { name: "Barandilla estandar", price: 48 },
@@ -29,7 +28,6 @@ const customers = [
     pricePerLinearMeter: 11,
     pricePerSquareMeter: 24.5,
     minimumRate: 38,
-    grosorMm: 2.5,
     grosorPrecio: 4.5,
     specialPieces: [
       { name: "Perfil U 80", price: 21 },
@@ -45,7 +43,6 @@ const customers = [
     pricePerLinearMeter: 13.2,
     pricePerSquareMeter: 30,
     minimumRate: 50,
-    grosorMm: 4,
     grosorPrecio: 7,
     specialPieces: [
       { name: "Bastidor industrial", price: 95 },
@@ -61,7 +58,6 @@ const customers = [
     pricePerLinearMeter: 9.8,
     pricePerSquareMeter: 22,
     minimumRate: 32,
-    grosorMm: 2,
     grosorPrecio: 3.5,
     specialPieces: [
       { name: "Tapa lateral", price: 9.5 },
@@ -77,7 +73,6 @@ const customers = [
     pricePerLinearMeter: 14,
     pricePerSquareMeter: 31.5,
     minimumRate: 52,
-    grosorMm: 3.5,
     grosorPrecio: 8,
     specialPieces: [
       { name: "Puerta peatonal", price: 110 },
@@ -93,7 +88,6 @@ const customers = [
     pricePerLinearMeter: 10.7,
     pricePerSquareMeter: 25.8,
     minimumRate: 36,
-    grosorMm: 3,
     grosorPrecio: 5.2,
     specialPieces: [
       { name: "Bandeja portacables", price: 18 },
@@ -109,7 +103,6 @@ const customers = [
     pricePerLinearMeter: 15.5,
     pricePerSquareMeter: 33,
     minimumRate: 58,
-    grosorMm: 4,
     grosorPrecio: 8.5,
     specialPieces: [
       { name: "Bastidor inoxidable", price: 125 },
@@ -125,7 +118,6 @@ const customers = [
     pricePerLinearMeter: 16.2,
     pricePerSquareMeter: 35,
     minimumRate: 60,
-    grosorMm: 4.5,
     grosorPrecio: 9,
     specialPieces: [
       { name: "Caja tecnica", price: 88 },
@@ -187,12 +179,7 @@ const calculateItemPrice = (
     totalPrice = minimum;
   }
 
-  if (
-    item.thickness &&
-    customer.grosorMm &&
-    customer.grosorPrecio &&
-    item.thickness >= customer.grosorMm
-  ) {
+  if (item.thickness && customer.grosorPrecio) {
     totalPrice += customer.grosorPrecio * item.quantity;
   }
 
@@ -279,7 +266,6 @@ async function main() {
         pricePerLinearMeter: customer.pricePerLinearMeter,
         pricePerSquareMeter: customer.pricePerSquareMeter,
         minimumRate: customer.minimumRate,
-        grosorMm: customer.grosorMm,
         grosorPrecio: customer.grosorPrecio,
         specialPieces: {
           create: customer.specialPieces.map((piece) => ({

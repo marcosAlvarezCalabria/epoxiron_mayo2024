@@ -22,7 +22,6 @@ class InMemoryCustomerRepository {
       phone: input.phone ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
-      grosorMm: input.grosorMm ?? null,
       grosorPrecio: input.grosorPrecio ?? null,
       updatedAt: new Date()
     };
@@ -52,7 +51,6 @@ class InMemoryCustomerRepository {
       phone: input.phone ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
-      grosorMm: input.grosorMm ?? null,
       grosorPrecio: input.grosorPrecio ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -76,7 +74,6 @@ const buildCustomer = (id: string, name: string): Customer => ({
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,
-  grosorMm: 3,
   grosorPrecio: 5,
   specialPieces: [],
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -120,7 +117,6 @@ describe("customer use cases", () => {
       pricePerLinearMeter: 12,
       pricePerSquareMeter: 22,
       minimumRate: 18,
-      grosorMm: 4,
       grosorPrecio: 6,
       specialPieces: [{ name: "Barandilla", price: 40 }]
     });
@@ -150,4 +146,3 @@ describe("customer use cases", () => {
     expect(repository.customers.find((customer) => customer.id === "customer-2")).toBeUndefined();
   });
 });
-

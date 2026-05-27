@@ -14,7 +14,6 @@ export interface Customer {
   pricePerLinearMeter: number;
   pricePerSquareMeter: number;
   minimumRate: number;
-  grosorMm: number | null;
   grosorPrecio: number | null;
   specialPieces: SpecialPiece[];
 }
@@ -28,7 +27,6 @@ export interface CustomerInput {
   pricePerLinearMeter: number;
   pricePerSquareMeter: number;
   minimumRate: number;
-  grosorMm?: number | null;
   grosorPrecio?: number | null;
   specialPieces: SpecialPiece[];
 }

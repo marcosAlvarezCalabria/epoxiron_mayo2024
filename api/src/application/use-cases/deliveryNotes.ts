@@ -38,12 +38,7 @@ export class CalculatePriceUseCase {
       totalPrice = minimum;
     }
 
-    if (
-      item.thickness &&
-      customer.grosorMm &&
-      customer.grosorPrecio &&
-      item.thickness >= customer.grosorMm
-    ) {
+    if (item.thickness && customer.grosorPrecio) {
       totalPrice += customer.grosorPrecio * quantity;
     }
 

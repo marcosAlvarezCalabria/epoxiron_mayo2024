@@ -14,8 +14,6 @@ export const customerInputSchema = z.object({
   pricePerLinearMeter: z.coerce.number().nonnegative(),
   pricePerSquareMeter: z.coerce.number().nonnegative(),
   minimumRate: z.coerce.number().nonnegative(),
-  grosorMm: z.coerce.number().positive().nullable().optional(),
   grosorPrecio: z.coerce.number().nonnegative().nullable().optional(),
   specialPieces: z.array(specialPieceSchema).default([])
 });
-
