@@ -5,7 +5,7 @@
   TrashIcon,
   UserPlusIcon
 } from "@heroicons/react/24/outline";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
@@ -138,6 +138,8 @@ export const CustomersPage = () => {
   const [form, setForm] = useState<CustomerFormState>(emptyCustomerForm);
   const [formError, setFormError] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [specialPiecesReadFilter, setSpecialPiecesReadFilter] = useState("");
+  const [specialPiecesEditFilter, setSpecialPiecesEditFilter] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["customers"],
@@ -157,6 +159,28 @@ export const CustomersPage = () => {
 
   const selectedCustomer =
     filteredCustomers.find((customer) => customer.id === selectedCustomerId) ?? null;
+
+  useEffect(() => {
+    setSpecialPiecesReadFilter("");
+  }, [selectedCustomer?.id]);
+
+  useEffect(() => {
+    if (isComposerOpen) {
+      setSpecialPiecesEditFilter("");
+    }
+  }, [editingCustomerId, isComposerOpen]);
+
+  const normalizedReadFilter = specialPiecesReadFilter.trim().toLowerCase();
+  const visibleReadPieces = selectedCustomer
+    ? selectedCustomer.specialPieces.filter((piece) =>
+        piece.name.toLowerCase().includes(normalizedReadFilter)
+      )
+    : [];
+
+  const normalizedEditFilter = specialPiecesEditFilter.trim().toLowerCase();
+  const visibleEditPieces = form.specialPieces
+    .map((piece, index) => ({ piece, index }))
+    .filter(({ piece }) => piece.name.toLowerCase().includes(normalizedEditFilter));
 
   const customerNotesQuery = useQuery({
     queryKey: ["delivery-notes", "customer-detail", selectedCustomer?.id],
@@ -430,16 +454,30 @@ export const CustomersPage = () => {
                     Referencia frecuente
                   </span>
                 </div>
+                {selectedCustomer.specialPieces.length > 8 ? (
+                  <input
+                    className="mt-3 w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                    onChange={(event) => setSpecialPiecesReadFilter(event.target.value)}
+                    placeholder="Buscar pieza..."
+                    value={specialPiecesReadFilter}
+                  />
+                ) : null}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {selectedCustomer.specialPieces.length ? (
-                    selectedCustomer.specialPieces.map((piece, index) => (
-                      <span
-                        className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
-                        key={`${selectedCustomer.id}-piece-${index}`}
-                      >
-                        {piece.name} · {piece.price.toFixed(2)} €
+                    visibleReadPieces.length ? (
+                      visibleReadPieces.map((piece, index) => (
+                        <span
+                          className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
+                          key={`${selectedCustomer.id}-piece-${index}`}
+                        >
+                          {piece.name} · {piece.price.toFixed(2)} €
+                        </span>
+                      ))
+                    ) : normalizedReadFilter ? (
+                      <span className="rounded-full border border-dashed border-white/10 px-3 py-2 text-sm text-gray-500">
+                        Sin resultados
                       </span>
-                    ))
+                    ) : null
                   ) : (
                     <span className="rounded-full border border-dashed border-white/10 px-3 py-2 text-sm text-gray-500">
                       Sin piezas especiales
@@ -675,7 +713,20 @@ export const CustomersPage = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {form.specialPieces.map((piece, index) => (
+                  {form.specialPieces.length > 8 ? (
+                    <input
+                      className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                      onChange={(event) => setSpecialPiecesEditFilter(event.target.value)}
+                      placeholder="Buscar pieza..."
+                      value={specialPiecesEditFilter}
+                    />
+                  ) : null}
+                  {normalizedEditFilter && visibleEditPieces.length === 0 ? (
+                    <p className="text-sm text-gray-500">
+                      Sin resultados para «{specialPiecesEditFilter}»
+                    </p>
+                  ) : null}
+                  {visibleEditPieces.map(({ piece, index }) => (
                     <div
                       className="grid gap-3 rounded-2xl border border-white/10 bg-gray-950/50 p-3 sm:grid-cols-[1fr_140px_auto]"
                       key={`piece-${index}`}

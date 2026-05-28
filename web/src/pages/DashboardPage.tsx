@@ -126,9 +126,10 @@ export const DashboardPage = () => {
           <div className="mt-5 space-y-3">
             {data?.notes.length ? (
               data.notes.map((note) => (
-                <article
-                  className="rounded-xl border border-white/10 bg-slate-950/60 p-4"
+                <Link
+                  className="block rounded-xl border border-white/10 bg-slate-950/60 p-4 transition-colors hover:border-cyan-400/30 hover:bg-slate-900/80"
                   key={note.id}
+                  to={`/delivery-notes?noteId=${note.id}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -149,7 +150,7 @@ export const DashboardPage = () => {
                       {note.totalAmount.toFixed(2)} {"\u20AC"}
                     </span>
                   </div>
-                </article>
+                </Link>
               ))
             ) : (
               <div className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-500">
