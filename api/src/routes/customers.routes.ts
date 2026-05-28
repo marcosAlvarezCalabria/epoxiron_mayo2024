@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { customerInputSchema } from "../schemas/customerSchemas.js";
 import { CustomersController } from "../controllers/CustomersController.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
 
 export const buildCustomersRouter = (controller: CustomersController) => {
   const router = Router();
 
-  router.get("/", controller.list);
-  router.get("/:id", controller.getById);
+  router.get("/", asyncHandler(controller.list));
+  router.get("/:id", asyncHandler(controller.getById));
   router.post("/", async (request, _response, next) => {
     try {
       request.body = customerInputSchema.parse(request.body);
@@ -14,7 +15,7 @@ export const buildCustomersRouter = (controller: CustomersController) => {
     } catch (error) {
       next(error);
     }
-  }, controller.create);
+  }, asyncHandler(controller.create));
   router.put("/:id", async (request, _response, next) => {
     try {
       request.body = customerInputSchema.parse(request.body);
@@ -22,8 +23,8 @@ export const buildCustomersRouter = (controller: CustomersController) => {
     } catch (error) {
       next(error);
     }
-  }, controller.update);
-  router.delete("/:id", controller.delete);
+  }, asyncHandler(controller.update));
+  router.delete("/:id", asyncHandler(controller.delete));
 
   return router;
 };

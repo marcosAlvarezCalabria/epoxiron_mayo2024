@@ -2,6 +2,7 @@
   ArrowLeftIcon,
   CalendarDaysIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
   MinusIcon,
   PlusIcon
 } from "@heroicons/react/24/outline";
@@ -17,6 +18,7 @@ import {
   updateDeliveryNote,
   updateDeliveryNoteStatus
 } from "@/application/use-cases";
+import { ApiErrorState } from "@/components/ApiErrorState";
 import { RalColorPicker } from "@/components/RalColorPicker";
 import type {
   DeliveryNote,
@@ -155,6 +157,7 @@ export const DeliveryNotesPage = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
   const [pendingScrollToItemIndex, setPendingScrollToItemIndex] = useState<number | null>(null);
+  const [openTemplatePickerIndex, setOpenTemplatePickerIndex] = useState<number | null>(null);
 
   const customersQuery = useQuery({
     queryKey: ["customers", "all-for-delivery-notes"],
@@ -190,6 +193,11 @@ export const DeliveryNotesPage = () => {
       .filter((customer) => customer.name.toLowerCase().startsWith(query))
       .slice(0, 8);
   }, [customerSearch, customersQuery.data?.customers, selectedCustomer]);
+
+  const availableItemTemplates = useMemo(() => {
+    const customerTemplates = selectedCustomer?.specialPieces.map((piece) => piece.name) ?? [];
+    return [...new Set([...customerTemplates, ...genericItemTemplates])];
+  }, [selectedCustomer]);
 
   const selectedNote =
     deliveryNotesQuery.data?.deliveryNotes.find((note) => note.id === selectedNoteId) ??
@@ -237,6 +245,7 @@ export const DeliveryNotesPage = () => {
       setCustomerSearch("");
       setFormError(null);
       setIsComposerOpen(false);
+      setOpenTemplatePickerIndex(null);
       setPreviews({});
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
@@ -253,6 +262,7 @@ export const DeliveryNotesPage = () => {
       setCustomerSearch("");
       setFormError(null);
       setIsComposerOpen(false);
+      setOpenTemplatePickerIndex(null);
       setPreviews({});
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
@@ -371,6 +381,7 @@ export const DeliveryNotesPage = () => {
             setEditingNoteId(null);
             setForm(emptyForm());
             setCustomerSearch("");
+            setOpenTemplatePickerIndex(null);
             setPreviews({});
             setFormError(null);
             setMobilePane("detail");
@@ -433,6 +444,13 @@ export const DeliveryNotesPage = () => {
                 </select>
               </div>
               <div className="grid gap-2 border-t border-white/10 pt-3 text-sm text-slate-300">
+                {customersQuery.error instanceof ApiError ? (
+                  <ApiErrorState
+                    message={customersQuery.error.message}
+                    title="Error al cargar clientes"
+                  />
+                ) : null}
+
                 <p className="font-semibold text-white">Como se usan los estados</p>
                 <p>
                   <span className="font-semibold text-white">Borrador:</span> aun lo
@@ -451,6 +469,13 @@ export const DeliveryNotesPage = () => {
           </div>
 
           <div className="space-y-3">
+            {deliveryNotesQuery.error instanceof ApiError ? (
+              <ApiErrorState
+                message={deliveryNotesQuery.error.message}
+                title="Error al cargar albaranes"
+              />
+            ) : null}
+
             {deliveryNotesQuery.data?.deliveryNotes.length ? (
               deliveryNotesQuery.data.deliveryNotes.map((note) => (
                 <button
@@ -529,6 +554,7 @@ export const DeliveryNotesPage = () => {
                       setForm(noteToFormState(selectedNote));
                       setCustomerSearch(selectedNote.customerName);
                       setFormError(null);
+                      setOpenTemplatePickerIndex(null);
                       setPreviews({});
                       setIsComposerOpen(true);
                     }}
@@ -650,6 +676,7 @@ export const DeliveryNotesPage = () => {
                     setEditingNoteId(null);
                     setForm(emptyForm());
                     setCustomerSearch("");
+                    setOpenTemplatePickerIndex(null);
                     setPreviews({});
                     setFormError(null);
                     setIsComposerOpen(false);
@@ -759,33 +786,60 @@ export const DeliveryNotesPage = () => {
                     id={`delivery-note-piece-${index}`}
                     key={`item-${index}`}
                   >
-                    <div className="flex flex-wrap gap-2">
-                      {[...(selectedCustomer?.specialPieces.map((piece) => piece.name) ?? []), ...genericItemTemplates]
-                        .slice(0, 8)
-                        .map((template) => (
-                          <button
-                            className={`rounded-full px-3 py-2 text-sm ${
-                              item.description === template
-                                ? "bg-cyan-500 text-gray-950"
-                                : "border border-white/10 bg-gray-900 text-gray-300"
+                    {availableItemTemplates.length ? (
+                      <div className="space-y-3">
+                        <button
+                          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-left text-sm font-semibold text-white"
+                          onClick={() =>
+                            setOpenTemplatePickerIndex((current) =>
+                              current === index ? null : index
+                            )
+                          }
+                          type="button"
+                        >
+                          <span>Piezas especiales</span>
+                          <ChevronDownIcon
+                            className={`h-4 w-4 transition-transform ${
+                              openTemplatePickerIndex === index ? "rotate-180" : ""
                             }`}
-                            key={`${index}-${template}`}
-                            onClick={() =>
-                              setForm((current) => ({
-                                ...current,
-                                items: current.items.map((entry, entryIndex) =>
-                                  entryIndex === index
-                                    ? { ...entry, description: template }
-                                    : entry
-                                )
-                              }))
-                            }
-                            type="button"
-                          >
-                            {template}
-                          </button>
-                        ))}
-                    </div>
+                          />
+                        </button>
+
+                        {openTemplatePickerIndex === index ? (
+                          <div className="overflow-hidden rounded-2xl border border-white/10 bg-gray-950/50">
+                            {availableItemTemplates.map((template) => (
+                              <button
+                                className={`flex w-full items-center justify-between border-b border-white/10 px-4 py-3 text-left text-sm last:border-b-0 ${
+                                  item.description === template
+                                    ? "bg-cyan-500/15 text-cyan-100"
+                                    : "text-gray-200 hover:bg-white/5"
+                                }`}
+                                key={`${index}-${template}`}
+                                onClick={() => {
+                                  setForm((current) => ({
+                                    ...current,
+                                    items: current.items.map((entry, entryIndex) =>
+                                      entryIndex === index
+                                        ? { ...entry, description: template }
+                                        : entry
+                                    )
+                                  }));
+                                  setOpenTemplatePickerIndex(null);
+                                }}
+                                type="button"
+                              >
+                                <span>{template}</span>
+                                {item.description === template ? (
+                                  <span className="text-xs font-semibold text-cyan-200">
+                                    Seleccionada
+                                  </span>
+                                ) : null}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
 
                     <input
                       className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"

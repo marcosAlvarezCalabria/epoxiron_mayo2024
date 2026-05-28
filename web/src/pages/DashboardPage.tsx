@@ -7,6 +7,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getDashboardSummary } from "@/application/use-cases";
+import { ApiErrorState } from "@/components/ApiErrorState";
+import { ApiError } from "@/infrastructure/api/apiClient";
 
 const statCards = [
   {
@@ -42,12 +44,13 @@ const statusLabel = {
 } as const;
 
 export const DashboardPage = () => {
-  const { data } = useQuery({
+  const { data, error } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: getDashboardSummary
   });
 
   const stats = data?.stats;
+  const queryError = error instanceof ApiError ? error.message : null;
 
   return (
     <section className="space-y-6">
@@ -105,6 +108,8 @@ export const DashboardPage = () => {
           );
         })}
       </div>
+
+      {queryError ? <ApiErrorState message={queryError} /> : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">

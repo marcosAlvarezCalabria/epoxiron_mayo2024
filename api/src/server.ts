@@ -24,6 +24,7 @@ import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
+import { asyncHandler } from "./middleware/asyncHandler.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { buildCustomersRouter } from "./routes/customers.routes.js";
 import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
@@ -93,7 +94,7 @@ app.get("/health", (_request, response) => {
 
 app.use("/api/customers", buildCustomersRouter(customersController));
 app.use("/api/delivery-notes", buildDeliveryNotesRouter(deliveryNotesController));
-app.get("/api/dashboard/summary", deliveryNotesController.getDashboardSummary);
+app.get("/api/dashboard/summary", asyncHandler(deliveryNotesController.getDashboardSummary));
 app.use("/api/hermes-tools", buildHermesToolsRouter(customersController, deliveryNotesController));
 
 app.use(errorHandler);

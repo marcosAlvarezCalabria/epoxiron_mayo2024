@@ -1,6 +1,7 @@
 ﻿import {
   ArrowLeftIcon,
   CalendarDaysIcon,
+  ChevronDownIcon,
   PlusIcon,
   TrashIcon,
   UserPlusIcon
@@ -15,6 +16,7 @@ import {
   getCustomers,
   updateCustomer
 } from "@/application/use-cases";
+import { ApiErrorState } from "@/components/ApiErrorState";
 import type { Customer, CustomerInput, DeliveryNote } from "@/domain/entities";
 import { ApiError } from "@/infrastructure/api/apiClient";
 
@@ -140,11 +142,13 @@ export const CustomersPage = () => {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [specialPiecesReadFilter, setSpecialPiecesReadFilter] = useState("");
   const [specialPiecesEditFilter, setSpecialPiecesEditFilter] = useState("");
+  const [isSpecialPiecesEditorOpen, setIsSpecialPiecesEditorOpen] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["customers"],
     queryFn: () => getCustomers()
   });
+  const customersQueryError = error instanceof ApiError ? error.message : null;
 
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -169,6 +173,17 @@ export const CustomersPage = () => {
       setSpecialPiecesEditFilter("");
     }
   }, [editingCustomerId, isComposerOpen]);
+
+  useEffect(() => {
+    if (!isComposerOpen) {
+      setIsSpecialPiecesEditorOpen(false);
+      return;
+    }
+
+    if (editingCustomerId || form.specialPieces.length > 0) {
+      setIsSpecialPiecesEditorOpen(true);
+    }
+  }, [editingCustomerId, form.specialPieces.length, isComposerOpen]);
 
   const normalizedReadFilter = specialPiecesReadFilter.trim().toLowerCase();
   const visibleReadPieces = selectedCustomer
@@ -207,6 +222,7 @@ export const CustomersPage = () => {
       setEditingCustomerId(null);
       setForm(emptyCustomerForm());
       setFormError(null);
+      setIsSpecialPiecesEditorOpen(false);
       setIsComposerOpen(false);
       setSelectedCustomerId(result.customer.id);
       setMobilePane("detail");
@@ -231,6 +247,7 @@ export const CustomersPage = () => {
     setEditingCustomerId(null);
     setForm(emptyCustomerForm());
     setFormError(null);
+    setIsSpecialPiecesEditorOpen(false);
     setIsComposerOpen(false);
     setMobilePane(selectedCustomerId ? "detail" : "list");
   };
@@ -277,6 +294,7 @@ export const CustomersPage = () => {
             setEditingCustomerId(null);
             setForm(emptyCustomerForm());
             setFormError(null);
+            setIsSpecialPiecesEditorOpen(false);
             setMobilePane("detail");
             setIsComposerOpen(true);
           }}
@@ -303,6 +321,10 @@ export const CustomersPage = () => {
           </div>
 
           <div className="space-y-3">
+            {customersQueryError ? (
+              <ApiErrorState message={customersQueryError} title="Error al cargar clientes" />
+            ) : null}
+
             {isLoading ? (
               <p className="text-sm text-gray-400">Cargando clientes...</p>
             ) : null}
@@ -386,6 +408,7 @@ export const CustomersPage = () => {
                       setEditingCustomerId(selectedCustomer.id);
                       setForm(customerToFormState(selectedCustomer));
                       setFormError(null);
+                      setIsSpecialPiecesEditorOpen(true);
                       setMobilePane("detail");
                       setIsComposerOpen(true);
                     }}
@@ -454,7 +477,7 @@ export const CustomersPage = () => {
                     Referencia frecuente
                   </span>
                 </div>
-                {selectedCustomer.specialPieces.length > 8 ? (
+                {selectedCustomer.specialPieces.length > 0 ? (
                   <input
                     className="mt-3 w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
                     onChange={(event) => setSpecialPiecesReadFilter(event.target.value)}
@@ -502,6 +525,13 @@ export const CustomersPage = () => {
                 </div>
 
                 <div className="mt-3 space-y-3">
+                  {customerNotesQuery.error instanceof ApiError ? (
+                    <ApiErrorState
+                      message={customerNotesQuery.error.message}
+                      title="Error al cargar albaranes"
+                    />
+                  ) : null}
+
                   {customerNotesQuery.isLoading ? (
                     <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4 text-sm text-gray-400">
                       Cargando albaranes...
@@ -656,18 +686,21 @@ export const CustomersPage = () => {
                 />
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
+              <div className="rounded-[1.75rem] border border-cyan-500/20 bg-cyan-500/10 p-4 shadow-lg shadow-cyan-950/20">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300">
                       Piezas especiales
+                    </p>
+                    <h4 className="mt-1 text-lg font-semibold text-white">
+                      Catalogo rapido del cliente
                     </h4>
-                    <p className="text-sm text-gray-500">
-                      Crea las frecuentes sin escribir de mas.
+                    <p className="mt-2 text-sm text-cyan-100/75">
+                      Agrupa aqui las piezas frecuentes para reducir carga visual en albaranes.
                     </p>
                   </div>
                   <button
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-2 text-sm text-gray-200"
+                    className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-50"
                     onClick={() =>
                       setForm((current) => ({
                         ...current,
@@ -681,10 +714,10 @@ export const CustomersPage = () => {
                   </button>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   {quickSpecialPieces.map((piece) => (
                     <button
-                      className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
+                      className="rounded-full border border-cyan-400/25 bg-slate-950/70 px-3 py-2 text-sm text-cyan-100"
                       key={piece}
                       onClick={() =>
                         setForm((current) => {
@@ -712,72 +745,98 @@ export const CustomersPage = () => {
                   ))}
                 </div>
 
-                <div className="space-y-3">
-                  {form.specialPieces.length > 8 ? (
-                    <input
-                      className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                      onChange={(event) => setSpecialPiecesEditFilter(event.target.value)}
-                      placeholder="Buscar pieza..."
-                      value={specialPiecesEditFilter}
+                <div className="mt-4">
+                  <button
+                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left text-sm font-semibold text-white"
+                    onClick={() => setIsSpecialPiecesEditorOpen((current) => !current)}
+                    type="button"
+                  >
+                    <span>
+                      {form.specialPieces.length
+                        ? `${form.specialPieces.length} piezas cargadas`
+                        : "Abrir editor de piezas"}
+                    </span>
+                    <ChevronDownIcon
+                      className={`h-4 w-4 transition-transform ${
+                        isSpecialPiecesEditorOpen ? "rotate-180" : ""
+                      }`}
                     />
-                  ) : null}
-                  {normalizedEditFilter && visibleEditPieces.length === 0 ? (
-                    <p className="text-sm text-gray-500">
-                      Sin resultados para «{specialPiecesEditFilter}»
-                    </p>
-                  ) : null}
-                  {visibleEditPieces.map(({ piece, index }) => (
-                    <div
-                      className="grid gap-3 rounded-2xl border border-white/10 bg-gray-950/50 p-3 sm:grid-cols-[1fr_140px_auto]"
-                      key={`piece-${index}`}
-                    >
-                      <input
-                        className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            specialPieces: current.specialPieces.map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? { ...entry, name: event.target.value }
-                                : entry
-                            )
-                          }))
-                        }
-                        placeholder="Nombre de pieza"
-                        value={piece.name}
-                      />
-                      <input
-                        className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                        inputMode="decimal"
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            specialPieces: current.specialPieces.map((entry, entryIndex) =>
-                              entryIndex === index
-                                ? { ...entry, price: event.target.value }
-                                : entry
-                            )
-                          }))
-                        }
-                        placeholder="Precio"
-                        value={piece.price}
-                      />
-                      <button
-                        className="inline-flex items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-red-200"
-                        onClick={() =>
-                          setForm((current) => ({
-                            ...current,
-                            specialPieces: current.specialPieces.filter(
-                              (_, entryIndex) => entryIndex !== index
-                            )
-                          }))
-                        }
-                        type="button"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
+                  </button>
+
+                  {isSpecialPiecesEditorOpen ? (
+                    <div className="mt-3 space-y-3">
+                      {form.specialPieces.length > 0 ? (
+                        <input
+                          className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                          onChange={(event) => setSpecialPiecesEditFilter(event.target.value)}
+                          placeholder="Buscar pieza..."
+                          value={specialPiecesEditFilter}
+                        />
+                      ) : null}
+                      {normalizedEditFilter && visibleEditPieces.length === 0 ? (
+                        <p className="text-sm text-gray-400">
+                          Sin resultados para «{specialPiecesEditFilter}»
+                        </p>
+                      ) : null}
+                      {visibleEditPieces.map(({ piece, index }) => (
+                        <div
+                          className="grid gap-3 rounded-2xl border border-white/10 bg-gray-950/60 p-3 sm:grid-cols-[1fr_140px_auto]"
+                          key={`piece-${index}`}
+                        >
+                          <input
+                            className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                specialPieces: current.specialPieces.map((entry, entryIndex) =>
+                                  entryIndex === index
+                                    ? { ...entry, name: event.target.value }
+                                    : entry
+                                )
+                              }))
+                            }
+                            placeholder="Nombre de pieza"
+                            value={piece.name}
+                          />
+                          <input
+                            className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                            inputMode="decimal"
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                specialPieces: current.specialPieces.map((entry, entryIndex) =>
+                                  entryIndex === index
+                                    ? { ...entry, price: event.target.value }
+                                    : entry
+                                )
+                              }))
+                            }
+                            placeholder="Precio"
+                            value={piece.price}
+                          />
+                          <button
+                            className="inline-flex items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-red-200"
+                            onClick={() =>
+                              setForm((current) => ({
+                                ...current,
+                                specialPieces: current.specialPieces.filter(
+                                  (_, entryIndex) => entryIndex !== index
+                                )
+                              }))
+                            }
+                            type="button"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      ))}
+                      {!form.specialPieces.length ? (
+                        <div className="rounded-2xl border border-dashed border-cyan-400/20 bg-slate-950/50 px-4 py-5 text-sm text-cyan-100/70">
+                          No hay piezas especiales cargadas todavia.
+                        </div>
+                      ) : null}
                     </div>
-                  ))}
+                  ) : null}
                 </div>
               </div>
 
