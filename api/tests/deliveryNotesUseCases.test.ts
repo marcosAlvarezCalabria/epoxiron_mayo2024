@@ -133,6 +133,17 @@ class InMemoryDeliveryNoteRepository {
       if (filters.customerId && note.customerId !== filters.customerId) {
         return false;
       }
+      if (filters.today || filters.date) {
+        const referenceDate = filters.date ?? new Date();
+        const sameDay =
+          note.date.getFullYear() === referenceDate.getFullYear() &&
+          note.date.getMonth() === referenceDate.getMonth() &&
+          note.date.getDate() === referenceDate.getDate();
+
+        if (!sameDay) {
+          return false;
+        }
+      }
       return true;
     });
 
@@ -148,6 +159,17 @@ class InMemoryDeliveryNoteRepository {
       }
       if (filters.customerId && note.customerId !== filters.customerId) {
         return false;
+      }
+      if (filters.today || filters.date) {
+        const referenceDate = filters.date ?? new Date();
+        const sameDay =
+          note.date.getFullYear() === referenceDate.getFullYear() &&
+          note.date.getMonth() === referenceDate.getMonth() &&
+          note.date.getDate() === referenceDate.getDate();
+
+        if (!sameDay) {
+          return false;
+        }
       }
       return true;
     }).length;
@@ -184,7 +206,11 @@ const buildCustomer = (): Customer => ({
   updatedAt: new Date("2026-01-01T00:00:00.000Z")
 });
 
-const buildNote = (id: string, status: DeliveryNoteStatus): DeliveryNote => ({
+const buildNote = (
+  id: string,
+  status: DeliveryNoteStatus,
+  date = "2026-01-01T00:00:00.000Z"
+): DeliveryNote => ({
   id,
   number: `ALB-${id}`,
   customerId: "customer-1",
@@ -192,7 +218,7 @@ const buildNote = (id: string, status: DeliveryNoteStatus): DeliveryNote => ({
   status,
   notes: null,
   totalAmount: status === "REVIEWED" ? 120 : 45,
-  date: new Date("2026-01-01T00:00:00.000Z"),
+  date: new Date(date),
   items: [
     {
       description: "Perfil",
@@ -205,8 +231,8 @@ const buildNote = (id: string, status: DeliveryNoteStatus): DeliveryNote => ({
       thickness: null
     }
   ],
-  createdAt: new Date("2026-01-01T00:00:00.000Z"),
-  updatedAt: new Date("2026-01-01T00:00:00.000Z")
+  createdAt: new Date(date),
+  updatedAt: new Date(date)
 });
 
 describe("delivery note use cases", () => {
@@ -219,9 +245,9 @@ describe("delivery note use cases", () => {
     customerRepository.customers = [buildCustomer()];
     deliveryNoteRepository = new InMemoryDeliveryNoteRepository();
     deliveryNoteRepository.notes = [
-      buildNote("note-draft", "DRAFT"),
-      buildNote("note-reviewed", "REVIEWED"),
-      buildNote("note-pending", "PENDING")
+      buildNote("note-draft", "DRAFT", "2026-01-01T00:00:00.000Z"),
+      buildNote("note-reviewed", "REVIEWED", "2026-01-01T00:00:00.000Z"),
+      buildNote("note-pending", "PENDING", "2026-01-02T00:00:00.000Z")
     ];
     calculatePriceUseCase = new CalculatePriceUseCase();
   });
@@ -344,7 +370,25 @@ describe("delivery note use cases", () => {
     expect(result[0]?.id).toBe("note-pending");
   });
 
+  it("filters delivery notes by a selected date", async () => {
+    const useCase = new GetDeliveryNotesUseCase(deliveryNoteRepository);
+
+    const result = await useCase.execute({
+      date: new Date("2026-01-02T00:00:00.000Z")
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe("note-pending");
+  });
+
   it("builds the dashboard summary with totals and counters", async () => {
+    const todayIso = new Date().toISOString();
+    deliveryNoteRepository.notes = [
+      buildNote("note-draft", "DRAFT", todayIso),
+      buildNote("note-reviewed", "REVIEWED", todayIso),
+      buildNote("note-pending", "PENDING", todayIso)
+    ];
+
     const useCase = new GetDashboardSummaryUseCase(deliveryNoteRepository);
 
     const result = await useCase.execute();
