@@ -6,7 +6,7 @@
   MinusIcon,
   PlusIcon
 } from "@heroicons/react/24/outline";
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -150,6 +150,19 @@ export const DeliveryNotesPage = () => {
   const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
   const [pendingScrollToItemIndex, setPendingScrollToItemIndex] = useState<number | null>(null);
   const [openTemplatePickerIndex, setOpenTemplatePickerIndex] = useState<number | null>(null);
+  const dateFilterInputRef = useRef<HTMLInputElement | null>(null);
+  const formDateInputRef = useRef<HTMLInputElement | null>(null);
+
+  const openDatePicker = (input: HTMLInputElement | null) => {
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+    }
+  };
 
   const customersQuery = useQuery({
     queryKey: ["customers", "all-for-delivery-notes"],
@@ -430,14 +443,25 @@ export const DeliveryNotesPage = () => {
                 >
                   Hoy
                 </button>
+                <button
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-left text-sm text-white sm:w-auto sm:min-w-44"
+                  onClick={() => openDatePicker(dateFilterInputRef.current)}
+                  type="button"
+                >
+                  {dateFilter
+                    ? new Date(dateFilter).toLocaleDateString("es-ES")
+                    : "Seleccionar fecha"}
+                </button>
                 <input
-                  className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white sm:w-auto"
+                  className="pointer-events-none absolute opacity-0"
                   onChange={(event) => {
                     setDateFilter(event.target.value);
                     if (event.target.value) {
                       setTodayOnly(false);
                     }
                   }}
+                  ref={dateFilterInputRef}
+                  tabIndex={-1}
                   type="date"
                   value={dateFilter}
                 />
@@ -704,17 +728,26 @@ export const DeliveryNotesPage = () => {
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
                     Fecha
                   </span>
-                  <div className="flex items-center gap-2">
+                  <button
+                    className="flex w-full items-center gap-2 text-left"
+                    onClick={() => openDatePicker(formDateInputRef.current)}
+                    type="button"
+                  >
                     <CalendarDaysIcon className="h-5 w-5 text-cyan-300" />
-                    <input
-                      className="w-full bg-transparent text-sm text-white outline-none"
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, date: event.target.value }))
-                      }
-                      type="date"
-                      value={form.date}
-                    />
-                  </div>
+                    <span className="text-sm text-white">
+                      {new Date(form.date).toLocaleDateString("es-ES")}
+                    </span>
+                  </button>
+                  <input
+                    className="pointer-events-none absolute opacity-0"
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, date: event.target.value }))
+                    }
+                    ref={formDateInputRef}
+                    tabIndex={-1}
+                    type="date"
+                    value={form.date}
+                  />
                 </label>
               </div>
 
