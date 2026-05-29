@@ -7,6 +7,7 @@ import type {
 
 export interface DeliveryNoteRepository {
   findAll(filters: DeliveryNoteFilters): Promise<DeliveryNote[]>;
+  count(filters: DeliveryNoteFilters): Promise<number>;
   findById(id: string): Promise<DeliveryNote | null>;
   findLatestNumberForYear(year: number): Promise<string | null>;
   create(

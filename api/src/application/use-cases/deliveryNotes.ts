@@ -40,8 +40,8 @@ export class CalculatePriceUseCase {
       totalPrice = minimum;
     }
 
-    if (item.thickness && customer.grosorPrecio) {
-      totalPrice += customer.grosorPrecio * quantity;
+    if (item.thickness) {
+      totalPrice *= 2;
     }
 
     totalPrice = Math.round(totalPrice * 100) / 100;
@@ -164,6 +164,10 @@ export class GetDeliveryNotesUseCase {
 
   public async execute(filters: DeliveryNoteFilters) {
     return this.repository.findAll(filters);
+  }
+
+  public async count(filters: DeliveryNoteFilters) {
+    return this.repository.count(filters);
   }
 }
 

@@ -35,7 +35,7 @@ describe("CalculatePriceUseCase", () => {
     expect(result.unitPrice).toBe(40);
   });
 
-  it("applies minimum rate and thickness surcharge when thickness is informed", () => {
+  it("duplicates the calculated price when thickness is informed", () => {
     const result = useCase.execute(
       {
         description: "Perfil",
@@ -47,8 +47,8 @@ describe("CalculatePriceUseCase", () => {
       customer
     );
 
-    expect(result.totalPrice).toBe(20);
-    expect(result.unitPrice).toBe(20);
+    expect(result.totalPrice).toBe(30);
+    expect(result.unitPrice).toBe(30);
   });
 
   it("adds linear meters and square meters in the same item", () => {

@@ -10,7 +10,13 @@ import type {
   UpdateDeliveryNoteUseCase
 } from "../application/use-cases/deliveryNotes.js";
 import type { GetCustomerUseCase } from "../application/use-cases/customers.js";
-import { getRouteParam, getStatusQuery } from "./requestParsers.js";
+import {
+  getDateQuery,
+  getNonNegativeIntegerQuery,
+  getPositiveIntegerQuery,
+  getRouteParam,
+  getStatusQuery
+} from "./requestParsers.js";
 
 export class DeliveryNotesController {
   public constructor(
@@ -27,12 +33,32 @@ export class DeliveryNotesController {
 
   public list = async (request: Request, response: Response) => {
     const filters = {
+      date: getDateQuery(request.query.date),
       status: getStatusQuery(request.query.status),
       customerId: typeof request.query.customerId === "string" ? request.query.customerId : undefined,
-      today: request.query.today === "true"
+      today: request.query.today === "true",
+      limit: getPositiveIntegerQuery(request.query.limit),
+      offset: getNonNegativeIntegerQuery(request.query.offset)
     };
     const deliveryNotes = await this.getDeliveryNotesUseCase.execute(filters);
-    response.json({ deliveryNotes });
+    const total = await this.getDeliveryNotesUseCase.count({
+      date: filters.date,
+      status: filters.status,
+      customerId: filters.customerId,
+      today: filters.today
+    });
+    response.json({
+      deliveryNotes,
+      pagination: {
+        total,
+        limit: filters.limit ?? null,
+        offset: filters.offset ?? 0,
+        hasMore:
+          typeof filters.limit === "number"
+            ? (filters.offset ?? 0) + deliveryNotes.length < total
+            : false
+      }
+    });
   };
 
   public getById = async (request: Request, response: Response) => {

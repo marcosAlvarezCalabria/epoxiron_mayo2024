@@ -19,7 +19,7 @@ const statCards = [
   },
   {
     key: "pending",
-    label: "Pendientes",
+    label: "Pend. revision",
     accent: "text-amber-300",
     icon: ClockIcon
   },
@@ -178,10 +178,13 @@ export const DashboardPage = () => {
             </div>
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
-                Pendiente
+                Pendiente de revisar
               </p>
               <p className="mt-2 text-2xl font-bold text-amber-100">
                 {stats?.pending ?? 0}
+              </p>
+              <p className="mt-1 text-xs text-amber-100/75">
+                Albaranes terminados que aun no se han marcado como revisados.
               </p>
             </div>
             <div className="rounded-xl border border-white/10 bg-slate-950/60 p-4">

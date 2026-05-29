@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Customer, CustomerInput } from "../src/domain/entities/Customer.js";
 import {
+  CreateCustomerUseCase,
   DeleteCustomerUseCase,
   GetCustomerUseCase,
   GetCustomersUseCase,
@@ -41,6 +42,21 @@ class InMemoryCustomerRepository {
 
   public async findById(id: string) {
     return this.customers.find((customer) => customer.id === id) ?? null;
+  }
+
+  public async findByName(name: string) {
+    return (
+      this.customers.find((customer) => customer.name.toLowerCase() === name.trim().toLowerCase()) ??
+      null
+    );
+  }
+
+  public async findByEmail(email: string) {
+    return (
+      this.customers.find(
+        (customer) => customer.email?.toLowerCase() === email.trim().toLowerCase()
+      ) ?? null
+    );
   }
 
   public async create(input: CustomerInput) {
@@ -86,9 +102,47 @@ describe("customer use cases", () => {
   beforeEach(() => {
     repository = new InMemoryCustomerRepository();
     repository.customers = [
-      buildCustomer("customer-1", "Pinturas Lopez"),
-      buildCustomer("customer-2", "Recubrimientos Norte")
+      { ...buildCustomer("customer-1", "Pinturas Lopez"), email: "lopez@example.com" },
+      { ...buildCustomer("customer-2", "Recubrimientos Norte"), email: "norte@example.com" }
     ];
+  });
+
+  it("blocks creating a customer with a duplicated name", async () => {
+    const useCase = new CreateCustomerUseCase(repository);
+
+    await expect(
+      useCase.execute({
+        name: "pinturas lopez",
+        email: "nuevo@example.com",
+        pricePerLinearMeter: 10,
+        pricePerSquareMeter: 20,
+        minimumRate: 15,
+        grosorPrecio: 5,
+        specialPieces: []
+      })
+    ).rejects.toMatchObject({
+      message: "Ya existe un cliente con ese nombre",
+      statusCode: 409
+    });
+  });
+
+  it("blocks creating a customer with a duplicated email", async () => {
+    const useCase = new CreateCustomerUseCase(repository);
+
+    await expect(
+      useCase.execute({
+        name: "Cliente Nuevo",
+        email: "LOPEZ@example.com",
+        pricePerLinearMeter: 10,
+        pricePerSquareMeter: 20,
+        minimumRate: 15,
+        grosorPrecio: 5,
+        specialPieces: []
+      })
+    ).rejects.toMatchObject({
+      message: "Ya existe un cliente con ese correo",
+      statusCode: 409
+    });
   });
 
   it("filters customers by search term", async () => {
@@ -124,6 +178,25 @@ describe("customer use cases", () => {
     expect(result.name).toBe("Pinturas Lopez Premium");
     expect(repository.update).toHaveBeenCalledOnce();
     expect(result.specialPieces).toHaveLength(1);
+  });
+
+  it("blocks updating a customer with a duplicated name", async () => {
+    const useCase = new UpdateCustomerUseCase(repository);
+
+    await expect(
+      useCase.execute("customer-1", {
+        name: "Recubrimientos Norte",
+        email: "otro@example.com",
+        pricePerLinearMeter: 12,
+        pricePerSquareMeter: 22,
+        minimumRate: 18,
+        grosorPrecio: 6,
+        specialPieces: []
+      })
+    ).rejects.toMatchObject({
+      message: "Ya existe un cliente con ese nombre",
+      statusCode: 409
+    });
   });
 
   it("blocks deleting a customer with delivery notes", async () => {

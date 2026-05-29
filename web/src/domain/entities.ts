@@ -91,3 +91,13 @@ export interface DashboardSummary {
     pending: number;
   };
 }
+
+export interface DeliveryNotesListResponse {
+  deliveryNotes: DeliveryNote[];
+  pagination: {
+    total: number;
+    limit: number | null;
+    offset: number;
+    hasMore: boolean;
+  };
+}

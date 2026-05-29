@@ -4,6 +4,7 @@ import type {
   CustomerInput,
   DashboardSummary,
   DeliveryNote,
+  DeliveryNotesListResponse,
   DeliveryNoteInput,
   DeliveryNoteItemDraft,
   DeliveryNoteStatus,
@@ -33,9 +34,12 @@ export const deleteCustomer = async (id: string) =>
   });
 
 export const getDeliveryNotes = async (filters?: {
+  date?: string;
   status?: DeliveryNoteStatus | "ALL";
   customerId?: string;
   today?: boolean;
+  limit?: number;
+  offset?: number;
 }) => {
   const params = new URLSearchParams();
   if (filters?.status && filters.status !== "ALL") {
@@ -47,8 +51,17 @@ export const getDeliveryNotes = async (filters?: {
   if (filters?.today) {
     params.set("today", "true");
   }
+  if (filters?.date) {
+    params.set("date", filters.date);
+  }
+  if (typeof filters?.limit === "number") {
+    params.set("limit", filters.limit.toString());
+  }
+  if (typeof filters?.offset === "number") {
+    params.set("offset", filters.offset.toString());
+  }
   const query = params.toString();
-  return apiClient<{ deliveryNotes: DeliveryNote[] }>(
+  return apiClient<DeliveryNotesListResponse>(
     `/api/delivery-notes${query ? `?${query}` : ""}`
   );
 };

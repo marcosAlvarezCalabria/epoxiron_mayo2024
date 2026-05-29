@@ -2,10 +2,39 @@ import type { CustomerInput } from "../../domain/entities/Customer.js";
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
 
+const normalizeText = (value: string) => value.trim().toLowerCase();
+
+const ensureUniqueCustomer = async (
+  repository: CustomerRepository,
+  input: CustomerInput,
+  currentCustomerId?: string
+) => {
+  const customerByName = await repository.findByName(input.name.trim());
+  if (customerByName && customerByName.id !== currentCustomerId) {
+    throw new DomainException("Ya existe un cliente con ese nombre", 409);
+  }
+
+  const normalizedEmail = input.email?.trim();
+  if (!normalizedEmail) {
+    return;
+  }
+
+  const customerByEmail = await repository.findByEmail(normalizedEmail);
+  if (
+    customerByEmail &&
+    customerByEmail.id !== currentCustomerId &&
+    customerByEmail.email &&
+    normalizeText(customerByEmail.email) === normalizeText(normalizedEmail)
+  ) {
+    throw new DomainException("Ya existe un cliente con ese correo", 409);
+  }
+};
+
 export class CreateCustomerUseCase {
   public constructor(private readonly repository: CustomerRepository) {}
 
   public async execute(input: CustomerInput) {
+    await ensureUniqueCustomer(this.repository, input);
     return this.repository.create(input);
   }
 }
@@ -19,6 +48,7 @@ export class UpdateCustomerUseCase {
       throw new DomainException("Cliente no encontrado", 404);
     }
 
+    await ensureUniqueCustomer(this.repository, input, current.id);
     return this.repository.update(id, input);
   }
 }

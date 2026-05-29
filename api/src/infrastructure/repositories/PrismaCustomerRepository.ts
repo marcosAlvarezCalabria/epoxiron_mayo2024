@@ -31,6 +31,34 @@ export class PrismaCustomerRepository implements CustomerRepository {
     });
   }
 
+  public async findByName(name: string) {
+    return prisma.customer.findFirst({
+      where: {
+        name: {
+          equals: name,
+          mode: "insensitive"
+        }
+      },
+      include: {
+        specialPieces: true
+      }
+    });
+  }
+
+  public async findByEmail(email: string) {
+    return prisma.customer.findFirst({
+      where: {
+        email: {
+          equals: email,
+          mode: "insensitive"
+        }
+      },
+      include: {
+        specialPieces: true
+      }
+    });
+  }
+
   public async create(input: CustomerInput) {
     return prisma.customer.create({
       data: {

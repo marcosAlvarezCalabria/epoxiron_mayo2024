@@ -38,14 +38,10 @@ interface CustomerFormState {
   specialPieces: SpecialPieceFormState[];
 }
 
-const quickSpecialPieces = [
-  "Barandilla",
-  "Marco",
-  "Puerta",
-  "Bastidor",
-  "Rejilla",
-  "Pletina"
-] as const;
+interface CustomerFieldErrors {
+  email?: string;
+  name?: string;
+}
 
 const emptyCustomerForm = (): CustomerFormState => ({
   name: "",
@@ -82,6 +78,26 @@ const toOptionalText = (value: string) => {
 };
 
 const parseNumber = (value: string) => Number.parseFloat(value || "0");
+
+const getCustomerFieldErrors = (error: ApiError | null): CustomerFieldErrors => {
+  if (!error) {
+    return {};
+  }
+
+  if (error.message === "Ya existe un cliente con ese nombre") {
+    return {
+      name: error.message
+    };
+  }
+
+  if (error.message === "Ya existe un cliente con ese correo") {
+    return {
+      email: error.message
+    };
+  }
+
+  return {};
+};
 
 const normalizeCustomerPayload = (form: CustomerFormState): CustomerInput => ({
   name: form.name.trim(),
@@ -132,6 +148,8 @@ const statusLabel: Record<DeliveryNote["status"], string> = {
 };
 
 export const CustomersPage = () => {
+  const initialCustomerNotesLimit = 5;
+  const customerNotesPageStep = 10;
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -139,10 +157,12 @@ export const CustomersPage = () => {
   const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
   const [form, setForm] = useState<CustomerFormState>(emptyCustomerForm);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [specialPiecesReadFilter, setSpecialPiecesReadFilter] = useState("");
   const [specialPiecesEditFilter, setSpecialPiecesEditFilter] = useState("");
   const [isSpecialPiecesEditorOpen, setIsSpecialPiecesEditorOpen] = useState(false);
+  const [customerNotesLimit, setCustomerNotesLimit] = useState(initialCustomerNotesLimit);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["customers"],
@@ -166,6 +186,10 @@ export const CustomersPage = () => {
 
   useEffect(() => {
     setSpecialPiecesReadFilter("");
+  }, [selectedCustomer?.id]);
+
+  useEffect(() => {
+    setCustomerNotesLimit(initialCustomerNotesLimit);
   }, [selectedCustomer?.id]);
 
   useEffect(() => {
@@ -198,16 +222,25 @@ export const CustomersPage = () => {
     .filter(({ piece }) => piece.name.toLowerCase().includes(normalizedEditFilter));
 
   const customerNotesQuery = useQuery({
-    queryKey: ["delivery-notes", "customer-detail", selectedCustomer?.id],
-    queryFn: () => getDeliveryNotes({ customerId: selectedCustomer?.id }),
+    queryKey: ["delivery-notes", "customer-detail", selectedCustomer?.id, customerNotesLimit],
+    queryFn: () =>
+      getDeliveryNotes({
+        customerId: selectedCustomer?.id,
+        limit: customerNotesLimit
+    }),
     enabled: Boolean(selectedCustomer?.id)
   });
+
+  const visibleCustomerNotes = customerNotesQuery.data?.deliveryNotes.slice(0, customerNotesLimit) ?? [];
+  const customerNotesTotal = customerNotesQuery.data?.pagination.total ?? visibleCustomerNotes.length;
+  const customerNotesHasMore = customerNotesTotal > visibleCustomerNotes.length;
 
   const createMutation = useMutation({
     mutationFn: createCustomer,
     onSuccess: async (result) => {
       setForm(emptyCustomerForm());
       setFormError(null);
+      setFieldErrors({});
       setIsComposerOpen(false);
       setSelectedCustomerId(result.customer.id);
       setMobilePane("detail");
@@ -222,6 +255,7 @@ export const CustomersPage = () => {
       setEditingCustomerId(null);
       setForm(emptyCustomerForm());
       setFormError(null);
+      setFieldErrors({});
       setIsSpecialPiecesEditorOpen(false);
       setIsComposerOpen(false);
       setSelectedCustomerId(result.customer.id);
@@ -247,6 +281,7 @@ export const CustomersPage = () => {
     setEditingCustomerId(null);
     setForm(emptyCustomerForm());
     setFormError(null);
+    setFieldErrors({});
     setIsSpecialPiecesEditorOpen(false);
     setIsComposerOpen(false);
     setMobilePane(selectedCustomerId ? "detail" : "list");
@@ -255,9 +290,12 @@ export const CustomersPage = () => {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
+    setFieldErrors({});
 
     if (!form.name.trim()) {
-      setFormError("El nombre del cliente es obligatorio.");
+      setFieldErrors({
+        name: "El nombre del cliente es obligatorio."
+      });
       return;
     }
 
@@ -269,7 +307,15 @@ export const CustomersPage = () => {
       } else {
         await createMutation.mutateAsync(payload);
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const nextFieldErrors = getCustomerFieldErrors(error);
+        if (nextFieldErrors.name || nextFieldErrors.email) {
+          setFieldErrors(nextFieldErrors);
+          return;
+        }
+      }
+
       return;
     }
   };
@@ -446,7 +492,7 @@ export const CustomersPage = () => {
                 ))}
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-5">
                 <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
                     Contacto
@@ -456,14 +502,6 @@ export const CustomersPage = () => {
                   </p>
                   <p className="mt-1 text-sm text-gray-400">
                     {selectedCustomer.phone ?? "Sin telefono"}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
-                    Grosor
-                  </p>
-                  <p className="mt-3 text-sm text-white">
-                    Suplemento {selectedCustomer.grosorPrecio?.toFixed(2) ?? "0.00"} €
                   </p>
                 </div>
               </div>
@@ -520,7 +558,7 @@ export const CustomersPage = () => {
                     </p>
                   </div>
                   <span className="rounded-full bg-white/5 px-3 py-2 text-xs font-semibold text-gray-300">
-                    {customerNotesQuery.data?.deliveryNotes.length ?? 0} registros
+                    {customerNotesTotal} registros
                   </span>
                 </div>
 
@@ -538,40 +576,54 @@ export const CustomersPage = () => {
                     </div>
                   ) : null}
 
-                  {customerNotesQuery.data?.deliveryNotes.length ? (
-                    customerNotesQuery.data.deliveryNotes.map((note) => (
-                      <Link
-                        className="block rounded-2xl border border-white/10 bg-gray-950/50 p-4 transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/5"
-                        key={note.id}
-                        to={`/delivery-notes?noteId=${encodeURIComponent(note.id)}`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-white">
-                              {note.number}
-                            </p>
-                            <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
-                              <CalendarDaysIcon className="h-4 w-4 text-cyan-300" />
-                              {new Date(note.date).toLocaleDateString("es-ES")}
+                  {visibleCustomerNotes.length ? (
+                    <>
+                      {visibleCustomerNotes.map((note) => (
+                        <Link
+                          className="block rounded-2xl border border-white/10 bg-gray-950/50 p-4 transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/5"
+                          key={note.id}
+                          to={`/delivery-notes?noteId=${encodeURIComponent(note.id)}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-white">
+                                {note.number}
+                              </p>
+                              <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
+                                <CalendarDaysIcon className="h-4 w-4 text-cyan-300" />
+                                {new Date(note.date).toLocaleDateString("es-ES")}
+                              </div>
                             </div>
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeByStatus[note.status]}`}
+                            >
+                              {statusLabel[note.status]}
+                            </span>
                           </div>
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${badgeByStatus[note.status]}`}
-                          >
-                            {statusLabel[note.status]}
-                          </span>
-                        </div>
 
-                        <div className="mt-3 flex items-center justify-between text-sm">
-                          <span className="text-gray-500">
-                            {note.items.length} lineas
-                          </span>
-                          <span className="font-mono text-cyan-300">
-                            {note.totalAmount.toFixed(2)} €
-                          </span>
-                        </div>
-                      </Link>
-                    ))
+                          <div className="mt-3 flex items-center justify-between text-sm">
+                            <span className="text-gray-500">
+                              {note.items.length} lineas
+                            </span>
+                            <span className="font-mono text-cyan-300">
+                              {note.totalAmount.toFixed(2)} €
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
+
+                      {customerNotesHasMore ? (
+                        <button
+                          className="w-full rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100"
+                          onClick={() =>
+                            setCustomerNotesLimit((current) => current + customerNotesPageStep)
+                          }
+                          type="button"
+                        >
+                          Mostrar 10 mas
+                        </button>
+                      ) : null}
+                    </>
                   ) : customerNotesQuery.isLoading ? null : (
                     <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-gray-500">
                       Este cliente aun no tiene albaranes.
@@ -614,13 +666,21 @@ export const CustomersPage = () => {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <input
-                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, name: event.target.value }))
-                  }
+                  className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 ${
+                    fieldErrors.name
+                      ? "border-red-500/60 bg-red-500/10"
+                      : "border-white/10 bg-gray-950/60"
+                  }`}
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, name: event.target.value }));
+                    setFieldErrors((current) => ({ ...current, name: undefined }));
+                  }}
                   placeholder="Nombre del cliente"
                   value={form.name}
                 />
+                {fieldErrors.name ? (
+                  <p className="sm:col-span-2 -mt-1 text-sm text-red-300">{fieldErrors.name}</p>
+                ) : null}
                 <input
                   className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
                   onChange={(event) =>
@@ -630,13 +690,21 @@ export const CustomersPage = () => {
                   value={form.phone}
                 />
                 <input
-                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2"
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, email: event.target.value }))
-                  }
+                  className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2 ${
+                    fieldErrors.email
+                      ? "border-red-500/60 bg-red-500/10"
+                      : "border-white/10 bg-gray-950/60"
+                  }`}
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, email: event.target.value }));
+                    setFieldErrors((current) => ({ ...current, email: undefined }));
+                  }}
                   placeholder="Email"
                   value={form.email}
                 />
+                {fieldErrors.email ? (
+                  <p className="sm:col-span-2 -mt-1 text-sm text-red-300">{fieldErrors.email}</p>
+                ) : null}
                 <input
                   className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2"
                   onChange={(event) =>
@@ -695,9 +763,6 @@ export const CustomersPage = () => {
                     <h4 className="mt-1 text-lg font-semibold text-white">
                       Catalogo rapido del cliente
                     </h4>
-                    <p className="mt-2 text-sm text-cyan-100/75">
-                      Agrupa aqui las piezas frecuentes para reducir carga visual en albaranes.
-                    </p>
                   </div>
                   <button
                     className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-50"
@@ -712,37 +777,6 @@ export const CustomersPage = () => {
                     <PlusIcon className="h-4 w-4" />
                     Manual
                   </button>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {quickSpecialPieces.map((piece) => (
-                    <button
-                      className="rounded-full border border-cyan-400/25 bg-slate-950/70 px-3 py-2 text-sm text-cyan-100"
-                      key={piece}
-                      onClick={() =>
-                        setForm((current) => {
-                          if (
-                            current.specialPieces.some(
-                              (entry) => entry.name.toLowerCase() === piece.toLowerCase()
-                            )
-                          ) {
-                            return current;
-                          }
-
-                          return {
-                            ...current,
-                            specialPieces: [
-                              ...current.specialPieces,
-                              { name: piece, price: "" }
-                            ]
-                          };
-                        })
-                      }
-                      type="button"
-                    >
-                      {piece}
-                    </button>
-                  ))}
                 </div>
 
                 <div className="mt-4">
@@ -866,11 +900,11 @@ export const CustomersPage = () => {
               </div>
             </form>
             </div>
-          ) : (
+          ) : !selectedCustomer ? (
             <div className="rounded-2xl border border-dashed border-white/10 p-8 text-sm text-slate-500">
               Selecciona un cliente de la lista para ver su ficha, tarifas y albaranes.
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </section>

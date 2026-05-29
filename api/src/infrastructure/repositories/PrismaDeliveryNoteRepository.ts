@@ -7,14 +7,22 @@ import type { DeliveryNoteRepository } from "../../domain/repositories/DeliveryN
 import { prisma } from "../prisma/client.js";
 
 const buildWhere = (filters: DeliveryNoteFilters) => {
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const referenceDate = filters.date ?? new Date();
+  const start = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate()
+  );
+  const end = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate() + 1
+  );
 
   return {
     status: filters.status,
     customerId: filters.customerId,
-    date: filters.today
+    date: filters.today || filters.date
       ? {
           gte: start,
           lt: end
@@ -27,12 +35,20 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
   public async findAll(filters: DeliveryNoteFilters) {
     return prisma.deliveryNote.findMany({
       where: buildWhere(filters),
+      take: filters.limit,
+      skip: filters.offset,
       include: {
         items: true
       },
       orderBy: {
         date: "desc"
       }
+    });
+  }
+
+  public async count(filters: DeliveryNoteFilters) {
+    return prisma.deliveryNote.count({
+      where: buildWhere(filters)
     });
   }
 

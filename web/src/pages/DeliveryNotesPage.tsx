@@ -29,11 +29,11 @@ import type {
 import { ApiError } from "@/infrastructure/api/apiClient";
 
 interface DeliveryNoteItemFormState {
+  hasThickness: boolean;
   description: string;
   color: string;
   linearMeters: string;
   squareMeters: string;
-  thickness: string;
   quantity: string;
 }
 
@@ -67,21 +67,12 @@ const statusHelp: Record<DeliveryNoteStatus, string> = {
   REVIEWED: "Ya esta revisado y validado para dejarlo cerrado."
 };
 
-const genericItemTemplates = [
-  "Perfil rectangular",
-  "Marco soldado",
-  "Rejilla exterior",
-  "Pletina mecanizada",
-  "Bastidor auxiliar",
-  "Caja de registro"
-] as const;
-
 const emptyItem = (): DeliveryNoteItemFormState => ({
+  hasThickness: false,
   description: "",
   color: "RAL 7016",
   linearMeters: "",
   squareMeters: "",
-  thickness: "",
   quantity: "1"
 });
 
@@ -97,11 +88,11 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
   notes: note.notes ?? "",
   date: note.date.slice(0, 10),
   items: note.items.map((item) => ({
+    hasThickness: item.thickness != null,
     description: item.description,
     color: item.color,
     linearMeters: item.linearMeters?.toString() ?? "",
     squareMeters: item.squareMeters?.toString() ?? "",
-    thickness: item.thickness?.toString() ?? "",
     quantity: item.quantity.toString()
   }))
 });
@@ -116,7 +107,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   color: item.color.trim(),
   linearMeters: parseOptionalNumber(item.linearMeters),
   squareMeters: parseOptionalNumber(item.squareMeters),
-  thickness: parseOptionalNumber(item.thickness),
+  thickness: item.hasThickness ? 1 : null,
   quantity: Number.parseInt(item.quantity || "1", 10)
 });
 
@@ -151,6 +142,7 @@ export const DeliveryNotesPage = () => {
   const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
   const [form, setForm] = useState<DeliveryNoteFormState>(emptyForm);
   const [customerSearch, setCustomerSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<DeliveryNoteStatus | "ALL">("ALL");
   const [customerFilter, setCustomerFilter] = useState("");
   const [todayOnly, setTodayOnly] = useState(false);
@@ -165,9 +157,10 @@ export const DeliveryNotesPage = () => {
   });
 
   const deliveryNotesQuery = useQuery({
-    queryKey: ["delivery-notes", statusFilter, customerFilter, todayOnly],
+    queryKey: ["delivery-notes", statusFilter, customerFilter, todayOnly, dateFilter],
     queryFn: () =>
       getDeliveryNotes({
+        date: dateFilter || undefined,
         status: statusFilter,
         customerId: customerFilter || undefined,
         today: todayOnly
@@ -195,8 +188,7 @@ export const DeliveryNotesPage = () => {
   }, [customerSearch, customersQuery.data?.customers, selectedCustomer]);
 
   const availableItemTemplates = useMemo(() => {
-    const customerTemplates = selectedCustomer?.specialPieces.map((piece) => piece.name) ?? [];
-    return [...new Set([...customerTemplates, ...genericItemTemplates])];
+    return selectedCustomer?.specialPieces.map((piece) => piece.name) ?? [];
   }, [selectedCustomer]);
 
   const selectedNote =
@@ -425,11 +417,30 @@ export const DeliveryNotesPage = () => {
                       ? "bg-amber-400 text-gray-950"
                       : "border border-white/10 bg-gray-950/50 text-gray-300"
                   }`}
-                  onClick={() => setTodayOnly((current) => !current)}
+                  onClick={() =>
+                    setTodayOnly((current) => {
+                      const next = !current;
+                      if (next) {
+                        setDateFilter("");
+                      }
+                      return next;
+                    })
+                  }
                   type="button"
                 >
                   Hoy
                 </button>
+                <input
+                  className="w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white sm:w-auto"
+                  onChange={(event) => {
+                    setDateFilter(event.target.value);
+                    if (event.target.value) {
+                      setTodayOnly(false);
+                    }
+                  }}
+                  type="date"
+                  value={dateFilter}
+                />
                 <select
                   className="w-full sm:w-auto sm:min-w-52 rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white"
                   onChange={(event) => setCustomerFilter(event.target.value)}
@@ -688,7 +699,7 @@ export const DeliveryNotesPage = () => {
               </div>
 
               <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3">
                 <label className="rounded-2xl border border-white/10 bg-gray-950/50 px-4 py-3">
                   <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
                     Fecha
@@ -705,10 +716,6 @@ export const DeliveryNotesPage = () => {
                     />
                   </div>
                 </label>
-                <div className="rounded-2xl border border-dashed border-white/10 bg-gray-950/40 px-4 py-3 text-sm text-gray-400">
-                  Numero asignado al guardar:
-                  <div className="mt-2 font-mono text-cyan-200">ALB-YYYY-NNNN</div>
-                </div>
               </div>
 
               <div>
@@ -786,76 +793,96 @@ export const DeliveryNotesPage = () => {
                     id={`delivery-note-piece-${index}`}
                     key={`item-${index}`}
                   >
-                    {availableItemTemplates.length ? (
-                      <div className="space-y-3">
-                        <button
-                          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-left text-sm font-semibold text-white"
-                          onClick={() =>
-                            setOpenTemplatePickerIndex((current) =>
-                              current === index ? null : index
-                            )
-                          }
-                          type="button"
-                        >
-                          <span>Piezas especiales</span>
-                          <ChevronDownIcon
-                            className={`h-4 w-4 transition-transform ${
-                              openTemplatePickerIndex === index ? "rotate-180" : ""
-                            }`}
-                          />
-                        </button>
-
-                        {openTemplatePickerIndex === index ? (
-                          <div className="overflow-hidden rounded-2xl border border-white/10 bg-gray-950/50">
-                            {availableItemTemplates.map((template) => (
-                              <button
-                                className={`flex w-full items-center justify-between border-b border-white/10 px-4 py-3 text-left text-sm last:border-b-0 ${
-                                  item.description === template
-                                    ? "bg-cyan-500/15 text-cyan-100"
-                                    : "text-gray-200 hover:bg-white/5"
-                                }`}
-                                key={`${index}-${template}`}
-                                onClick={() => {
-                                  setForm((current) => ({
-                                    ...current,
-                                    items: current.items.map((entry, entryIndex) =>
-                                      entryIndex === index
-                                        ? { ...entry, description: template }
-                                        : entry
-                                    )
-                                  }));
-                                  setOpenTemplatePickerIndex(null);
-                                }}
-                                type="button"
-                              >
-                                <span>{template}</span>
-                                {item.description === template ? (
-                                  <span className="text-xs font-semibold text-cyan-200">
-                                    Seleccionada
-                                  </span>
-                                ) : null}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null}
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                          Pieza puntual
+                        </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          Escribe aqui una pieza suelta si no pertenece al catalogo especial del cliente.
+                        </p>
                       </div>
-                    ) : null}
 
-                    <input
-                      className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          items: current.items.map((entry, entryIndex) =>
-                            entryIndex === index
-                              ? { ...entry, description: event.target.value }
-                              : entry
-                          )
-                        }))
-                      }
-                      placeholder="Descripcion"
-                      value={item.description}
-                    />
+                      <input
+                        className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                        onChange={(event) =>
+                          setForm((current) => ({
+                            ...current,
+                            items: current.items.map((entry, entryIndex) =>
+                              entryIndex === index
+                                ? { ...entry, description: event.target.value }
+                                : entry
+                            )
+                          }))
+                        }
+                        placeholder="Escribe una pieza puntual"
+                        value={item.description}
+                      />
+
+                      {availableItemTemplates.length ? (
+                        <div className="space-y-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 p-3">
+                          <div>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-300">
+                              Pieza especial
+                            </p>
+                            <p className="mt-1 text-sm text-cyan-100/75">
+                              O selecciona una pieza especial ya configurada para este cliente.
+                            </p>
+                          </div>
+
+                          <button
+                            className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-left text-sm font-semibold text-white"
+                            onClick={() =>
+                              setOpenTemplatePickerIndex((current) =>
+                                current === index ? null : index
+                              )
+                            }
+                            type="button"
+                          >
+                            <span>Seleccionar pieza especial</span>
+                            <ChevronDownIcon
+                              className={`h-4 w-4 transition-transform ${
+                                openTemplatePickerIndex === index ? "rotate-180" : ""
+                              }`}
+                            />
+                          </button>
+
+                          {openTemplatePickerIndex === index ? (
+                            <div className="overflow-hidden rounded-2xl border border-white/10 bg-gray-950/50">
+                              {availableItemTemplates.map((template) => (
+                                <button
+                                  className={`flex w-full items-center justify-between border-b border-white/10 px-4 py-3 text-left text-sm last:border-b-0 ${
+                                    item.description === template
+                                      ? "bg-cyan-500/15 text-cyan-100"
+                                      : "text-gray-200 hover:bg-white/5"
+                                  }`}
+                                  key={`${index}-${template}`}
+                                  onClick={() => {
+                                    setForm((current) => ({
+                                      ...current,
+                                      items: current.items.map((entry, entryIndex) =>
+                                        entryIndex === index
+                                          ? { ...entry, description: template }
+                                          : entry
+                                      )
+                                    }));
+                                    setOpenTemplatePickerIndex(null);
+                                  }}
+                                  type="button"
+                                >
+                                  <span>{template}</span>
+                                  {item.description === template ? (
+                                    <span className="text-xs font-semibold text-cyan-200">
+                                      Seleccionada
+                                    </span>
+                                  ) : null}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
 
                     <div className="space-y-2">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
@@ -928,8 +955,7 @@ export const DeliveryNotesPage = () => {
 
                       {([
                         { key: "linearMeters", label: "ML" },
-                        { key: "squareMeters", label: "M2" },
-                        { key: "thickness", label: "Grosor" }
+                        { key: "squareMeters", label: "M2" }
                       ] as const).map((field) => (
                         <label
                           className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3"
@@ -956,10 +982,47 @@ export const DeliveryNotesPage = () => {
                           />
                         </label>
                       ))}
+
+                      <div className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3">
+                        <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400">
+                          Grosor
+                        </span>
+                        <button
+                          className={`mt-3 flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-sm font-semibold transition-colors ${
+                            item.hasThickness
+                              ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-100"
+                              : "border-white/10 bg-gray-950/70 text-gray-300"
+                          }`}
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, hasThickness: !entry.hasThickness }
+                                  : entry
+                              )
+                            }))
+                          }
+                          type="button"
+                        >
+                          <span>{item.hasThickness ? "Activado" : "Desactivado"}</span>
+                          <span
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              item.hasThickness ? "bg-cyan-400" : "bg-white/15"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                                item.hasThickness ? "translate-x-5" : "translate-x-1"
+                              }`}
+                            />
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                     <p className="text-xs text-gray-500">
-                      Puedes rellenar metros lineales, metros cuadrados o ambos.
+                      Puedes rellenar metros lineales, metros cuadrados o ambos. Activa grosor para duplicar el precio.
                     </p>
 
                     <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm">

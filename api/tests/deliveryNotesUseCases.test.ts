@@ -28,6 +28,21 @@ class InMemoryCustomerRepository {
     return this.customers.find((customer) => customer.id === id) ?? null;
   }
 
+  public async findByName(name: string) {
+    return (
+      this.customers.find((customer) => customer.name.toLowerCase() === name.trim().toLowerCase()) ??
+      null
+    );
+  }
+
+  public async findByEmail(email: string) {
+    return (
+      this.customers.find(
+        (customer) => customer.email?.toLowerCase() === email.trim().toLowerCase()
+      ) ?? null
+    );
+  }
+
   public async create(_input: CustomerInput): Promise<Customer> {
     throw new Error("not implemented");
   }
@@ -111,7 +126,7 @@ class InMemoryDeliveryNoteRepository {
   });
 
   public async findAll(filters: DeliveryNoteFilters) {
-    return this.notes.filter((note) => {
+    const filtered = this.notes.filter((note) => {
       if (filters.status && note.status !== filters.status) {
         return false;
       }
@@ -120,6 +135,22 @@ class InMemoryDeliveryNoteRepository {
       }
       return true;
     });
+
+    const offset = filters.offset ?? 0;
+    const end = typeof filters.limit === "number" ? offset + filters.limit : undefined;
+    return filtered.slice(offset, end);
+  }
+
+  public async count(filters: DeliveryNoteFilters) {
+    return this.notes.filter((note) => {
+      if (filters.status && note.status !== filters.status) {
+        return false;
+      }
+      if (filters.customerId && note.customerId !== filters.customerId) {
+        return false;
+      }
+      return true;
+    }).length;
   }
 
   public async findById(id: string) {
@@ -224,9 +255,9 @@ describe("delivery note use cases", () => {
     expect(deliveryNoteRepository.create).toHaveBeenCalledOnce();
     expect(result.number).toBe("ALB-2026-0001");
     expect(result.customerName).toBe("Pinturas Lopez");
-    expect(result.totalAmount).toBe(100);
+    expect(result.totalAmount).toBe(110);
     expect(result.items[0]?.totalPrice).toBe(80);
-    expect(result.items[1]?.totalPrice).toBe(20);
+    expect(result.items[1]?.totalPrice).toBe(30);
   });
 
   it("fails creating a delivery note for an unknown customer", async () => {

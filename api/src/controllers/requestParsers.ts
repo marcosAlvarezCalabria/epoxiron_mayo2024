@@ -16,3 +16,41 @@ export const getStatusQuery = (value: unknown): DeliveryNoteStatus | undefined =
   return undefined;
 };
 
+export const getPositiveIntegerQuery = (value: unknown): number | undefined => {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  return parsed;
+};
+
+export const getNonNegativeIntegerQuery = (value: unknown): number | undefined => {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return undefined;
+  }
+
+  return parsed;
+};
+
+export const getDateQuery = (value: unknown): Date | undefined => {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed;
+};
