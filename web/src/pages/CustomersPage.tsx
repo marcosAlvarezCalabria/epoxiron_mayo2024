@@ -41,6 +41,7 @@ interface CustomerFormState {
 interface CustomerFieldErrors {
   email?: string;
   name?: string;
+  specialPieces?: string;
 }
 
 const emptyCustomerForm = (): CustomerFormState => ({
@@ -78,6 +79,7 @@ const toOptionalText = (value: string) => {
 };
 
 const parseNumber = (value: string) => Number.parseFloat(value || "0");
+const specialPieceDuplicateMessage = "No puede haber piezas especiales con el mismo nombre.";
 
 const getCustomerFieldErrors = (error: ApiError | null): CustomerFieldErrors => {
   if (!error) {
@@ -96,8 +98,43 @@ const getCustomerFieldErrors = (error: ApiError | null): CustomerFieldErrors => 
     };
   }
 
+  if (error.message === "No puede haber piezas especiales con el mismo nombre para un cliente") {
+    return {
+      specialPieces: specialPieceDuplicateMessage
+    };
+  }
+
   return {};
 };
+
+const getDuplicatedSpecialPieceIndexes = (specialPieces: SpecialPieceFormState[]) => {
+  const indexesByName = new Map<string, number[]>();
+
+  specialPieces.forEach((piece, index) => {
+    const normalizedName = piece.name.trim().toLowerCase();
+    if (!normalizedName) {
+      return;
+    }
+
+    const indexes = indexesByName.get(normalizedName) ?? [];
+    indexes.push(index);
+    indexesByName.set(normalizedName, indexes);
+  });
+
+  const duplicatedIndexes = new Set<number>();
+  indexesByName.forEach((indexes) => {
+    if (indexes.length < 2) {
+      return;
+    }
+
+    indexes.forEach((index) => duplicatedIndexes.add(index));
+  });
+
+  return duplicatedIndexes;
+};
+
+const hasDuplicatedSpecialPieceNames = (specialPieces: SpecialPieceFormState[]) =>
+  getDuplicatedSpecialPieceIndexes(specialPieces).size > 0;
 
 const normalizeCustomerPayload = (form: CustomerFormState): CustomerInput => ({
   name: form.name.trim(),
@@ -161,8 +198,13 @@ export const CustomersPage = () => {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [specialPiecesReadFilter, setSpecialPiecesReadFilter] = useState("");
   const [specialPiecesEditFilter, setSpecialPiecesEditFilter] = useState("");
+  const [isSpecialPiecesReadOpen, setIsSpecialPiecesReadOpen] = useState(false);
   const [isSpecialPiecesEditorOpen, setIsSpecialPiecesEditorOpen] = useState(false);
   const [customerNotesLimit, setCustomerNotesLimit] = useState(initialCustomerNotesLimit);
+  const duplicatedSpecialPieceIndexes = useMemo(
+    () => getDuplicatedSpecialPieceIndexes(form.specialPieces),
+    [form.specialPieces]
+  );
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["customers"],
@@ -186,6 +228,7 @@ export const CustomersPage = () => {
 
   useEffect(() => {
     setSpecialPiecesReadFilter("");
+    setIsSpecialPiecesReadOpen(false);
   }, [selectedCustomer?.id]);
 
   useEffect(() => {
@@ -299,6 +342,14 @@ export const CustomersPage = () => {
       return;
     }
 
+    if (hasDuplicatedSpecialPieceNames(form.specialPieces)) {
+      setFieldErrors({
+        specialPieces: specialPieceDuplicateMessage
+      });
+      setIsSpecialPiecesEditorOpen(true);
+      return;
+    }
+
     const payload = normalizeCustomerPayload(form);
 
     try {
@@ -310,8 +361,11 @@ export const CustomersPage = () => {
     } catch (error) {
       if (error instanceof ApiError) {
         const nextFieldErrors = getCustomerFieldErrors(error);
-        if (nextFieldErrors.name || nextFieldErrors.email) {
+        if (nextFieldErrors.name || nextFieldErrors.email || nextFieldErrors.specialPieces) {
           setFieldErrors(nextFieldErrors);
+          if (nextFieldErrors.specialPieces) {
+            setIsSpecialPiecesEditorOpen(true);
+          }
           return;
         }
       }
@@ -507,43 +561,65 @@ export const CustomersPage = () => {
               </div>
 
               <div className="mt-5">
-                <div className="flex items-center justify-between gap-3">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
-                    Piezas especiales
-                  </h4>
-                  <span className="text-xs text-gray-500">
-                    Referencia frecuente
-                  </span>
-                </div>
-                {selectedCustomer.specialPieces.length > 0 ? (
-                  <input
-                    className="mt-3 w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                    onChange={(event) => setSpecialPiecesReadFilter(event.target.value)}
-                    placeholder="Buscar pieza..."
-                    value={specialPiecesReadFilter}
-                  />
-                ) : null}
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {selectedCustomer.specialPieces.length ? (
-                    visibleReadPieces.length ? (
-                      visibleReadPieces.map((piece, index) => (
-                        <span
-                          className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
-                          key={`${selectedCustomer.id}-piece-${index}`}
-                        >
-                          {piece.name} · {piece.price.toFixed(2)} €
-                        </span>
-                      ))
-                    ) : normalizedReadFilter ? (
-                      <span className="rounded-full border border-dashed border-white/10 px-3 py-2 text-sm text-gray-500">
-                        Sin resultados
-                      </span>
-                    ) : null
-                  ) : (
-                    <span className="rounded-full border border-dashed border-white/10 px-3 py-2 text-sm text-gray-500">
-                      Sin piezas especiales
+                <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
+                        Piezas especiales
+                      </h4>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Solo se muestran si quieres desplegarlas.
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {selectedCustomer.specialPieces.length} piezas
                     </span>
-                  )}
+                  </div>
+
+                  <button
+                    className="mt-4 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left text-sm font-semibold text-white"
+                    onClick={() => setIsSpecialPiecesReadOpen((current) => !current)}
+                    type="button"
+                  >
+                    <span>
+                      {selectedCustomer.specialPieces.length
+                        ? "Ver piezas especiales"
+                        : "Sin piezas especiales"}
+                    </span>
+                    <ChevronDownIcon
+                      className={`h-4 w-4 transition-transform ${
+                        isSpecialPiecesReadOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isSpecialPiecesReadOpen && selectedCustomer.specialPieces.length > 0 ? (
+                    <div className="mt-3">
+                      <input
+                        className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                        onChange={(event) => setSpecialPiecesReadFilter(event.target.value)}
+                        placeholder="Buscar pieza..."
+                        value={specialPiecesReadFilter}
+                      />
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {visibleReadPieces.length ? (
+                          visibleReadPieces.map((piece, index) => (
+                            <span
+                              className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
+                              key={`${selectedCustomer.id}-piece-${index}`}
+                            >
+                              {piece.name} · {piece.price.toFixed(2)} €
+                            </span>
+                          ))
+                        ) : (
+                          <span className="rounded-full border border-dashed border-white/10 px-3 py-2 text-sm text-gray-500">
+                            Sin resultados
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -766,12 +842,14 @@ export const CustomersPage = () => {
                   </div>
                   <button
                     className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-50"
-                    onClick={() =>
+                    onClick={() => {
                       setForm((current) => ({
                         ...current,
-                        specialPieces: [...current.specialPieces, { name: "", price: "" }]
-                      }))
-                    }
+                        specialPieces: [{ name: "", price: "" }, ...current.specialPieces]
+                      }));
+                      setIsSpecialPiecesEditorOpen(true);
+                      setFieldErrors((current) => ({ ...current, specialPieces: undefined }));
+                    }}
                     type="button"
                   >
                     <PlusIcon className="h-4 w-4" />
@@ -818,8 +896,12 @@ export const CustomersPage = () => {
                           key={`piece-${index}`}
                         >
                           <input
-                            className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                            onChange={(event) =>
+                            className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 ${
+                              duplicatedSpecialPieceIndexes.has(index)
+                                ? "border-red-500/60 bg-red-500/10"
+                                : "border-white/10 bg-gray-950/60"
+                            }`}
+                            onChange={(event) => {
                               setForm((current) => ({
                                 ...current,
                                 specialPieces: current.specialPieces.map((entry, entryIndex) =>
@@ -827,47 +909,75 @@ export const CustomersPage = () => {
                                     ? { ...entry, name: event.target.value }
                                     : entry
                                 )
-                              }))
-                            }
+                              }));
+                              setFieldErrors((current) => ({
+                                ...current,
+                                specialPieces: undefined
+                              }));
+                            }}
                             placeholder="Nombre de pieza"
                             value={piece.name}
                           />
-                          <input
-                            className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
-                            inputMode="decimal"
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                specialPieces: current.specialPieces.map((entry, entryIndex) =>
-                                  entryIndex === index
-                                    ? { ...entry, price: event.target.value }
-                                    : entry
-                                )
-                              }))
-                            }
-                            placeholder="Precio"
-                            value={piece.price}
-                          />
+                          <div className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
+                              Precio
+                            </p>
+                            <div className="mt-2 flex items-center gap-2">
+                              <input
+                                className="w-full bg-transparent text-sm text-white placeholder:text-gray-500 outline-none"
+                                inputMode="decimal"
+                                onChange={(event) => {
+                                  setForm((current) => ({
+                                    ...current,
+                                    specialPieces: current.specialPieces.map((entry, entryIndex) =>
+                                      entryIndex === index
+                                        ? { ...entry, price: event.target.value }
+                                        : entry
+                                    )
+                                  }));
+                                  setFieldErrors((current) => ({
+                                    ...current,
+                                    specialPieces: undefined
+                                  }));
+                                }}
+                                placeholder="0.00"
+                                value={piece.price}
+                              />
+                              <span className="text-sm font-semibold text-cyan-200">€</span>
+                            </div>
+                          </div>
                           <button
                             className="inline-flex items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-red-200"
-                            onClick={() =>
+                            onClick={() => {
                               setForm((current) => ({
                                 ...current,
                                 specialPieces: current.specialPieces.filter(
                                   (_, entryIndex) => entryIndex !== index
                                 )
-                              }))
-                            }
+                              }));
+                              setFieldErrors((current) => ({
+                                ...current,
+                                specialPieces: undefined
+                              }));
+                            }}
                             type="button"
                           >
                             <TrashIcon className="h-5 w-5" />
                           </button>
+                          {duplicatedSpecialPieceIndexes.has(index) ? (
+                            <p className="sm:col-span-3 -mt-1 text-sm text-red-300">
+                              {specialPieceDuplicateMessage}
+                            </p>
+                          ) : null}
                         </div>
                       ))}
                       {!form.specialPieces.length ? (
                         <div className="rounded-2xl border border-dashed border-cyan-400/20 bg-slate-950/50 px-4 py-5 text-sm text-cyan-100/70">
                           No hay piezas especiales cargadas todavia.
                         </div>
+                      ) : null}
+                      {fieldErrors.specialPieces && duplicatedSpecialPieceIndexes.size === 0 ? (
+                        <p className="text-sm text-red-300">{fieldErrors.specialPieces}</p>
                       ) : null}
                     </div>
                   ) : null}

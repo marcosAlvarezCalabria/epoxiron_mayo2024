@@ -4,6 +4,26 @@ import type { CustomerRepository } from "../../domain/repositories/CustomerRepos
 
 const normalizeText = (value: string) => value.trim().toLowerCase();
 
+const ensureUniqueSpecialPieceNames = (input: CustomerInput) => {
+  const seen = new Set<string>();
+
+  for (const piece of input.specialPieces) {
+    const normalizedName = normalizeText(piece.name);
+    if (!normalizedName) {
+      continue;
+    }
+
+    if (seen.has(normalizedName)) {
+      throw new DomainException(
+        "No puede haber piezas especiales con el mismo nombre para un cliente",
+        409
+      );
+    }
+
+    seen.add(normalizedName);
+  }
+};
+
 const ensureUniqueCustomer = async (
   repository: CustomerRepository,
   input: CustomerInput,
@@ -34,6 +54,7 @@ export class CreateCustomerUseCase {
   public constructor(private readonly repository: CustomerRepository) {}
 
   public async execute(input: CustomerInput) {
+    ensureUniqueSpecialPieceNames(input);
     await ensureUniqueCustomer(this.repository, input);
     return this.repository.create(input);
   }
@@ -48,6 +69,7 @@ export class UpdateCustomerUseCase {
       throw new DomainException("Cliente no encontrado", 404);
     }
 
+    ensureUniqueSpecialPieceNames(input);
     await ensureUniqueCustomer(this.repository, input, current.id);
     return this.repository.update(id, input);
   }

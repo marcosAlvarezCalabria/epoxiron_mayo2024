@@ -145,6 +145,28 @@ describe("customer use cases", () => {
     });
   });
 
+  it("blocks creating a customer with duplicated special piece names", async () => {
+    const useCase = new CreateCustomerUseCase(repository);
+
+    await expect(
+      useCase.execute({
+        name: "Cliente Nuevo",
+        email: "nuevo@example.com",
+        pricePerLinearMeter: 10,
+        pricePerSquareMeter: 20,
+        minimumRate: 15,
+        grosorPrecio: 5,
+        specialPieces: [
+          { name: "Puerta peatonal", price: 40 },
+          { name: " puerta peatonal ", price: 55 }
+        ]
+      })
+    ).rejects.toMatchObject({
+      message: "No puede haber piezas especiales con el mismo nombre para un cliente",
+      statusCode: 409
+    });
+  });
+
   it("filters customers by search term", async () => {
     const useCase = new GetCustomersUseCase(repository);
 
@@ -195,6 +217,28 @@ describe("customer use cases", () => {
       })
     ).rejects.toMatchObject({
       message: "Ya existe un cliente con ese nombre",
+      statusCode: 409
+    });
+  });
+
+  it("blocks updating a customer with duplicated special piece names", async () => {
+    const useCase = new UpdateCustomerUseCase(repository);
+
+    await expect(
+      useCase.execute("customer-1", {
+        name: "Pinturas Lopez",
+        email: "lopez@example.com",
+        pricePerLinearMeter: 12,
+        pricePerSquareMeter: 22,
+        minimumRate: 18,
+        grosorPrecio: 6,
+        specialPieces: [
+          { name: "Marco soldado", price: 25 },
+          { name: "marco soldado", price: 35 }
+        ]
+      })
+    ).rejects.toMatchObject({
+      message: "No puede haber piezas especiales con el mismo nombre para un cliente",
       statusCode: 409
     });
   });
