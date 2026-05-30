@@ -158,24 +158,24 @@ const priceTiles = [
   {
     key: "pricePerLinearMeter",
     label: "ML",
-    accent: "text-cyan-200 border-cyan-500/20 bg-cyan-500/10"
+    accent: "text-[var(--epx-accent)] border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)]"
   },
   {
     key: "pricePerSquareMeter",
     label: "M2",
-    accent: "text-fuchsia-200 border-fuchsia-500/20 bg-fuchsia-500/10"
+    accent: "text-white border-[var(--epx-surface-raised)] bg-[var(--epx-surface)]"
   },
   {
     key: "minimumRate",
     label: "Min",
-    accent: "text-emerald-200 border-emerald-500/20 bg-emerald-500/10"
+    accent: "text-[var(--epx-success)] border-[var(--epx-success)]/30 bg-[color:rgb(209_255_0_/_0.12)]"
   }
 ] as const;
 
 const badgeByStatus: Record<DeliveryNote["status"], string> = {
-  DRAFT: "text-gray-300 bg-white/5",
-  PENDING: "text-amber-200 bg-amber-500/10 border border-amber-500/20",
-  REVIEWED: "text-emerald-200 bg-emerald-500/10 border border-emerald-500/20"
+  DRAFT: "text-[var(--epx-text-muted)] bg-[var(--epx-surface)] border border-[var(--epx-surface-raised)]",
+  PENDING: "text-[var(--epx-accent)] bg-[color:rgb(255_149_0_/_0.12)] border border-[var(--epx-accent)]/30",
+  REVIEWED: "text-[var(--epx-success)] bg-[color:rgb(209_255_0_/_0.12)] border border-[var(--epx-success)]/30"
 };
 
 const statusLabel: Record<DeliveryNote["status"], string> = {
@@ -378,17 +378,17 @@ export const CustomersPage = () => {
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-400">Clientes</p>
+          <p className="text-sm font-medium text-[var(--epx-text-muted)]">Clientes</p>
           <h2 className="text-3xl font-semibold tracking-tight text-white">
             Clientes y tarifas
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">
+          <p className="mt-2 max-w-2xl text-sm text-[var(--epx-text-muted)]">
             Consulta de ficha, tarifas y actividad reciente del cliente desde una
             vista unica.
           </p>
         </div>
         <button
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-50"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-3 text-sm font-semibold text-white"
           onClick={() => {
             setSelectedCustomerId(null);
             setEditingCustomerId(null);
@@ -411,9 +411,9 @@ export const CustomersPage = () => {
             mobilePane === "detail" ? "hidden xl:block" : "block"
           }`}
         >
-          <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+          <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-4">
             <input
-              className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-gray-500 focus:border-cyan-500/50"
+              className="w-full rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white outline-none ring-0 placeholder:text-[var(--epx-text-muted)] focus:border-[var(--epx-accent)]/50"
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar cliente"
               value={search}
@@ -426,15 +426,15 @@ export const CustomersPage = () => {
             ) : null}
 
             {isLoading ? (
-              <p className="text-sm text-gray-400">Cargando clientes...</p>
+              <p className="text-sm text-[var(--epx-text-muted)]">Cargando clientes...</p>
             ) : null}
 
             {filteredCustomers.map((customer) => (
               <button
               className={`w-full rounded-2xl border p-4 text-left transition-colors ${
                   selectedCustomer?.id === customer.id
-                    ? "border-cyan-400/30 bg-cyan-400/10"
-                    : "border-white/10 bg-slate-900/70 hover:border-white/20"
+                    ? "border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.12)]"
+                    : "border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] hover:border-[var(--epx-accent)]/30"
                 }`}
                 key={customer.id}
                 onClick={() => {
@@ -448,20 +448,20 @@ export const CustomersPage = () => {
                     <p className="text-base font-semibold text-white">
                       {customer.name}
                     </p>
-                    <p className="mt-1 text-sm text-slate-400">
+                    <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
                       {customer.phone ?? customer.email ?? "Sin contacto"}
                     </p>
                   </div>
-                  <div className="rounded-lg bg-white/5 px-3 py-1 text-xs font-semibold text-slate-300">
+                  <div className="rounded-lg bg-[var(--epx-bg)] px-3 py-1 text-xs font-semibold text-[var(--epx-text-muted)]">
                     {customer.specialPieces.length} piezas
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-200">
+                  <span className="rounded-full border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-3 py-1 text-[var(--epx-accent)]">
                     ML {customer.pricePerLinearMeter.toFixed(2)} €
                   </span>
-                  <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-3 py-1 text-fuchsia-200">
+                  <span className="rounded-full border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-1 text-white">
                     M2 {customer.pricePerSquareMeter.toFixed(2)} €
                   </span>
                 </div>
@@ -469,7 +469,7 @@ export const CustomersPage = () => {
             ))}
 
             {!isLoading && filteredCustomers.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 p-5 text-sm text-slate-500">
+              <div className="rounded-2xl border border-dashed border-[var(--epx-surface-raised)] p-5 text-sm text-[var(--epx-text-muted)]">
                 No hay clientes que coincidan con la busqueda.
               </div>
             ) : null}
@@ -482,9 +482,9 @@ export const CustomersPage = () => {
           }`}
         >
           {selectedCustomer ? (
-            <article className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+            <article className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-5">
               <button
-                className="mb-4 inline-flex items-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white xl:hidden"
+                className="mb-4 inline-flex items-center gap-2 rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-2 text-sm font-semibold text-white xl:hidden"
                 onClick={() => setMobilePane("list")}
                 type="button"
               >
@@ -493,17 +493,17 @@ export const CustomersPage = () => {
               </button>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-400">Cliente seleccionado</p>
+                  <p className="text-sm font-medium text-[var(--epx-text-muted)]">Cliente seleccionado</p>
                   <h3 className="mt-1 text-2xl font-semibold text-white">
                     {selectedCustomer.name}
                   </h3>
-                  <p className="mt-2 text-sm text-slate-400">
+                  <p className="mt-2 text-sm text-[var(--epx-text-muted)]">
                     {selectedCustomer.address ?? "Sin direccion"}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:flex">
                   <button
-                    className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white"
+                    className="rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm font-semibold text-white"
                     onClick={() => {
                       setEditingCustomerId(selectedCustomer.id);
                       setForm(customerToFormState(selectedCustomer));
@@ -547,7 +547,7 @@ export const CustomersPage = () => {
               </div>
 
               <div className="mt-5">
-                <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4">
+                <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
                     Contacto
                   </p>
@@ -561,7 +561,7 @@ export const CustomersPage = () => {
               </div>
 
               <div className="mt-5">
-                <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4">
+                <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-gray-400">
@@ -577,7 +577,7 @@ export const CustomersPage = () => {
                   </div>
 
                   <button
-                    className="mt-4 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left text-sm font-semibold text-white"
+                    className="mt-4 flex w-full items-center justify-between rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-left text-sm font-semibold text-white"
                     onClick={() => setIsSpecialPiecesReadOpen((current) => !current)}
                     type="button"
                   >
@@ -596,7 +596,7 @@ export const CustomersPage = () => {
                   {isSpecialPiecesReadOpen && selectedCustomer.specialPieces.length > 0 ? (
                     <div className="mt-3">
                       <input
-                        className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                        className="w-full rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
                         onChange={(event) => setSpecialPiecesReadFilter(event.target.value)}
                         placeholder="Buscar pieza..."
                         value={specialPiecesReadFilter}
@@ -606,14 +606,14 @@ export const CustomersPage = () => {
                         {visibleReadPieces.length ? (
                           visibleReadPieces.map((piece, index) => (
                             <span
-                              className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-2 text-sm text-cyan-100"
+                              className="rounded-full border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-3 py-2 text-sm text-[var(--epx-accent)]"
                               key={`${selectedCustomer.id}-piece-${index}`}
                             >
                               {piece.name} · {piece.price.toFixed(2)} €
                             </span>
                           ))
                         ) : (
-                          <span className="rounded-full border border-dashed border-white/10 px-3 py-2 text-sm text-gray-500">
+                          <span className="rounded-full border border-dashed border-[var(--epx-surface-raised)] px-3 py-2 text-sm text-[var(--epx-text-muted)]">
                             Sin resultados
                           </span>
                         )}
@@ -633,7 +633,7 @@ export const CustomersPage = () => {
                       Historial operativo del cliente seleccionado.
                     </p>
                   </div>
-                  <span className="rounded-full bg-white/5 px-3 py-2 text-xs font-semibold text-gray-300">
+                  <span className="rounded-full bg-[color:rgb(255_255_255_/_0.05)] px-3 py-2 text-xs font-semibold text-[var(--epx-text-muted)]">
                     {customerNotesTotal} registros
                   </span>
                 </div>
@@ -647,7 +647,7 @@ export const CustomersPage = () => {
                   ) : null}
 
                   {customerNotesQuery.isLoading ? (
-                    <div className="rounded-2xl border border-white/10 bg-gray-950/50 p-4 text-sm text-gray-400">
+                    <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4 text-sm text-[var(--epx-text-muted)]">
                       Cargando albaranes...
                     </div>
                   ) : null}
@@ -656,7 +656,7 @@ export const CustomersPage = () => {
                     <>
                       {visibleCustomerNotes.map((note) => (
                         <Link
-                          className="block rounded-2xl border border-white/10 bg-gray-950/50 p-4 transition-colors hover:border-cyan-500/30 hover:bg-cyan-500/5"
+                          className="block rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4 transition-colors hover:border-[var(--epx-accent)]/30 hover:bg-[var(--epx-surface)]"
                           key={note.id}
                           to={`/delivery-notes?noteId=${encodeURIComponent(note.id)}`}
                         >
@@ -666,7 +666,7 @@ export const CustomersPage = () => {
                                 {note.number}
                               </p>
                               <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
-                                <CalendarDaysIcon className="h-4 w-4 text-cyan-300" />
+                                <CalendarDaysIcon className="h-4 w-4 text-[var(--epx-accent)]" />
                                 {new Date(note.date).toLocaleDateString("es-ES")}
                               </div>
                             </div>
@@ -681,7 +681,7 @@ export const CustomersPage = () => {
                             <span className="text-gray-500">
                               {note.items.length} lineas
                             </span>
-                            <span className="font-mono text-cyan-300">
+                            <span className="font-mono text-[var(--epx-accent)]">
                               {note.totalAmount.toFixed(2)} €
                             </span>
                           </div>
@@ -690,7 +690,7 @@ export const CustomersPage = () => {
 
                       {customerNotesHasMore ? (
                         <button
-                          className="w-full rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-100"
+                          className="w-full rounded-2xl border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-4 py-3 text-sm font-semibold text-white"
                           onClick={() =>
                             setCustomerNotesLimit((current) => current + customerNotesPageStep)
                           }
@@ -701,7 +701,7 @@ export const CustomersPage = () => {
                       ) : null}
                     </>
                   ) : customerNotesQuery.isLoading ? null : (
-                    <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-gray-500">
+                    <div className="rounded-2xl border border-dashed border-[var(--epx-surface-raised)] p-4 text-sm text-[var(--epx-text-muted)]">
                       Este cliente aun no tiene albaranes.
                     </div>
                   )}
@@ -711,7 +711,7 @@ export const CustomersPage = () => {
           ) : null}
 
           {isComposerOpen ? (
-            <div className="fixed inset-0 z-40 flex items-end bg-gray-950/75 backdrop-blur sm:items-center sm:justify-center">
+            <div className="fixed inset-0 z-40 flex items-end bg-[color:rgb(19_19_19_/_0.78)] backdrop-blur sm:items-center sm:justify-center">
               <button
                 aria-label="Cerrar formulario de cliente"
                 className="absolute inset-0"
@@ -719,12 +719,12 @@ export const CustomersPage = () => {
                 type="button"
               />
             <form
-              className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-white/10 bg-[#0b1220] p-5 shadow-2xl shadow-cyan-950/40 sm:max-w-3xl sm:rounded-[2rem] sm:p-6"
+              className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-5 shadow-2xl shadow-black/40 sm:max-w-3xl sm:rounded-[2rem] sm:p-6"
               onSubmit={handleSubmit}
             >
-              <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
+              <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-center justify-between gap-3 border-b border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
                 <div>
-                  <p className="text-sm font-medium text-cyan-300">
+                  <p className="text-sm font-medium text-[var(--epx-accent)]">
                     {editingCustomerId ? "Editar cliente" : "Alta de cliente"}
                   </p>
                   <h3 className="mt-1 text-xl font-bold text-white">
@@ -732,7 +732,7 @@ export const CustomersPage = () => {
                   </h3>
                 </div>
                 <button
-                  className="rounded-2xl border border-white/10 px-4 py-2 text-sm text-gray-300"
+                  className="rounded-2xl border border-[var(--epx-surface-raised)] px-4 py-2 text-sm text-[var(--epx-text-muted)]"
                   onClick={closeComposer}
                   type="button"
                 >
@@ -745,7 +745,7 @@ export const CustomersPage = () => {
                   className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 ${
                     fieldErrors.name
                       ? "border-red-500/60 bg-red-500/10"
-                      : "border-white/10 bg-gray-950/60"
+                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
                   }`}
                   onChange={(event) => {
                     setForm((current) => ({ ...current, name: event.target.value }));
@@ -758,7 +758,7 @@ export const CustomersPage = () => {
                   <p className="sm:col-span-2 -mt-1 text-sm text-red-300">{fieldErrors.name}</p>
                 ) : null}
                 <input
-                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                  className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
                   onChange={(event) =>
                     setForm((current) => ({ ...current, phone: event.target.value }))
                   }
@@ -769,7 +769,7 @@ export const CustomersPage = () => {
                   className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2 ${
                     fieldErrors.email
                       ? "border-red-500/60 bg-red-500/10"
-                      : "border-white/10 bg-gray-950/60"
+                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
                   }`}
                   onChange={(event) => {
                     setForm((current) => ({ ...current, email: event.target.value }));
@@ -782,7 +782,7 @@ export const CustomersPage = () => {
                   <p className="sm:col-span-2 -mt-1 text-sm text-red-300">{fieldErrors.email}</p>
                 ) : null}
                 <input
-                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2"
+                  className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)] sm:col-span-2"
                   onChange={(event) =>
                     setForm((current) => ({ ...current, address: event.target.value }))
                   }
@@ -817,7 +817,7 @@ export const CustomersPage = () => {
 
               <div className="grid gap-3">
                 <input
-                  className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                  className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
                   inputMode="decimal"
                   onChange={(event) =>
                     setForm((current) => ({
@@ -830,10 +830,10 @@ export const CustomersPage = () => {
                 />
               </div>
 
-              <div className="rounded-[1.75rem] border border-cyan-500/20 bg-cyan-500/10 p-4 shadow-lg shadow-cyan-950/20">
+              <div className="rounded-[1.75rem] border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] p-4 shadow-lg shadow-black/20">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--epx-accent)]">
                       Piezas especiales
                     </p>
                     <h4 className="mt-1 text-lg font-semibold text-white">
@@ -841,7 +841,7 @@ export const CustomersPage = () => {
                     </h4>
                   </div>
                   <button
-                    className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-2 text-sm font-semibold text-cyan-50"
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-3 py-2 text-sm font-semibold text-white"
                     onClick={() => {
                       setForm((current) => ({
                         ...current,
@@ -859,7 +859,7 @@ export const CustomersPage = () => {
 
                 <div className="mt-4">
                   <button
-                    className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-left text-sm font-semibold text-white"
+                    className="flex w-full items-center justify-between rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-left text-sm font-semibold text-white"
                     onClick={() => setIsSpecialPiecesEditorOpen((current) => !current)}
                     type="button"
                   >
@@ -879,7 +879,7 @@ export const CustomersPage = () => {
                     <div className="mt-3 space-y-3">
                       {form.specialPieces.length > 0 ? (
                         <input
-                          className="w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                          className="w-full rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
                           onChange={(event) => setSpecialPiecesEditFilter(event.target.value)}
                           placeholder="Buscar pieza..."
                           value={specialPiecesEditFilter}
@@ -892,14 +892,14 @@ export const CustomersPage = () => {
                       ) : null}
                       {visibleEditPieces.map(({ piece, index }) => (
                         <div
-                          className="grid gap-3 rounded-2xl border border-white/10 bg-gray-950/60 p-3 sm:grid-cols-[1fr_140px_auto]"
+                          className="grid gap-3 rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-3 sm:grid-cols-[1fr_140px_auto]"
                           key={`piece-${index}`}
                         >
                           <input
                             className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 ${
                               duplicatedSpecialPieceIndexes.has(index)
                                 ? "border-red-500/60 bg-red-500/10"
-                                : "border-white/10 bg-gray-950/60"
+                                : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
                             }`}
                             onChange={(event) => {
                               setForm((current) => ({
@@ -918,7 +918,7 @@ export const CustomersPage = () => {
                             placeholder="Nombre de pieza"
                             value={piece.name}
                           />
-                          <div className="rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3">
+                          <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
                               Precio
                             </p>
@@ -943,7 +943,7 @@ export const CustomersPage = () => {
                                 placeholder="0.00"
                                 value={piece.price}
                               />
-                              <span className="text-sm font-semibold text-cyan-200">€</span>
+                              <span className="text-sm font-semibold text-[var(--epx-accent)]">€</span>
                             </div>
                           </div>
                           <button
@@ -972,7 +972,7 @@ export const CustomersPage = () => {
                         </div>
                       ))}
                       {!form.specialPieces.length ? (
-                        <div className="rounded-2xl border border-dashed border-cyan-400/20 bg-slate-950/50 px-4 py-5 text-sm text-cyan-100/70">
+                        <div className="rounded-2xl border border-dashed border-[var(--epx-accent)]/30 bg-[var(--epx-bg)] px-4 py-5 text-sm text-[var(--epx-text-muted)]">
                           No hay piezas especiales cargadas todavia.
                         </div>
                       ) : null}
@@ -985,7 +985,7 @@ export const CustomersPage = () => {
               </div>
 
               <textarea
-                className="min-h-24 w-full rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500"
+                className="min-h-24 w-full rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
                 onChange={(event) =>
                   setForm((current) => ({ ...current, notes: event.target.value }))
                 }
@@ -999,9 +999,9 @@ export const CustomersPage = () => {
                 </p>
               ) : null}
 
-              <div className="sticky bottom-0 flex gap-3 rounded-2xl border border-white/10 bg-gray-950/90 p-3 backdrop-blur">
+              <div className="sticky bottom-0 flex gap-3 rounded-2xl border border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] p-3 backdrop-blur">
                 <button
-                  className="flex-1 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-gray-950"
+                  className="flex-1 rounded-2xl bg-[var(--epx-accent)] px-4 py-3 text-sm font-semibold text-[#131313]"
                   disabled={createMutation.isPending || updateMutation.isPending}
                   type="submit"
                 >
@@ -1011,7 +1011,7 @@ export const CustomersPage = () => {
             </form>
             </div>
           ) : !selectedCustomer ? (
-            <div className="rounded-2xl border border-dashed border-white/10 p-8 text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-[var(--epx-surface-raised)] p-8 text-sm text-[var(--epx-text-muted)]">
               Selecciona un cliente de la lista para ver su ficha, tarifas y albaranes.
             </div>
           ) : null}

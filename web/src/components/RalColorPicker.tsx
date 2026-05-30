@@ -285,27 +285,27 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
   return (
     <>
       <button
-        className="flex w-full items-center justify-between gap-2 rounded-2xl border border-white/10 bg-gray-950/60 px-3 py-2 text-left text-sm text-white"
+        className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-2 text-left text-sm text-white"
         onClick={() => setIsOpen(true)}
         type="button"
       >
         <div className="flex min-w-0 items-center gap-2">
           <span
-            className="h-4 w-4 shrink-0 border border-white/10"
+            className="h-4 w-4 shrink-0 border border-[var(--epx-surface-raised)]"
             style={{ backgroundColor: selectedOption?.hex ?? "#111827" }}
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium leading-tight">
               {selectedOption ? `${selectedOption.code} - ${selectedOption.name}` : value}
             </p>
-            <p className="text-[11px] leading-tight text-gray-500">Seleccionar color RAL</p>
+            <p className="text-[11px] leading-tight text-[var(--epx-text-muted)]">Seleccionar color RAL</p>
           </div>
         </div>
-        <SwatchIcon className="h-4 w-4 shrink-0 text-cyan-300" />
+        <SwatchIcon className="h-4 w-4 shrink-0 text-[var(--epx-accent)]" />
       </button>
 
       {isOpen ? (
-        <div className="fixed inset-0 z-50 bg-gray-950/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 bg-[color:rgb(19_19_19_/_0.82)] backdrop-blur-sm">
           <button
             aria-label="Cerrar selector RAL"
             className="absolute inset-0"
@@ -315,14 +315,14 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
             }}
             type="button"
           />
-          <div className="absolute inset-x-0 bottom-0 top-0 flex flex-col bg-[#0b1220] sm:inset-8 sm:rounded-2xl sm:border sm:border-white/10">
-            <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
+          <div className="absolute inset-x-0 bottom-0 top-0 flex flex-col bg-[var(--epx-surface)] sm:inset-8 sm:rounded-2xl sm:border sm:border-[var(--epx-surface-raised)]">
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--epx-surface-raised)] px-4 py-3 sm:px-5">
               <div>
                 <p className="text-lg font-bold text-white">Colores RAL</p>
-                <p className="text-sm text-gray-400">Selecciona un acabado habitual</p>
+                <p className="text-sm text-[var(--epx-text-muted)]">Selecciona un acabado habitual</p>
               </div>
               <button
-                className="rounded-2xl border border-white/10 px-3 py-1 text-sm text-gray-300"
+                className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-1 text-sm text-[var(--epx-text-muted)]"
                 onClick={() => {
                   setIsOpen(false);
                   setSearch("");
@@ -333,11 +333,11 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
               </button>
             </div>
 
-            <div className="border-b border-white/10 px-4 py-3 sm:px-5">
-              <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-gray-950/60 px-4 py-3">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-500" />
+            <div className="border-b border-[var(--epx-surface-raised)] px-4 py-3 sm:px-5">
+              <label className="flex items-center gap-3 rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3">
+                <MagnifyingGlassIcon className="h-5 w-5 text-[var(--epx-text-muted)]" />
                 <input
-                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-gray-500"
+                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Buscar RAL o nombre"
                   value={search}
@@ -348,7 +348,7 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-5">
               {filteredFamilies.map((group) => (
                 <section className="space-y-1.5" key={group.family}>
-                  <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400">
+                  <h4 className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--epx-text-muted)]">
                     {group.family}
                   </h4>
                   <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -356,8 +356,8 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                       <button
                         className={`flex items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition-colors ${
                           value === option.code
-                            ? "border-cyan-500/40 bg-cyan-500/10"
-                            : "border-white/10 bg-gray-950/50 hover:border-white/20"
+                            ? "border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.14)]"
+                            : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] hover:border-[var(--epx-accent)]/30"
                         }`}
                         key={option.code}
                         onClick={() => {
@@ -368,7 +368,7 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                         type="button"
                       >
                         <span
-                          className="h-4 w-4 shrink-0 border border-white/10"
+                          className="h-4 w-4 shrink-0 border border-[var(--epx-surface-raised)]"
                           style={{ backgroundColor: option.hex }}
                         />
                         <p className="truncate text-xs font-medium leading-tight text-white">

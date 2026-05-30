@@ -14,11 +14,11 @@ const navItems = [
 
 export const Layout = () => {
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[linear-gradient(180deg,_#020617_0%,_#0f172a_100%)] text-slate-100">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/92 backdrop-blur">
+    <div className="min-h-screen overflow-x-hidden bg-[var(--epx-bg)] text-[var(--epx-text)]">
+      <header className="sticky top-0 z-30 border-b border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[var(--epx-text-muted)]">
               Epoxiron
             </p>
             <h1 className="mt-1 text-xl font-semibold text-white sm:text-2xl">
@@ -35,8 +35,8 @@ export const Layout = () => {
                   clsx(
                     "rounded-xl px-4 py-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "border border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
-                      : "text-slate-300 hover:bg-white/5 hover:text-white"
+                      ? "border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] text-white"
+                      : "text-[var(--epx-text-muted)] hover:bg-[var(--epx-surface)] hover:text-white"
                   )
                 }
               >
@@ -51,7 +51,7 @@ export const Layout = () => {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-slate-950/96 px-3 py-2 backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.98)] px-3 py-2 backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-xl grid-cols-3 gap-2">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -63,8 +63,8 @@ export const Layout = () => {
                   clsx(
                     "flex flex-col items-center justify-center rounded-xl px-2 py-3 text-[11px] font-medium transition-colors",
                     isActive
-                      ? "bg-cyan-400/10 text-cyan-100"
-                      : "text-slate-400 hover:bg-white/5 hover:text-white"
+                      ? "bg-[color:rgb(255_149_0_/_0.16)] text-white"
+                      : "text-[var(--epx-text-muted)] hover:bg-[var(--epx-surface)] hover:text-white"
                   )
                 }
               >

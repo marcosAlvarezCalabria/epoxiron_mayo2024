@@ -32,6 +32,7 @@ export interface DeliveryNoteItemDraft {
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;
+  saveAsSpecialPiece?: boolean;
   quantity: number;
 }
 

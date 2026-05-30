@@ -19,6 +19,26 @@ import {
 
 class InMemoryCustomerRepository {
   public customers: Customer[] = [];
+  public update = vi.fn(async (id: string, input: CustomerInput) => {
+    const current = this.customers.find((customer) => customer.id === id);
+    if (!current) {
+      throw new Error("customer not found");
+    }
+
+    const updated: Customer = {
+      ...current,
+      ...input,
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+      address: input.address ?? null,
+      notes: input.notes ?? null,
+      grosorPrecio: input.grosorPrecio ?? null,
+      updatedAt: new Date()
+    };
+
+    this.customers = this.customers.map((customer) => (customer.id === id ? updated : customer));
+    return updated;
+  });
 
   public async findAll() {
     return this.customers;
@@ -44,10 +64,6 @@ class InMemoryCustomerRepository {
   }
 
   public async create(_input: CustomerInput): Promise<Customer> {
-    throw new Error("not implemented");
-  }
-
-  public async update(_id: string, _input: CustomerInput): Promise<Customer> {
     throw new Error("not implemented");
   }
 
@@ -322,6 +338,36 @@ describe("delivery note use cases", () => {
     expect(result.number).toBe("ALB-note-draft");
     expect(result.totalAmount).toBe(30);
     expect(result.status).toBe("PENDING");
+  });
+
+  it("saves a new special piece when the item switch is enabled", async () => {
+    const useCase = new CreateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+
+    const result = await useCase.execute({
+      customerId: "customer-1",
+      status: "DRAFT",
+      items: [
+        {
+          description: "Puerta peatonal",
+          color: "RAL 7016",
+          linearMeters: 2,
+          quantity: 1,
+          saveAsSpecialPiece: true
+        }
+      ]
+    });
+
+    expect(customerRepository.update).toHaveBeenCalledOnce();
+    expect(customerRepository.customers[0]?.specialPieces).toEqual([
+      { name: "Barandilla", price: 40 },
+      { name: "Puerta peatonal", price: 20 }
+    ]);
+    expect(result.items[0]?.unitPrice).toBe(20);
+    expect(result.items[0]?.totalPrice).toBe(20);
   });
 
   it("blocks deleting non-draft delivery notes", async () => {

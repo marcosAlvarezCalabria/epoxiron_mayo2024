@@ -16,6 +16,22 @@ export interface PriceCalculationResult {
   totalPrice: number;
 }
 
+const toCustomerInput = (customer: Customer) => ({
+  name: customer.name,
+  email: customer.email,
+  phone: customer.phone,
+  address: customer.address,
+  notes: customer.notes,
+  pricePerLinearMeter: customer.pricePerLinearMeter,
+  pricePerSquareMeter: customer.pricePerSquareMeter,
+  minimumRate: customer.minimumRate,
+  grosorPrecio: customer.grosorPrecio,
+  specialPieces: customer.specialPieces.map((piece) => ({
+    name: piece.name,
+    price: piece.price
+  }))
+});
+
 export class CalculatePriceUseCase {
   public execute(item: DeliveryNoteItemDraft, customer: Customer): PriceCalculationResult {
     const quantity = item.quantity;
@@ -60,9 +76,10 @@ const materializeItems = (
 ): DeliveryNoteItem[] => {
   return items.map((item) => {
     const pricing = calculatePrice.execute(item, customer);
+    const { saveAsSpecialPiece: _saveAsSpecialPiece, ...persistedItem } = item;
 
     return {
-      ...item,
+      ...persistedItem,
       unitPrice: pricing.unitPrice,
       totalPrice: pricing.totalPrice
     };
@@ -71,6 +88,42 @@ const materializeItems = (
 
 const sumTotalAmount = (items: DeliveryNoteItem[]): number =>
   Math.round(items.reduce((sum, item) => sum + item.totalPrice, 0) * 100) / 100;
+
+const syncCustomerSpecialPieces = async (
+  customer: Customer,
+  items: DeliveryNoteItemDraft[],
+  pricedItems: DeliveryNoteItem[],
+  customerRepository: CustomerRepository
+) => {
+  const existingNames = new Set(customer.specialPieces.map((piece) => piece.name.trim().toLowerCase()));
+  const specialPiecesToAdd: { name: string; price: number }[] = [];
+
+  items.forEach((item, index) => {
+    if (!item.saveAsSpecialPiece) {
+      return;
+    }
+
+    const normalizedName = item.description.trim().toLowerCase();
+    if (!normalizedName || existingNames.has(normalizedName)) {
+      return;
+    }
+
+    existingNames.add(normalizedName);
+    specialPiecesToAdd.push({
+      name: item.description.trim(),
+      price: pricedItems[index]?.unitPrice ?? 0
+    });
+  });
+
+  if (specialPiecesToAdd.length === 0) {
+    return customer;
+  }
+
+  return customerRepository.update(customer.id, {
+    ...toCustomerInput(customer),
+    specialPieces: [...toCustomerInput(customer).specialPieces, ...specialPiecesToAdd]
+  });
+};
 
 const buildDeliveryNoteNumber = async (
   repository: DeliveryNoteRepository,
@@ -100,12 +153,23 @@ export class CreateDeliveryNoteUseCase {
 
     const date = input.date ?? new Date();
     const number = await buildDeliveryNoteNumber(this.deliveryNoteRepository, date);
-    const items = materializeItems(customer, input.items, this.calculatePriceUseCase);
+    const pricedItems = materializeItems(customer, input.items, this.calculatePriceUseCase);
+    const customerWithSpecialPieces = await syncCustomerSpecialPieces(
+      customer,
+      input.items,
+      pricedItems,
+      this.customerRepository
+    );
+    const items = materializeItems(
+      customerWithSpecialPieces,
+      input.items,
+      this.calculatePriceUseCase
+    );
     return this.deliveryNoteRepository.create({
       ...input,
       date,
       number,
-      customerName: customer.name,
+      customerName: customerWithSpecialPieces.name,
       items,
       totalAmount: sumTotalAmount(items)
     });
@@ -130,12 +194,23 @@ export class UpdateDeliveryNoteUseCase {
       throw new DomainException("Cliente no encontrado", 404);
     }
 
-    const items = materializeItems(customer, input.items, this.calculatePriceUseCase);
+    const pricedItems = materializeItems(customer, input.items, this.calculatePriceUseCase);
+    const customerWithSpecialPieces = await syncCustomerSpecialPieces(
+      customer,
+      input.items,
+      pricedItems,
+      this.customerRepository
+    );
+    const items = materializeItems(
+      customerWithSpecialPieces,
+      input.items,
+      this.calculatePriceUseCase
+    );
     return this.deliveryNoteRepository.update(id, {
       ...input,
       number: existing.number,
       date: input.date ?? existing.date,
-      customerName: customer.name,
+      customerName: customerWithSpecialPieces.name,
       items,
       totalAmount: sumTotalAmount(items)
     });

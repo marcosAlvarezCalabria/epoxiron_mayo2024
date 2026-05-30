@@ -14,25 +14,25 @@ const statCards = [
   {
     key: "totalNotes",
     label: "Albaranes hoy",
-    accent: "text-cyan-300",
+    accent: "text-[var(--epx-accent)]",
     icon: ArrowPathRoundedSquareIcon
   },
   {
     key: "pending",
     label: "Pend. revision",
-    accent: "text-amber-300",
+    accent: "text-[var(--epx-accent)]",
     icon: ClockIcon
   },
   {
     key: "reviewed",
     label: "Revisados",
-    accent: "text-emerald-300",
+    accent: "text-[var(--epx-success)]",
     icon: CheckBadgeIcon
   },
   {
     key: "totalAmount",
     label: "Importe del dia",
-    accent: "text-fuchsia-300",
+    accent: "text-[var(--epx-accent)]",
     icon: CurrencyEuroIcon
   }
 ] as const;
@@ -56,24 +56,24 @@ export const DashboardPage = () => {
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-400">Hoy</p>
+          <p className="text-sm font-medium text-[var(--epx-text-muted)]">Hoy</p>
           <h2 className="text-3xl font-semibold tracking-tight text-white">
             Resumen del taller
           </h2>
-          <p className="mt-2 max-w-2xl text-sm text-slate-400">
+          <p className="mt-2 max-w-2xl text-sm text-[var(--epx-text-muted)]">
             Indicadores diarios para controlar carga, revision y facturacion del
             trabajo en curso.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:flex">
           <Link
-            className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-center text-sm font-semibold text-cyan-50"
+            className="rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-3 text-center text-sm font-semibold text-white"
             to="/delivery-notes"
           >
             Nuevo albaran
           </Link>
           <Link
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center text-sm font-semibold text-white"
+            className="rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-3 text-center text-sm font-semibold text-white"
             to="/customers"
           >
             Ver clientes
@@ -92,11 +92,11 @@ export const DashboardPage = () => {
 
           return (
             <article
-              className="rounded-2xl border border-white/10 bg-slate-900/70 p-5"
+              className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-5"
               key={card.key}
             >
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--epx-text-muted)]">
                   {card.label}
                 </p>
                 <Icon className={`h-5 w-5 ${card.accent}`} />
@@ -112,16 +112,16 @@ export const DashboardPage = () => {
       {queryError ? <ApiErrorState message={queryError} /> : null}
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+        <section className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-white">Cola de hoy</h3>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-[var(--epx-text-muted)]">
                 Albaranes activos registrados en la jornada actual.
               </p>
             </div>
             <Link
-              className="rounded-xl border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200"
+              className="rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-2 text-xs font-semibold text-white"
               to="/delivery-notes"
             >
               Abrir cola
@@ -132,7 +132,7 @@ export const DashboardPage = () => {
             {data?.notes.length ? (
               data.notes.map((note) => (
                 <Link
-                  className="block rounded-xl border border-white/10 bg-slate-950/60 p-4 transition-colors hover:border-cyan-400/30 hover:bg-slate-900/80"
+                  className="block rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4 transition-colors hover:border-[var(--epx-accent)]/50 hover:bg-[var(--epx-surface)]"
                   key={note.id}
                   to={`/delivery-notes?noteId=${note.id}`}
                 >
@@ -141,60 +141,60 @@ export const DashboardPage = () => {
                       <p className="text-sm font-semibold text-white">
                         {note.number}
                       </p>
-                      <p className="text-sm text-slate-400">{note.customerName}</p>
+                      <p className="text-sm text-[var(--epx-text-muted)]">{note.customerName}</p>
                     </div>
-                    <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-200">
+                    <span className="rounded-lg border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-3 py-1 text-xs font-semibold text-white">
                       {statusLabel[note.status]}
                     </span>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-sm">
-                    <span className="text-slate-500">
+                    <span className="text-[var(--epx-text-muted)]">
                       {note.items.length} lineas
                     </span>
-                    <span className="font-mono text-cyan-300">
+                    <span className="font-mono text-[var(--epx-accent)]">
                       {note.totalAmount.toFixed(2)} {"\u20AC"}
                     </span>
                   </div>
                 </Link>
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-white/10 p-6 text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-[var(--epx-surface-raised)] p-6 text-sm text-[var(--epx-text-muted)]">
                 No hay albaranes cargados para hoy.
               </div>
             )}
           </div>
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-5">
+        <section className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-5">
           <h3 className="text-lg font-semibold text-white">Estado de la jornada</h3>
           <div className="mt-5 space-y-4">
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">
+            <div className="rounded-xl border border-[var(--epx-success)]/30 bg-[color:rgb(209_255_0_/_0.12)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--epx-success)]">
                 Revisado
               </p>
-              <p className="mt-2 text-2xl font-bold text-emerald-100">
+              <p className="mt-2 text-2xl font-bold text-[var(--epx-success)]">
                 {stats?.reviewed ?? 0}
               </p>
             </div>
-            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
+            <div className="rounded-xl border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--epx-accent)]">
                 Pendiente de revisar
               </p>
-              <p className="mt-2 text-2xl font-bold text-amber-100">
+              <p className="mt-2 text-2xl font-bold text-[var(--epx-accent)]">
                 {stats?.pending ?? 0}
               </p>
-              <p className="mt-1 text-xs text-amber-100/75">
+              <p className="mt-1 text-xs text-[var(--epx-text-muted)]">
                 Albaranes terminados que aun no se han marcado como revisados.
               </p>
             </div>
-            <div className="rounded-xl border border-white/10 bg-slate-950/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+            <div className="rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
                 Piezas pintadas hoy
               </p>
               <p className="mt-2 text-2xl font-bold text-white">
                 {stats?.totalPieces ?? 0}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-[var(--epx-text-muted)]">
                 Suma de cantidades de todas las lineas de hoy.
               </p>
             </div>

@@ -2,9 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --epx-accent: #ff9500;
+  --epx-bg: #1c1b1b;
+  --epx-surface: #1c1b1b;
+  --epx-surface-raised: #393939;
+  --epx-text: #ffffff;
+  --epx-text-muted: #a0a0a0;
+  --epx-success: #d1ff00;
+  --epx-danger: #b00020;
+}
+
 html,
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  background-color: var(--epx-bg);
+  color: var(--epx-text);
+  @apply antialiased;
   overflow-x: hidden;
 }
 
@@ -28,7 +41,8 @@ textarea {
 }
 
 ::selection {
-  @apply bg-cyan-400/25 text-white;
+  background: rgb(255 149 0 / 0.3);
+  color: var(--epx-text);
 }
 
 [class*="rounded"] {
