@@ -78,7 +78,10 @@ const toOptionalText = (value: string) => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-const parseNumber = (value: string) => Number.parseFloat(value || "0");
+const parseNumber = (value: string) => {
+  const normalized = value.trim().replace(",", ".");
+  return Number.parseFloat(normalized || "0");
+};
 const specialPieceDuplicateMessage = "No puede haber piezas especiales con el mismo nombre.";
 
 const getCustomerFieldErrors = (error: ApiError | null): CustomerFieldErrors => {

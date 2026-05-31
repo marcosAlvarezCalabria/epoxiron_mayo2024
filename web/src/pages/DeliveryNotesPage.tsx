@@ -107,9 +107,11 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
   }))
 });
 
+const normalizeDecimalValue = (value: string) => value.trim().replace(",", ".");
+
 const parseOptionalNumber = (value: string) => {
-  const trimmed = value.trim();
-  return trimmed ? Number.parseFloat(trimmed) : null;
+  const normalized = normalizeDecimalValue(value);
+  return normalized ? Number.parseFloat(normalized) : null;
 };
 
 const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft => ({
@@ -279,6 +281,7 @@ export const DeliveryNotesPage = () => {
       setPreviews({});
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
 
@@ -297,6 +300,7 @@ export const DeliveryNotesPage = () => {
       setPreviews({});
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
 
@@ -306,6 +310,7 @@ export const DeliveryNotesPage = () => {
       setSelectedNoteId(null);
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
 
@@ -315,6 +320,7 @@ export const DeliveryNotesPage = () => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      await queryClient.invalidateQueries({ queryKey: ["customers"] });
     }
   });
 
