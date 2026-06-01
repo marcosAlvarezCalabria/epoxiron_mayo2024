@@ -6,6 +6,7 @@ export const deliveryNoteItemDraftSchema = z.object({
   linearMeters: z.coerce.number().positive().nullable().optional(),
   squareMeters: z.coerce.number().positive().nullable().optional(),
   thickness: z.coerce.number().positive().nullable().optional(),
+  primer: z.boolean().optional(),
   saveAsSpecialPiece: z.boolean().optional(),
   quantity: z.coerce.number().int().positive()
 });

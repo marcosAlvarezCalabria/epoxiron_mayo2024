@@ -30,6 +30,7 @@ import { ApiError } from "@/infrastructure/api/apiClient";
 
 interface DeliveryNoteItemFormState {
   hasThickness: boolean;
+  hasPrimer: boolean;
   saveAsSpecialPiece: boolean;
   description: string;
   color: string;
@@ -77,6 +78,7 @@ const statusHelp: Record<DeliveryNoteStatus, string> = {
 
 const emptyItem = (): DeliveryNoteItemFormState => ({
   hasThickness: false,
+  hasPrimer: false,
   saveAsSpecialPiece: false,
   description: "",
   color: "RAL 7016",
@@ -98,6 +100,7 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
   date: note.date.slice(0, 10),
   items: note.items.map((item) => ({
     hasThickness: item.thickness != null,
+    hasPrimer: item.primer ?? false,
     saveAsSpecialPiece: false,
     description: item.description,
     color: item.color,
@@ -121,6 +124,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   squareMeters: parseOptionalNumber(item.squareMeters),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
   thickness: item.hasThickness ? 1 : null,
+  primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10)
 });
 
@@ -1138,7 +1142,7 @@ export const DeliveryNotesPage = () => {
                       </div>
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-[1fr_1fr_170px]">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_1fr_170px_170px]">
                       {([
                         { key: "linearMeters", label: "ML" },
                         { key: "squareMeters", label: "M2" }
@@ -1207,10 +1211,49 @@ export const DeliveryNotesPage = () => {
                           </span>
                         </button>
                       </div>
+
+                      <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3">
+                        <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                          Imprimacion
+                        </span>
+                        <button
+                          className={`mt-3 flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-sm font-semibold transition-colors ${
+                            item.hasPrimer
+                              ? "border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.16)] text-white"
+                              : "border-[var(--epx-surface-raised)] bg-[color:rgb(255_255_255_/_0.04)] text-[var(--epx-text-muted)]"
+                          }`}
+                          onClick={() =>
+                            setForm((current) => ({
+                              ...current,
+                              items: current.items.map((entry, entryIndex) =>
+                                entryIndex === index
+                                  ? { ...entry, hasPrimer: !entry.hasPrimer }
+                                  : entry
+                              )
+                            }))
+                          }
+                          type="button"
+                        >
+                          <span>{item.hasPrimer ? "Activado" : "Desactivado"}</span>
+                          <span
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              item.hasPrimer
+                                ? "bg-[var(--epx-accent)]"
+                                : "bg-[color:rgb(255_255_255_/_0.15)]"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                                item.hasPrimer ? "translate-x-5" : "translate-x-1"
+                              }`}
+                            />
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                     <p className="text-xs text-gray-500">
-                      Puedes rellenar metros lineales, metros cuadrados o ambos. Activa grosor para duplicar el precio.
+                      Puedes rellenar metros lineales, metros cuadrados o ambos. Activa grosor e imprimacion para aplicar sus recargos sobre la pieza.
                     </p>
 
                     <div className="space-y-3 rounded-2xl border border-[var(--epx-accent)]/25 bg-[color:rgb(255_149_0_/_0.12)] px-4 py-3 text-sm">

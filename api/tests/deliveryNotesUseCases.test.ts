@@ -244,7 +244,8 @@ const buildNote = (
       totalPrice: status === "REVIEWED" ? 120 : 45,
       linearMeters: status === "REVIEWED" ? 3 : null,
       squareMeters: null,
-      thickness: null
+      thickness: null,
+      primer: false
     }
   ],
   createdAt: new Date(date),
@@ -289,6 +290,7 @@ describe("delivery note use cases", () => {
           color: "RAL 9005",
           linearMeters: 1,
           thickness: 4,
+          primer: true,
           quantity: 1
         }
       ]
@@ -297,9 +299,9 @@ describe("delivery note use cases", () => {
     expect(deliveryNoteRepository.create).toHaveBeenCalledOnce();
     expect(result.number).toBe("ALB-2026-0001");
     expect(result.customerName).toBe("Pinturas Lopez");
-    expect(result.totalAmount).toBe(110);
+    expect(result.totalAmount).toBe(140);
     expect(result.items[0]?.totalPrice).toBe(80);
-    expect(result.items[1]?.totalPrice).toBe(30);
+    expect(result.items[1]?.totalPrice).toBe(60);
   });
 
   it("fails creating a delivery note for an unknown customer", async () => {

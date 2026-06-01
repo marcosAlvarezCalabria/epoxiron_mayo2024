@@ -51,6 +51,22 @@ describe("CalculatePriceUseCase", () => {
     expect(result.unitPrice).toBe(30);
   });
 
+  it("duplicates the calculated price when primer is informed", () => {
+    const result = useCase.execute(
+      {
+        description: "Perfil",
+        color: "RAL 7016",
+        linearMeters: 1,
+        primer: true,
+        quantity: 1
+      },
+      customer
+    );
+
+    expect(result.totalPrice).toBe(30);
+    expect(result.unitPrice).toBe(30);
+  });
+
   it("adds linear meters and square meters in the same item", () => {
     const result = useCase.execute(
       {

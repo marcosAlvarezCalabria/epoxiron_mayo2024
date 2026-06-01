@@ -1,0 +1,2 @@
+ALTER TABLE "DeliveryNoteItem"
+ADD COLUMN "primer" BOOLEAN NOT NULL DEFAULT false;

@@ -157,6 +157,7 @@ const calculateItemPrice = (
     linearMeters?: number | null;
     squareMeters?: number | null;
     thickness?: number | null;
+    primer?: boolean;
     quantity: number;
   }
 ) => {
@@ -181,6 +182,10 @@ const calculateItemPrice = (
 
   if (item.thickness && customer.grosorPrecio) {
     totalPrice += customer.grosorPrecio * item.quantity;
+  }
+
+  if (item.primer) {
+    totalPrice *= 2;
   }
 
   totalPrice = round(totalPrice);
@@ -209,6 +214,7 @@ const buildRandomItem = (customer: SeedCustomer) => {
       linearMeters: null,
       squareMeters: null,
       thickness: null,
+      primer: false,
       quantity,
       ...pricing
     };
@@ -216,6 +222,7 @@ const buildRandomItem = (customer: SeedCustomer) => {
 
   const useLinearMeters = Math.random() < 0.55;
   const thickness = Math.random() < 0.6 ? randomFloat(1.5, 5.5) : null;
+  const primer = Math.random() < 0.25;
   const linearMeters = useLinearMeters ? randomFloat(0.8, 4.5) : null;
   const squareMeters = useLinearMeters ? null : randomFloat(0.7, 3.8);
   const description = randomFrom(genericDescriptions);
@@ -224,6 +231,7 @@ const buildRandomItem = (customer: SeedCustomer) => {
     linearMeters,
     squareMeters,
     thickness,
+    primer,
     quantity
   });
 
@@ -233,6 +241,7 @@ const buildRandomItem = (customer: SeedCustomer) => {
     linearMeters,
     squareMeters,
     thickness,
+    primer,
     quantity,
     ...pricing
   };

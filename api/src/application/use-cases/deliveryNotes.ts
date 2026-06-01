@@ -60,6 +60,10 @@ export class CalculatePriceUseCase {
       totalPrice *= 2;
     }
 
+    if (item.primer) {
+      totalPrice *= 2;
+    }
+
     totalPrice = Math.round(totalPrice * 100) / 100;
 
     return {

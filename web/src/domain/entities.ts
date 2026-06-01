@@ -39,6 +39,7 @@ export interface DeliveryNoteItemDraft {
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;
+  primer?: boolean;
   saveAsSpecialPiece?: boolean;
   quantity: number;
 }
@@ -50,6 +51,7 @@ export interface DeliveryNoteItem {
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;
+  primer?: boolean;
   quantity: number;
   unitPrice: number;
   totalPrice: number;

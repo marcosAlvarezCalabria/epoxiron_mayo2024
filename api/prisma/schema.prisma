@@ -57,6 +57,7 @@ model DeliveryNoteItem {
   linearMeters   Float?
   squareMeters   Float?
   thickness      Float?
+  primer         Boolean      @default(false)
   quantity       Int
   unitPrice      Float
   totalPrice     Float
