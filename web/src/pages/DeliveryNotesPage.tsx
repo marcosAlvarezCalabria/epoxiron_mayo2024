@@ -26,23 +26,20 @@ import {
   type DeliveryNoteItemFormState
 } from "@/components/delivery-notes/ItemFormSheet";
 import type {
+  Customer,
   DeliveryNote,
   DeliveryNoteInput,
   DeliveryNoteItemDraft,
   DeliveryNoteStatus
 } from "@/domain/entities";
 import { ApiError } from "@/infrastructure/api/apiClient";
+import { estimateDeliveryNoteItemPrice, type PricePreviewState } from "@/lib/pricing";
 
 interface DeliveryNoteFormState {
   customerId: string;
   date: string;
   items: DeliveryNoteItemFormState[];
   notes: string;
-}
-
-interface PricePreviewState {
-  totalPrice: number;
-  unitPrice: number;
 }
 
 const badgeByStatus: Record<DeliveryNoteStatus, string> = {
@@ -185,7 +182,12 @@ export const DeliveryNotesPage = () => {
     }
 
     return (customersQuery.data?.customers ?? [])
-      .filter((customer) => customer.name.toLowerCase().includes(query))
+      .filter((customer) =>
+        customer.name
+          .toLowerCase()
+          .split(/\s+/)
+          .some((word) => word.startsWith(query))
+      )
       .slice(0, 8);
   }, [customerSearch, customersQuery.data?.customers]);
 
@@ -315,8 +317,20 @@ export const DeliveryNotesPage = () => {
   }, [createMutation.error, deleteMutation.error, statusMutation.error, updateMutation.error]);
 
   const liveTotal = useMemo(
-    () => Object.values(previews).reduce((sum, preview) => sum + preview.totalPrice, 0),
-    [previews]
+    () =>
+      form.items.reduce((sum, item, index) => {
+        const preview = previews[index];
+        if (preview) {
+          return sum + preview.totalPrice;
+        }
+
+        if (selectedCustomer && isItemComplete(item)) {
+          return sum + estimateDeliveryNoteItemPrice(normalizeItem(item), selectedCustomer).totalPrice;
+        }
+
+        return sum;
+      }, 0),
+    [form.items, previews, selectedCustomer]
   );
 
   const currentSheetItem =
@@ -429,6 +443,23 @@ export const DeliveryNotesPage = () => {
     }
 
     return { action: "Reabrir", nextStatus: "PENDING" as const };
+  };
+
+  const getItemPreview = (
+    item: DeliveryNoteItemFormState,
+    index: number,
+    customer: Customer | null
+  ) => {
+    const preview = previews[index];
+    if (preview) {
+      return preview;
+    }
+
+    if (customer && isItemComplete(item)) {
+      return estimateDeliveryNoteItemPrice(normalizeItem(item), customer);
+    }
+
+    return null;
   };
 
   return (
@@ -749,9 +780,6 @@ export const DeliveryNotesPage = () => {
                   <p className="text-sm font-medium text-[var(--epx-accent)]">
                     {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
                   </p>
-                  <h3 className="mt-1 text-xl font-bold text-white">
-                    Flujo guiado de taller
-                  </h3>
                 </div>
                 <button
                   className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-2 text-[var(--epx-text-muted)]"
@@ -762,39 +790,6 @@ export const DeliveryNotesPage = () => {
                 </button>
               </div>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                {([
-                  {
-                    label: "Cliente",
-                    ready: customerStepReady,
-                    text: selectedCustomer?.name ?? "Selecciona el cliente"
-                  },
-                  {
-                    label: "Piezas",
-                    ready: itemsStepReady,
-                    text: form.items.length ? `${form.items.length} piezas cargadas` : "Anade la primera pieza"
-                  },
-                  {
-                    label: "Revision",
-                    ready: reviewStepReady,
-                    text: reviewStepReady ? "Listo para guardar" : "Faltan pasos por completar"
-                  }
-                ] as const).map((step) => (
-                  <div
-                    className={`border px-4 py-3 ${
-                      step.ready
-                        ? "border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.12)]"
-                        : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
-                    }`}
-                    key={step.label}
-                  >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
-                      {step.label}
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-white">{step.text}</p>
-                  </div>
-                ))}
-              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6" ref={composerContentRef}>
@@ -819,7 +814,7 @@ export const DeliveryNotesPage = () => {
                       <input
                         className="w-full border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
                         onChange={(event) => setCustomerSearch(event.target.value)}
-                        placeholder="Escribe la primera letra del cliente"
+                        placeholder="Introduce un cliente"
                         value={customerSearch}
                       />
 
@@ -853,11 +848,6 @@ export const DeliveryNotesPage = () => {
                             </button>
                           ))}
 
-                          {!filteredCustomerSuggestions.length ? (
-                            <div className="border border-dashed border-[var(--epx-surface-raised)] px-4 py-5 text-sm text-[var(--epx-text-muted)]">
-                              Busca un cliente existente para continuar con el albaran.
-                            </div>
-                          ) : null}
                         </div>
                       )}
                     </div>
@@ -902,17 +892,14 @@ export const DeliveryNotesPage = () => {
                           Paso 2
                         </p>
                         <h4 className="mt-1 text-lg font-semibold text-white">Piezas del albaran</h4>
-                        <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
-                          Abre el sheet para editar cada item sin perder el total.
-                        </p>
                       </div>
                       <button
-                        className="inline-flex items-center gap-2 bg-[var(--epx-accent)] px-4 py-3 text-sm font-semibold text-[#131313]"
+                        className="inline-flex items-center gap-1.5 bg-[var(--epx-accent)] px-2.5 py-1.5 text-xs font-semibold text-[#131313]"
                         onClick={() => setSheetState({ index: null, mode: "create", open: true })}
                         type="button"
                       >
-                        <PlusIcon className="h-5 w-5" />
-                        Anadir item
+                        <PlusIcon className="h-4 w-4" />
+                        Anadir pieza
                       </button>
                     </div>
 
@@ -933,7 +920,9 @@ export const DeliveryNotesPage = () => {
                                 </p>
                               </div>
                               <span className="text-sm font-semibold text-[var(--epx-accent)]">
-                                {previews[index] ? formatCurrency(previews[index].totalPrice) : "—"}
+                                {getItemPreview(item, index, selectedCustomer)
+                                  ? formatCurrency(getItemPreview(item, index, selectedCustomer)!.totalPrice)
+                                  : "—"}
                               </span>
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--epx-text-muted)]">
@@ -1029,6 +1018,7 @@ export const DeliveryNotesPage = () => {
 
       <ItemFormSheet
         availableTemplates={availableItemTemplates}
+        customer={selectedCustomer}
         customerId={form.customerId}
         initialItem={currentSheetItem}
         isOpen={sheetState.open}

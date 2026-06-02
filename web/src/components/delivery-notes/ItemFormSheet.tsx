@@ -7,7 +7,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePricePreview } from "@/application/use-cases";
 import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
-import type { DeliveryNoteItemDraft } from "@/domain/entities";
+import type { Customer, DeliveryNoteItemDraft } from "@/domain/entities";
+import { estimateDeliveryNoteItemPrice } from "@/lib/pricing";
 
 export interface DeliveryNoteItemFormState {
   hasThickness: boolean;
@@ -32,6 +33,7 @@ interface PricePreviewState {
 
 interface ItemFormSheetProps {
   availableTemplates: string[];
+  customer: Customer | null;
   customerId: string;
   initialItem: DeliveryNoteItemFormState;
   isOpen: boolean;
@@ -62,6 +64,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
 
 export const ItemFormSheet = ({
   availableTemplates,
+  customer,
   customerId,
   initialItem,
   isOpen,
@@ -99,13 +102,23 @@ export const ItemFormSheet = ({
       return;
     }
 
+    const normalizedItem = normalizeItem(item);
+    if (customer) {
+      setPreview(estimateDeliveryNoteItemPrice(normalizedItem, customer));
+    }
+
     const timeout = window.setTimeout(() => {
       setIsPreviewLoading(true);
-      void calculatePricePreview(customerId, normalizeItem(item))
+      void calculatePricePreview(customerId, normalizedItem)
         .then((result) => {
           setPreview(result.pricing);
         })
         .catch(() => {
+          if (customer) {
+            setPreview(estimateDeliveryNoteItemPrice(normalizedItem, customer));
+            return;
+          }
+
           setPreview(null);
         })
         .finally(() => {
@@ -114,7 +127,7 @@ export const ItemFormSheet = ({
     }, 220);
 
     return () => window.clearTimeout(timeout);
-  }, [customerId, isOpen, item]);
+  }, [customer, customerId, isOpen, item]);
 
   const selectedTemplateLabel = useMemo(
     () => availableTemplates.find((template) => template === item.description) ?? null,
@@ -158,9 +171,9 @@ export const ItemFormSheet = ({
         type="button"
       />
 
-      <div className="absolute inset-x-0 bottom-0 top-auto sm:inset-0 sm:flex sm:items-center sm:justify-center sm:p-6">
+      <div className="absolute inset-0 sm:flex sm:items-center sm:justify-center sm:p-6">
         <div
-          className="relative flex h-[80vh] w-full flex-col border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] shadow-2xl shadow-black/40 sm:h-auto sm:max-h-[92vh] sm:max-w-2xl"
+          className="relative flex h-full w-full flex-col border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] shadow-2xl shadow-black/40 sm:h-auto sm:max-h-[92vh] sm:max-w-2xl"
           onTouchEnd={(event) => {
             if (touchStartYRef.current == null) {
               return;
