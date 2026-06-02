@@ -675,17 +675,17 @@ export const DeliveryNotesPage = () => {
                     </h4>
                     {selectedNote.items.map((item, index) => (
                       <div
-                        className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4"
+                        className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-3"
                         key={`${selectedNote.id}-${index}`}
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-white">{item.description}</p>
-                            <p className="mt-1 text-xs text-[var(--epx-text-muted)]">
+                        <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-[var(--epx-text-muted)]">
+                          <span className="min-w-0 flex-1 truncate font-semibold text-white">
+                            {`${item.description} · ${item.color} · x${item.quantity} · ML ${item.linearMeters ?? 0} · M2 ${item.squareMeters ?? 0}${item.thickness != null ? " · G" : ""}${item.primer ? " · I" : ""}`}
+                            <span className="hidden mt-1 text-xs text-[var(--epx-text-muted)]">
                               {item.color} · x{item.quantity}
-                            </p>
-                          </div>
-                          <span className="text-sm font-semibold text-[var(--epx-accent)]">
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-xs font-semibold text-[var(--epx-accent)]">
                             {formatCurrency(item.totalPrice)}
                           </span>
                         </div>
@@ -907,25 +907,25 @@ export const DeliveryNotesPage = () => {
                       {form.items.length ? (
                         form.items.map((item, index) => (
                           <article
-                            className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-4"
+                            className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-3"
                             key={`draft-item-${index}`}
                           >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-white">
-                                  {item.description || "Pieza pendiente"}
-                                </p>
-                                <p className="mt-1 text-xs text-[var(--epx-text-muted)]">
+                            <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[11px] text-[var(--epx-text-muted)]">
+                              <span className="min-w-0 flex-1 truncate font-semibold text-white">
+                                <span className="truncate text-[11px] font-semibold text-white">
+                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"} · x${item.quantity} · ML ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
+                                </span>
+                                <span className="hidden truncate text-[10px] text-[var(--epx-text-muted)]">
                                   {item.color || "Sin color"} · x{item.quantity}
-                                </p>
-                              </div>
-                              <span className="text-sm font-semibold text-[var(--epx-accent)]">
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-xs font-semibold text-[var(--epx-accent)]">
                                 {getItemPreview(item, index, selectedCustomer)
                                   ? formatCurrency(getItemPreview(item, index, selectedCustomer)!.totalPrice)
                                   : "—"}
                               </span>
                             </div>
-                            <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--epx-text-muted)]">
+                            <div className="hidden mt-3 flex flex-wrap gap-2 text-xs text-[var(--epx-text-muted)]">
                               <span>ML {item.linearMeters || "0"}</span>
                               <span>M2 {item.squareMeters || "0"}</span>
                               {item.hasThickness ? <span>Grosor</span> : null}
