@@ -2,8 +2,6 @@
   ArrowLeftIcon,
   CalendarDaysIcon,
   ChevronDownIcon,
-  PlusIcon,
-  TrashIcon,
   UserPlusIcon
 } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useState } from "react";
@@ -17,32 +15,14 @@ import {
   updateCustomer
 } from "@/application/use-cases";
 import { ApiErrorState } from "@/components/ApiErrorState";
+import {
+  CustomerFormStepper,
+  type CustomerFieldErrors,
+  type CustomerFormState,
+  type SpecialPieceFormState
+} from "@/components/customers/CustomerFormStepper";
 import type { Customer, CustomerInput, DeliveryNote } from "@/domain/entities";
 import { ApiError } from "@/infrastructure/api/apiClient";
-
-interface SpecialPieceFormState {
-  name: string;
-  price: string;
-}
-
-interface CustomerFormState {
-  name: string;
-  email: string;
-  phone: string;
-  address: string;
-  notes: string;
-  pricePerLinearMeter: string;
-  pricePerSquareMeter: string;
-  minimumRate: string;
-  grosorPrecio: string;
-  specialPieces: SpecialPieceFormState[];
-}
-
-interface CustomerFieldErrors {
-  email?: string;
-  name?: string;
-  specialPieces?: string;
-}
 
 const emptyCustomerForm = (): CustomerFormState => ({
   name: "",
@@ -262,11 +242,6 @@ export const CustomersPage = () => {
       )
     : [];
 
-  const normalizedEditFilter = specialPiecesEditFilter.trim().toLowerCase();
-  const visibleEditPieces = form.specialPieces
-    .map((piece, index) => ({ piece, index }))
-    .filter(({ piece }) => piece.name.toLowerCase().includes(normalizedEditFilter));
-
   const customerNotesQuery = useQuery({
     queryKey: ["delivery-notes", "customer-detail", selectedCustomer?.id, customerNotesLimit],
     queryFn: () =>
@@ -333,17 +308,9 @@ export const CustomersPage = () => {
     setMobilePane(selectedCustomerId ? "detail" : "list");
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSubmit = async () => {
     setFormError(null);
     setFieldErrors({});
-
-    if (!form.name.trim()) {
-      setFieldErrors({
-        name: "El nombre del cliente es obligatorio."
-      });
-      return;
-    }
 
     if (hasDuplicatedSpecialPieceNames(form.specialPieces)) {
       setFieldErrors({
@@ -721,297 +688,22 @@ export const CustomersPage = () => {
                 onClick={closeComposer}
                 type="button"
               />
-            <form
-              className="relative z-10 max-h-[92vh] w-full overflow-y-auto rounded-t-[2rem] border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-5 shadow-2xl shadow-black/40 sm:max-w-3xl sm:rounded-[2rem] sm:p-6"
-              onSubmit={handleSubmit}
-            >
-              <div className="sticky top-0 z-10 -mx-5 -mt-5 mb-5 flex items-center justify-between gap-3 border-b border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur sm:-mx-6 sm:-mt-6 sm:px-6">
-                <div>
-                  <p className="text-sm font-medium text-[var(--epx-accent)]">
-                    {editingCustomerId ? "Editar cliente" : "Alta de cliente"}
-                  </p>
-                  <h3 className="mt-1 text-xl font-bold text-white">
-                    {editingCustomerId ? "Actualizar ficha" : "Nuevo cliente"}
-                  </h3>
-                </div>
-                <button
-                  className="rounded-2xl border border-[var(--epx-surface-raised)] px-4 py-2 text-sm text-[var(--epx-text-muted)]"
-                  onClick={closeComposer}
-                  type="button"
-                >
-                  Cerrar
-                </button>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 ${
-                    fieldErrors.name
-                      ? "border-red-500/60 bg-red-500/10"
-                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
-                  }`}
-                  onChange={(event) => {
-                    setForm((current) => ({ ...current, name: event.target.value }));
-                    setFieldErrors((current) => ({ ...current, name: undefined }));
-                  }}
-                  placeholder="Nombre del cliente"
-                  value={form.name}
-                />
-                {fieldErrors.name ? (
-                  <p className="sm:col-span-2 -mt-1 text-sm text-red-300">{fieldErrors.name}</p>
-                ) : null}
-                <input
-                  className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, phone: event.target.value }))
-                  }
-                  placeholder="Telefono"
-                  value={form.phone}
-                />
-                <input
-                  className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 sm:col-span-2 ${
-                    fieldErrors.email
-                      ? "border-red-500/60 bg-red-500/10"
-                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
-                  }`}
-                  onChange={(event) => {
-                    setForm((current) => ({ ...current, email: event.target.value }));
-                    setFieldErrors((current) => ({ ...current, email: undefined }));
-                  }}
-                  placeholder="Email"
-                  value={form.email}
-                />
-                {fieldErrors.email ? (
-                  <p className="sm:col-span-2 -mt-1 text-sm text-red-300">{fieldErrors.email}</p>
-                ) : null}
-                <input
-                  className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)] sm:col-span-2"
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, address: event.target.value }))
-                  }
-                  placeholder="Direccion"
-                  value={form.address}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                {priceTiles.map((tile) => (
-                  <label
-                    className={`rounded-2xl border p-4 ${tile.accent}`}
-                    key={tile.key}
-                  >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em]">
-                      {tile.label}
-                    </p>
-                    <input
-                      className="mt-3 w-full bg-transparent text-center text-2xl font-bold outline-none"
-                      inputMode="decimal"
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          [tile.key]: event.target.value
-                        }))
-                      }
-                      value={form[tile.key]}
-                    />
-                  </label>
-                ))}
-              </div>
-
-              <div className="grid gap-3">
-                <input
-                  className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
-                  inputMode="decimal"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      grosorPrecio: event.target.value
-                    }))
-                  }
-                  placeholder="Suplemento por grosor"
-                  value={form.grosorPrecio}
-                />
-              </div>
-
-              <div className="rounded-[1.75rem] border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] p-4 shadow-lg shadow-black/20">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--epx-accent)]">
-                      Piezas especiales
-                    </p>
-                    <h4 className="mt-1 text-lg font-semibold text-white">
-                      Catalogo rapido del cliente
-                    </h4>
-                  </div>
-                  <button
-                    className="inline-flex items-center gap-2 rounded-full border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-3 py-2 text-sm font-semibold text-white"
-                    onClick={() => {
-                      setForm((current) => ({
-                        ...current,
-                        specialPieces: [{ name: "", price: "" }, ...current.specialPieces]
-                      }));
-                      setIsSpecialPiecesEditorOpen(true);
-                      setFieldErrors((current) => ({ ...current, specialPieces: undefined }));
-                    }}
-                    type="button"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    Manual
-                  </button>
-                </div>
-
-                <div className="mt-4">
-                  <button
-                    className="flex w-full items-center justify-between rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-left text-sm font-semibold text-white"
-                    onClick={() => setIsSpecialPiecesEditorOpen((current) => !current)}
-                    type="button"
-                  >
-                    <span>
-                      {form.specialPieces.length
-                        ? `${form.specialPieces.length} piezas cargadas`
-                        : "Abrir editor de piezas"}
-                    </span>
-                    <ChevronDownIcon
-                      className={`h-4 w-4 transition-transform ${
-                        isSpecialPiecesEditorOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-
-                  {isSpecialPiecesEditorOpen ? (
-                    <div className="mt-3 space-y-3">
-                      {form.specialPieces.length > 0 ? (
-                        <input
-                          className="w-full rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
-                          onChange={(event) => setSpecialPiecesEditFilter(event.target.value)}
-                          placeholder="Buscar pieza..."
-                          value={specialPiecesEditFilter}
-                        />
-                      ) : null}
-                      {normalizedEditFilter && visibleEditPieces.length === 0 ? (
-                        <p className="text-sm text-gray-400">
-                          Sin resultados para «{specialPiecesEditFilter}»
-                        </p>
-                      ) : null}
-                      {visibleEditPieces.map(({ piece, index }) => (
-                        <div
-                          className="grid gap-3 rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-3 sm:grid-cols-[1fr_140px_auto]"
-                          key={`piece-${index}`}
-                        >
-                          <input
-                            className={`rounded-2xl border px-4 py-3 text-sm text-white placeholder:text-gray-500 ${
-                              duplicatedSpecialPieceIndexes.has(index)
-                                ? "border-red-500/60 bg-red-500/10"
-                                : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
-                            }`}
-                            onChange={(event) => {
-                              setForm((current) => ({
-                                ...current,
-                                specialPieces: current.specialPieces.map((entry, entryIndex) =>
-                                  entryIndex === index
-                                    ? { ...entry, name: event.target.value }
-                                    : entry
-                                )
-                              }));
-                              setFieldErrors((current) => ({
-                                ...current,
-                                specialPieces: undefined
-                              }));
-                            }}
-                            placeholder="Nombre de pieza"
-                            value={piece.name}
-                          />
-                          <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-500">
-                              Precio
-                            </p>
-                            <div className="mt-2 flex items-center gap-2">
-                              <input
-                                className="w-full bg-transparent text-sm text-white placeholder:text-gray-500 outline-none"
-                                inputMode="decimal"
-                                onChange={(event) => {
-                                  setForm((current) => ({
-                                    ...current,
-                                    specialPieces: current.specialPieces.map((entry, entryIndex) =>
-                                      entryIndex === index
-                                        ? { ...entry, price: event.target.value }
-                                        : entry
-                                    )
-                                  }));
-                                  setFieldErrors((current) => ({
-                                    ...current,
-                                    specialPieces: undefined
-                                  }));
-                                }}
-                                placeholder="0.00"
-                                value={piece.price}
-                              />
-                              <span className="text-sm font-semibold text-[var(--epx-accent)]">€</span>
-                            </div>
-                          </div>
-                          <button
-                            className="inline-flex items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 px-3 py-3 text-red-200"
-                            onClick={() => {
-                              setForm((current) => ({
-                                ...current,
-                                specialPieces: current.specialPieces.filter(
-                                  (_, entryIndex) => entryIndex !== index
-                                )
-                              }));
-                              setFieldErrors((current) => ({
-                                ...current,
-                                specialPieces: undefined
-                              }));
-                            }}
-                            type="button"
-                          >
-                            <TrashIcon className="h-5 w-5" />
-                          </button>
-                          {duplicatedSpecialPieceIndexes.has(index) ? (
-                            <p className="sm:col-span-3 -mt-1 text-sm text-red-300">
-                              {specialPieceDuplicateMessage}
-                            </p>
-                          ) : null}
-                        </div>
-                      ))}
-                      {!form.specialPieces.length ? (
-                        <div className="rounded-2xl border border-dashed border-[var(--epx-accent)]/30 bg-[var(--epx-bg)] px-4 py-5 text-sm text-[var(--epx-text-muted)]">
-                          No hay piezas especiales cargadas todavia.
-                        </div>
-                      ) : null}
-                      {fieldErrors.specialPieces && duplicatedSpecialPieceIndexes.size === 0 ? (
-                        <p className="text-sm text-red-300">{fieldErrors.specialPieces}</p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-
-              <textarea
-                className="min-h-24 w-full rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white placeholder:text-[var(--epx-text-muted)]"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, notes: event.target.value }))
-                }
-                placeholder="Notas internas"
-                value={form.notes}
+              <CustomerFormStepper
+                duplicatedSpecialPieceIndexes={duplicatedSpecialPieceIndexes}
+                fieldErrors={fieldErrors}
+                form={form}
+                isEditing={Boolean(editingCustomerId)}
+                isPending={createMutation.isPending || updateMutation.isPending}
+                isSpecialPiecesEditorOpen={isSpecialPiecesEditorOpen}
+                mutationError={formError ?? mutationError}
+                onClose={closeComposer}
+                onFieldErrorsChange={setFieldErrors}
+                onFormChange={(updater) => setForm((current) => updater(current))}
+                onSubmit={() => void handleSubmit()}
+                onToggleSpecialPiecesEditor={setIsSpecialPiecesEditorOpen}
+                onSpecialPiecesEditFilterChange={setSpecialPiecesEditFilter}
+                specialPiecesEditFilter={specialPiecesEditFilter}
               />
-
-              {formError || mutationError ? (
-                <p className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                  {formError ?? mutationError}
-                </p>
-              ) : null}
-
-              <div className="sticky bottom-0 flex gap-3 rounded-2xl border border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] p-3 backdrop-blur">
-                <button
-                  className="flex-1 rounded-2xl bg-[var(--epx-accent)] px-4 py-3 text-sm font-semibold text-[#131313]"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  type="submit"
-                >
-                  {editingCustomerId ? "Guardar cambios" : "Crear cliente"}
-                </button>
-              </div>
-            </form>
             </div>
           ) : !selectedCustomer ? (
             <div className="rounded-2xl border border-dashed border-[var(--epx-surface-raised)] p-8 text-sm text-[var(--epx-text-muted)]">
