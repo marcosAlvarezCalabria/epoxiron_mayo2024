@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePricePreview } from "@/application/use-cases";
 import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
 import type { Customer, DeliveryNoteItemDraft } from "@/domain/entities";
-import { estimateDeliveryNoteItemPrice } from "@/lib/pricing";
+import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
 
 export interface DeliveryNoteItemFormState {
   hasThickness: boolean;
@@ -96,30 +96,31 @@ export const ItemFormSheet = ({
     }
 
     const quantity = Number.parseInt(item.quantity || "0", 10);
-    if (!customerId || !item.description.trim() || !item.color.trim() || quantity <= 0) {
+    if (!customerId || quantity <= 0) {
       setPreview(null);
       setIsPreviewLoading(false);
       return;
     }
 
     const normalizedItem = normalizeItem(item);
-    if (customer) {
-      setPreview(estimateDeliveryNoteItemPrice(normalizedItem, customer));
+    const fallbackPreview = customer ? estimateDeliveryNoteItemPrice(normalizedItem, customer) : null;
+    if (fallbackPreview) {
+      setPreview(fallbackPreview);
+    }
+
+    if (!item.description.trim() || !item.color.trim()) {
+      setIsPreviewLoading(false);
+      return;
     }
 
     const timeout = window.setTimeout(() => {
       setIsPreviewLoading(true);
       void calculatePricePreview(customerId, normalizedItem)
         .then((result) => {
-          setPreview(result.pricing);
+          setPreview(resolvePricePreview(result.pricing, fallbackPreview));
         })
         .catch(() => {
-          if (customer) {
-            setPreview(estimateDeliveryNoteItemPrice(normalizedItem, customer));
-            return;
-          }
-
-          setPreview(null);
+          setPreview(fallbackPreview);
         })
         .finally(() => {
           setIsPreviewLoading(false);
@@ -173,7 +174,7 @@ export const ItemFormSheet = ({
 
       <div className="absolute inset-0 sm:flex sm:items-center sm:justify-center sm:p-6">
         <div
-          className="relative flex h-full w-full flex-col border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] shadow-2xl shadow-black/40 sm:h-auto sm:max-h-[92vh] sm:max-w-2xl"
+          className="relative flex h-full w-full flex-col border border-neutral-300 bg-white shadow-2xl shadow-black/10 sm:h-auto sm:max-h-[92vh] sm:max-w-2xl"
           onTouchEnd={(event) => {
             if (touchStartYRef.current == null) {
               return;
@@ -190,21 +191,21 @@ export const ItemFormSheet = ({
             touchStartYRef.current = event.touches[0]?.clientY ?? null;
           }}
         >
-          <div className="flex items-center justify-center border-b border-[var(--epx-surface-raised)] px-4 py-3 sm:hidden">
-            <span className="h-1 w-10 bg-white/20" />
+          <div className="flex items-center justify-center border-b border-neutral-300 px-4 py-3 sm:hidden">
+            <span className="h-1 w-10 bg-neutral-300" />
           </div>
 
-          <div className="flex items-start justify-between gap-3 border-b border-[var(--epx-surface-raised)] px-5 py-4 sm:px-6">
+          <div className="flex items-start justify-between gap-3 border-b border-neutral-300 px-5 py-4 sm:px-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-accent)]">
                 {mode === "create" ? "Nuevo item" : "Editar item"}
               </p>
-              <h3 className="mt-2 text-lg font-semibold text-white">
+              <h3 className="mt-2 text-lg font-semibold text-neutral-900">
                 {mode === "create" ? "Configura la pieza" : "Actualiza la pieza"}
               </h3>
             </div>
             <button
-              className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-2 text-[var(--epx-text-muted)]"
+              className="border border-neutral-300 bg-white px-3 py-2 text-neutral-600"
               onClick={close}
               type="button"
             >
@@ -212,21 +213,21 @@ export const ItemFormSheet = ({
             </button>
           </div>
 
-          <div className="border-b border-[var(--epx-surface-raised)] bg-[color:rgb(255_149_0_/_0.1)] px-5 py-4 sm:px-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+          <div className="border-b border-neutral-300 bg-[color:rgb(255_149_0_/_0.06)] px-5 py-3 sm:px-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
               Precio calculado
             </p>
-            <div className="mt-2 flex items-center gap-3">
-              <p className="text-3xl font-bold text-white">
+            <div className="mt-1.5 flex items-center gap-2">
+              <p className="text-xl font-bold text-neutral-900 sm:text-2xl">
                 {preview ? `${preview.totalPrice.toFixed(2)} €` : "—"}
               </p>
               {isPreviewLoading ? (
-                <span className="text-sm text-[var(--epx-accent)]">Calculando...</span>
+                <span className="text-xs text-[var(--epx-accent)]">Calculando...</span>
               ) : null}
             </div>
             {preview ? (
-              <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
-                Unitario {preview.unitPrice.toFixed(2)} €
+                <p className="mt-0.5 text-xs text-neutral-500">
+                Base viva · Unitario {preview.unitPrice.toFixed(2)} €
               </p>
             ) : null}
           </div>
@@ -234,10 +235,10 @@ export const ItemFormSheet = ({
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
             <div>
               <input
-                className={`w-full border px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)] ${
+                className={`w-full border bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 ${
                   fieldErrors.description
                     ? "border-red-500/60 bg-red-500/10"
-                    : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
+                    : "border-neutral-300"
                 }`}
                 onChange={(event) => {
                   const value = event.target.value;
@@ -253,9 +254,9 @@ export const ItemFormSheet = ({
             </div>
 
             {availableTemplates.length ? (
-              <div className="space-y-3 border border-[var(--epx-accent)]/25 bg-[color:rgb(255_149_0_/_0.08)] p-3">
-                <button
-                  className="flex w-full items-center justify-between border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-4 py-3 text-left text-sm font-semibold text-white"
+                <div className="space-y-3 border border-[var(--epx-accent)]/25 bg-[color:rgb(255_149_0_/_0.08)] p-3">
+                  <button
+                  className="flex w-full items-center justify-between border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-4 py-3 text-left text-sm font-semibold text-neutral-900"
                   onClick={() => setOpenTemplatePicker((current) => !current)}
                   type="button"
                 >
@@ -268,14 +269,14 @@ export const ItemFormSheet = ({
                 </button>
 
                 {openTemplatePicker ? (
-                  <div className="overflow-hidden border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]">
+                  <div className="overflow-hidden border border-neutral-300 bg-white">
                     {availableTemplates.map((template) => (
                       <button
-                        className={`flex w-full items-center justify-between border-b border-[var(--epx-surface-raised)] px-4 py-3 text-left text-sm last:border-b-0 ${
-                          item.description === template
-                            ? "bg-[color:rgb(255_149_0_/_0.16)] text-white"
-                            : "text-[var(--epx-text-muted)] hover:bg-white/5"
-                        }`}
+                          className={`flex w-full items-center justify-between border-b border-neutral-300 px-4 py-3 text-left text-sm last:border-b-0 ${
+                            item.description === template
+                            ? "bg-[color:rgb(255_149_0_/_0.16)] text-neutral-900"
+                            : "text-neutral-600 hover:bg-neutral-50"
+                          }`}
                         key={template}
                         onClick={() => {
                           setItem((current) => ({ ...current, description: template }));
@@ -310,13 +311,13 @@ export const ItemFormSheet = ({
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[160px_1fr_1fr]">
-              <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+              <div className="border border-neutral-300 bg-white p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                   Cantidad
                 </p>
                 <div className="mt-3 flex items-center justify-between">
                   <button
-                    className="border border-[var(--epx-surface-raised)] p-2 text-[var(--epx-text-muted)]"
+                    className="border border-neutral-300 bg-white p-2 text-neutral-600"
                     onClick={() =>
                       setItem((current) => ({
                         ...current,
@@ -330,9 +331,9 @@ export const ItemFormSheet = ({
                   >
                     <MinusIcon className="h-4 w-4" />
                   </button>
-                  <span className="text-lg font-bold text-white">{item.quantity}</span>
+                  <span className="text-lg font-bold text-neutral-900">{item.quantity}</span>
                   <button
-                    className="border border-[var(--epx-surface-raised)] p-2 text-[var(--epx-text-muted)]"
+                    className="border border-neutral-300 bg-white p-2 text-neutral-600"
                     onClick={() =>
                       setItem((current) => ({
                         ...current,
@@ -351,14 +352,14 @@ export const ItemFormSheet = ({
                 { key: "squareMeters", label: "Metros cuadrados", placeholder: "0" }
               ] as const).map((field) => (
                 <label
-                  className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3"
+                  className="border border-neutral-300 bg-white px-4 py-3"
                   key={field.key}
                 >
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                    <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                     {field.label}
                   </span>
                   <input
-                    className="mt-3 w-full bg-transparent text-lg font-semibold text-white outline-none"
+                    className="mt-3 w-full bg-transparent text-lg font-semibold text-neutral-900 outline-none"
                     inputMode="decimal"
                     onChange={(event) =>
                       setItem((current) => ({
@@ -382,8 +383,8 @@ export const ItemFormSheet = ({
                 <button
                   className={`flex items-center justify-between border px-4 py-4 text-left text-sm font-semibold ${
                     item[toggle.key]
-                      ? "border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.16)] text-white"
-                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] text-[var(--epx-text-muted)]"
+                      ? "border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.16)] text-neutral-900"
+                      : "border-neutral-300 bg-white text-neutral-600"
                   }`}
                   key={toggle.key}
                   onClick={() =>
@@ -397,7 +398,7 @@ export const ItemFormSheet = ({
                   <span>{toggle.label}</span>
                   <span
                     className={`relative inline-flex h-6 w-11 items-center ${
-                      item[toggle.key] ? "bg-[var(--epx-accent)]" : "bg-white/15"
+                      item[toggle.key] ? "bg-[var(--epx-accent)]" : "bg-neutral-300"
                     }`}
                   >
                     <span
@@ -411,7 +412,7 @@ export const ItemFormSheet = ({
             </div>
           </div>
 
-          <div className="sticky bottom-0 border-t border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur sm:px-6">
+          <div className="sticky bottom-0 border-t border-neutral-300 bg-white px-5 py-4 sm:px-6">
             <button
               className="w-full bg-[var(--epx-accent)] px-4 py-4 text-sm font-semibold text-[#131313]"
               onClick={handleSave}

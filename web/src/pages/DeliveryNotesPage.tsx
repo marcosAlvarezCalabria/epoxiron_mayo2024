@@ -2,6 +2,9 @@ import {
   ArrowLeftIcon,
   CalendarDaysIcon,
   CheckCircleIcon,
+  ClipboardDocumentListIcon,
+  DocumentTextIcon,
+  DocumentDuplicateIcon,
   PencilSquareIcon,
   PlusIcon,
   TrashIcon,
@@ -33,7 +36,11 @@ import type {
   DeliveryNoteStatus
 } from "@/domain/entities";
 import { ApiError } from "@/infrastructure/api/apiClient";
-import { estimateDeliveryNoteItemPrice, type PricePreviewState } from "@/lib/pricing";
+import {
+  estimateDeliveryNoteItemPrice,
+  resolvePricePreview,
+  type PricePreviewState
+} from "@/lib/pricing";
 
 interface DeliveryNoteFormState {
   customerId: string;
@@ -136,6 +143,7 @@ export const DeliveryNotesPage = () => {
   const [todayOnly, setTodayOnly] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [sheetState, setSheetState] = useState<{ index: number | null; mode: "create" | "edit"; open: boolean }>({
     index: null,
     mode: "create",
@@ -172,8 +180,38 @@ export const DeliveryNotesPage = () => {
       })
   });
 
-  const selectedCustomer =
-    customersQuery.data?.customers.find((customer) => customer.id === form.customerId) ?? null;
+  const selectedCustomer = useMemo(() => {
+    const customers = customersQuery.data?.customers ?? [];
+    return customers.find((customer) => customer.id === form.customerId) ?? null;
+  }, [customersQuery.data?.customers, form.customerId]);
+
+  const resolvedCustomer = useMemo(() => {
+    if (selectedCustomer) {
+      return selectedCustomer;
+    }
+
+    const customers = customersQuery.data?.customers ?? [];
+    const normalizedSearch = customerSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return null;
+    }
+
+    const exactMatch =
+      customers.find((customer) => customer.name.trim().toLowerCase() === normalizedSearch) ?? null;
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    return (
+      customers.find((customer) =>
+        customer.name
+          .trim()
+          .toLowerCase()
+          .split(/\s+/)
+          .some((word) => word.startsWith(normalizedSearch))
+      ) ?? null
+    );
+  }, [customerSearch, customersQuery.data?.customers, selectedCustomer]);
 
   const filteredCustomerSuggestions = useMemo(() => {
     const query = customerSearch.trim().toLowerCase();
@@ -218,6 +256,10 @@ export const DeliveryNotesPage = () => {
   }, [deliveryNotesQuery.data?.deliveryNotes, requestedNoteId]);
 
   useEffect(() => {
+    setIsNotesOpen(false);
+  }, [selectedNoteId]);
+
+  useEffect(() => {
     if (!isComposerOpen) {
       return;
     }
@@ -239,25 +281,43 @@ export const DeliveryNotesPage = () => {
     const timeout = window.setTimeout(() => {
       void Promise.all(
         activeEntries.map(async ({ index, item }) => {
+          const fallbackPricing = resolvedCustomer
+            ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
+            : null;
           const result = await calculatePricePreview(form.customerId, normalizeItem(item));
-          return { index, pricing: result.pricing };
+          return {
+            index,
+            pricing: resolvePricePreview(result.pricing, fallbackPricing)
+          };
         })
       )
         .then((results) => {
           setPreviews(
             results.reduce<Record<number, PricePreviewState>>((accumulator, result) => {
-              accumulator[result.index] = result.pricing;
+              if (result.pricing) {
+                accumulator[result.index] = result.pricing;
+              }
               return accumulator;
             }, {})
           );
         })
         .catch(() => {
-          setPreviews({});
+          if (!resolvedCustomer) {
+            setPreviews({});
+            return;
+          }
+
+          setPreviews(
+            activeEntries.reduce<Record<number, PricePreviewState>>((accumulator, { index, item }) => {
+              accumulator[index] = estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer);
+              return accumulator;
+            }, {})
+          );
         });
     }, 220);
 
     return () => window.clearTimeout(timeout);
-  }, [form, isComposerOpen]);
+  }, [form, isComposerOpen, resolvedCustomer]);
 
   const createMutation = useMutation({
     mutationFn: createDeliveryNote,
@@ -319,18 +379,18 @@ export const DeliveryNotesPage = () => {
   const liveTotal = useMemo(
     () =>
       form.items.reduce((sum, item, index) => {
-        const preview = previews[index];
+        const fallbackPreview =
+          resolvedCustomer && isItemComplete(item)
+            ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
+            : null;
+        const preview = resolvePricePreview(previews[index] ?? null, fallbackPreview);
         if (preview) {
           return sum + preview.totalPrice;
         }
 
-        if (selectedCustomer && isItemComplete(item)) {
-          return sum + estimateDeliveryNoteItemPrice(normalizeItem(item), selectedCustomer).totalPrice;
-        }
-
         return sum;
       }, 0),
-    [form.items, previews, selectedCustomer]
+    [form.items, previews, resolvedCustomer]
   );
 
   const currentSheetItem =
@@ -399,6 +459,11 @@ export const DeliveryNotesPage = () => {
   };
 
   const handleSheetSave = (item: DeliveryNoteItemFormState) => {
+    const fallbackPreview =
+      resolvedCustomer && isItemComplete(item)
+        ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
+        : null;
+
     setForm((current) => {
       if (sheetState.mode === "edit" && sheetState.index != null) {
         return {
@@ -412,6 +477,23 @@ export const DeliveryNotesPage = () => {
         items: [...current.items, item]
       };
     });
+
+    if (fallbackPreview) {
+      setPreviews((current) => {
+        if (sheetState.mode === "edit" && sheetState.index != null) {
+          return {
+            ...current,
+            [sheetState.index]: fallbackPreview
+          };
+        }
+
+        return {
+          ...current,
+          [form.items.length]: fallbackPreview
+        };
+      });
+    }
+
     setSheetState({ index: null, mode: "create", open: false });
   };
 
@@ -450,16 +532,9 @@ export const DeliveryNotesPage = () => {
     index: number,
     customer: Customer | null
   ) => {
-    const preview = previews[index];
-    if (preview) {
-      return preview;
-    }
-
-    if (customer && isItemComplete(item)) {
-      return estimateDeliveryNoteItemPrice(normalizeItem(item), customer);
-    }
-
-    return null;
+    const fallbackPreview =
+      customer && isItemComplete(item) ? estimateDeliveryNoteItemPrice(normalizeItem(item), customer) : null;
+    return resolvePricePreview(previews[index] ?? null, fallbackPreview);
   };
 
   return (
@@ -614,7 +689,7 @@ export const DeliveryNotesPage = () => {
 
         <div className={`${mobilePane === "list" ? "hidden xl:block" : "block"} min-w-0`}>
           {selectedNote ? (
-            <article className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)]">
+            <article className="border border-neutral-300 bg-white shadow-[0_22px_45px_rgba(0,0,0,0.08)]">
               <div className="space-y-5 px-5 py-5">
                 <button
                   className="inline-flex items-center gap-2 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-2 text-sm font-semibold text-white xl:hidden"
@@ -625,112 +700,128 @@ export const DeliveryNotesPage = () => {
                   Volver
                 </button>
 
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-[var(--epx-text-muted)]">Detalle de albaran</p>
-                    <h3 className="mt-1 text-2xl font-semibold text-white">{selectedNote.number}</h3>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[var(--epx-text-muted)]">
-                      <span className="inline-flex items-center gap-2">
-                        <UserCircleIcon className="h-4 w-4 text-[var(--epx-accent)]" />
-                        {selectedNote.customerName}
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <CalendarDaysIcon className="h-4 w-4 text-[var(--epx-accent)]" />
-                        {new Date(selectedNote.date).toLocaleDateString("es-ES")}
-                      </span>
+                <div className="border border-neutral-300 bg-white px-4 py-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                        Detalle de albaran
+                      </p>
+                      <h3 className="mt-2 text-lg font-semibold text-neutral-900 sm:text-xl">{selectedNote.number}</h3>
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-500">
+                        <span className="inline-flex items-center gap-2 text-[15px] font-medium text-neutral-900">
+                          <UserCircleIcon className="h-4 w-4 text-neutral-500" />
+                          {selectedNote.customerName}
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <CalendarDaysIcon className="h-4 w-4 text-neutral-500" />
+                          {new Date(selectedNote.date).toLocaleDateString("es-ES")}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <span className={`px-3 py-2 text-sm font-semibold ${badgeByStatus[selectedNote.status]}`}>
-                      {statusLabel[selectedNote.status]}
-                    </span>
-                    <button
-                      className="inline-flex items-center gap-2 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm font-semibold text-white"
-                      onClick={() => openEditComposer(selectedNote)}
-                      type="button"
-                    >
-                      <PencilSquareIcon className="h-5 w-5" />
-                      Editar
-                    </button>
-                    <button
-                      className="inline-flex items-center gap-2 border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200"
-                      onClick={() => {
-                        if (window.confirm(`Eliminar ${selectedNote.number}?`)) {
-                          deleteMutation.mutate(selectedNote.id);
-                        }
-                      }}
-                      type="button"
-                    >
-                      <TrashIcon className="h-5 w-5" />
-                      Eliminar
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <span
+                        aria-label={statusLabel[selectedNote.status]}
+                        className={`inline-flex h-9 w-9 items-center justify-center border sm:h-8 sm:w-8 ${
+                          selectedNote.status === "DRAFT"
+                            ? "border-neutral-300 bg-neutral-100 text-neutral-600"
+                            : selectedNote.status === "PENDING"
+                              ? "border-amber-300 bg-amber-50 text-amber-600"
+                              : "border-lime-300 bg-lime-50 text-lime-700"
+                        }`}
+                        title={statusLabel[selectedNote.status]}
+                      >
+                        {selectedNote.status === "DRAFT" ? (
+                          <DocumentDuplicateIcon className="h-4 w-4" />
+                        ) : selectedNote.status === "PENDING" ? (
+                          <ClipboardDocumentListIcon className="h-4 w-4" />
+                        ) : (
+                          <CheckCircleIcon className="h-4 w-4" />
+                        )}
+                      </span>
+                      <button
+                        aria-label={isNotesOpen ? "Ocultar anotaciones" : "Mostrar anotaciones"}
+                        className={`inline-flex h-9 w-9 items-center justify-center border sm:h-8 sm:w-8 ${
+                          isNotesOpen
+                            ? "border-amber-300 bg-amber-50 text-amber-600"
+                            : "border-neutral-300 bg-white text-neutral-700"
+                        }`}
+                        onClick={() => setIsNotesOpen((current) => !current)}
+                        type="button"
+                      >
+                        <DocumentTextIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        aria-label="Editar albaran"
+                        className="inline-flex h-9 w-9 items-center justify-center border border-neutral-300 bg-white text-neutral-700 sm:h-8 sm:w-8"
+                        onClick={() => openEditComposer(selectedNote)}
+                        type="button"
+                      >
+                        <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        aria-label="Eliminar albaran"
+                        className="inline-flex h-9 w-9 items-center justify-center border border-red-500/20 bg-red-500/10 text-red-200 sm:h-8 sm:w-8"
+                        onClick={() => {
+                          if (window.confirm(`Eliminar ${selectedNote.number}?`)) {
+                            deleteMutation.mutate(selectedNote.id);
+                          }
+                        }}
+                        type="button"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
-                  <section className="space-y-3">
-                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                {isNotesOpen ? (
+                  <div className="border border-neutral-300 bg-white px-4 py-4 text-sm text-neutral-800">
+                    {selectedNote.notes ?? "Sin notas para este albaran."}
+                  </div>
+                ) : null}
+
+                <section className="border border-neutral-300 bg-white">
+                  <div className="border-b border-neutral-200 px-4 py-3">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                       Piezas
                     </h4>
+                  </div>
+                  <div className="divide-y divide-neutral-200">
                     {selectedNote.items.map((item, index) => (
-                      <div
-                        className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-3"
-                        key={`${selectedNote.id}-${index}`}
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-[var(--epx-text-muted)]">
-                          <span className="min-w-0 flex-1 truncate font-semibold text-white">
-                            {`${item.description} · ${item.color} · x${item.quantity} · ML ${item.linearMeters ?? 0} · M2 ${item.squareMeters ?? 0}${item.thickness != null ? " · G" : ""}${item.primer ? " · I" : ""}`}
-                            <span className="hidden mt-1 text-xs text-[var(--epx-text-muted)]">
-                              {item.color} · x{item.quantity}
+                      <div className="px-3 py-2 sm:px-4 sm:py-3" key={`${selectedNote.id}-${index}`}>
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <span className="min-w-0 flex-1 text-[11px] leading-4 text-neutral-900 sm:text-[13px] sm:leading-5">
+                            <span className="font-semibold">{item.description}</span>
+                            <span className="text-neutral-500">
+                              {" | "}
+                              {item.color}
+                              {" | x"}
+                              {item.quantity}
+                              {" | ML "}
+                              {item.linearMeters ?? 0}
+                              {" | M2 "}
+                              {item.squareMeters ?? 0}
+                              {item.thickness != null ? " | G" : ""}
+                              {item.primer ? " | I" : ""}
                             </span>
                           </span>
-                          <span className="shrink-0 text-xs font-semibold text-[var(--epx-accent)]">
+                          <span className="shrink-0 text-[11px] font-semibold text-neutral-900 sm:text-sm">
                             {formatCurrency(item.totalPrice)}
                           </span>
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--epx-text-muted)]">
-                          <span>ML {item.linearMeters ?? 0}</span>
-                          <span>M2 {item.squareMeters ?? 0}</span>
-                          {item.thickness != null ? <span>Grosor</span> : null}
-                          {item.primer ? <span>Imprimacion</span> : null}
-                        </div>
                       </div>
                     ))}
-                  </section>
-
-                  <section className="space-y-4">
-                    <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
-                        Estado
-                      </p>
-                      <p className="mt-2 text-sm text-white">
-                        {selectedNote.status === "DRAFT"
-                          ? "Aun editable y pendiente de preparar."
-                          : selectedNote.status === "PENDING"
-                            ? "Preparado y pendiente de revision final."
-                            : "Revisado y validado para salida."}
-                      </p>
-                    </div>
-
-                    <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
-                        Notas
-                      </p>
-                      <p className="mt-2 text-sm text-white">
-                        {selectedNote.notes ?? "Sin notas para este albaran."}
-                      </p>
-                    </div>
-                  </section>
-                </div>
+                  </div>
+                </section>
               </div>
 
-              <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur">
+              <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-neutral-300 bg-white px-5 py-4">
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                     Total
                   </p>
-                  <p className="text-2xl font-bold text-[var(--epx-accent)]">
+                  <p className="text-2xl font-bold text-neutral-900">
                     {formatCurrency(selectedNote.totalAmount)}
                   </p>
                 </div>
@@ -738,7 +829,7 @@ export const DeliveryNotesPage = () => {
                 <button
                   className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold ${
                     selectedNote.status === "REVIEWED"
-                      ? "border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] text-white"
+                      ? "border border-neutral-300 bg-white text-neutral-700"
                       : "bg-[var(--epx-accent)] text-[#131313]"
                   }`}
                   disabled={statusMutation.isPending}
@@ -773,76 +864,89 @@ export const DeliveryNotesPage = () => {
             type="button"
           />
 
-          <div className="absolute inset-x-0 bottom-0 top-0 flex flex-col border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] sm:inset-6">
-            <div className="border-b border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur sm:px-6">
+          <div className="absolute inset-x-0 bottom-0 top-0 flex flex-col border border-neutral-300 bg-white sm:inset-6">
+            <div className="border-b border-neutral-300 bg-white px-4 py-3 sm:px-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-[var(--epx-accent)]">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
                     {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
                   </p>
                 </div>
                 <button
-                  className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-2 text-[var(--epx-text-muted)]"
+                  className="inline-flex h-8 w-8 items-center justify-center border border-neutral-300 bg-white text-neutral-600"
                   onClick={closeComposer}
                   type="button"
                 >
-                  <XMarkIcon className="h-5 w-5" />
+                  <XMarkIcon className="h-4 w-4" />
                 </button>
               </div>
 
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6" ref={composerContentRef}>
-              <div className="grid gap-6 xl:grid-cols-[0.74fr_1.26fr]">
-                <section className="space-y-4">
-                  <div className={`border p-4 ${customerStepReady ? "border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.08)]" : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"}`}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4" ref={composerContentRef}>
+              <div className="grid gap-4 xl:grid-cols-[0.74fr_1.26fr]">
+                <section className="space-y-3">
+                  <div className={`border bg-white p-3 sm:p-4 ${customerStepReady ? "border-[var(--epx-accent)]/35" : "border-neutral-300"}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-accent)]">
                           Paso 1
                         </p>
-                        <h4 className="mt-1 text-lg font-semibold text-white">Cliente</h4>
+                        <h4 className="mt-1 text-base font-semibold text-neutral-900">Cliente</h4>
                       </div>
                       {selectedCustomer ? (
-                        <span className="border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-3 py-1 text-xs font-semibold text-[var(--epx-accent)]">
+                        <span className="border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-2 py-1 text-[10px] font-semibold text-[var(--epx-accent)]">
                           Seleccionado
                         </span>
                       ) : null}
                     </div>
 
-                    <div className="mt-4 space-y-3">
-                      <input
-                        className="w-full border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
-                        onChange={(event) => setCustomerSearch(event.target.value)}
-                        placeholder="Introduce un cliente"
-                        value={customerSearch}
-                      />
-
+                    <div className="mt-3 space-y-2">
                       {selectedCustomer ? (
-                        <button
-                          className="w-full border border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.12)] px-4 py-4 text-left"
-                          onClick={() => setForm((current) => ({ ...current, customerId: "" }))}
-                          type="button"
-                        >
-                          <p className="text-sm font-semibold text-white">{selectedCustomer.name}</p>
-                          <p className="mt-1 text-xs text-[var(--epx-text-muted)]">
-                            {selectedCustomer.phone ?? selectedCustomer.email ?? "Sin contacto"}
-                          </p>
-                        </button>
+                        <div className="border border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.08)] px-3 py-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-neutral-900">{selectedCustomer.name}</p>
+                              <p className="mt-1 text-xs text-neutral-500">
+                                {selectedCustomer.phone ?? selectedCustomer.email ?? "Sin contacto"}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                className="border border-neutral-300 bg-white px-2 py-1 text-[10px] font-semibold text-neutral-700"
+                                onClick={() => {
+                                  setForm((current) => ({ ...current, customerId: "" }));
+                                  setCustomerSearch("");
+                                }}
+                                type="button"
+                              >
+                                Borrar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       ) : (
                         <div className="space-y-2">
+                          <input
+                            className="w-full border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+                            onChange={(event) => setCustomerSearch(event.target.value)}
+                            placeholder="Introduce un cliente"
+                            value={customerSearch}
+                          />
+
                           {filteredCustomerSuggestions.map((customer) => (
                             <button
-                              className="w-full border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-3 text-left text-sm text-white transition-colors hover:border-[var(--epx-accent)]/30"
+                              className="w-full border border-neutral-300 bg-white px-3 py-2.5 text-left text-sm text-neutral-900 transition-colors hover:border-[var(--epx-accent)]/30"
                               key={customer.id}
                               onClick={() => {
                                 setForm((current) => ({ ...current, customerId: customer.id }));
-                                setCustomerSearch(customer.name);
+                                setCustomerSearch("");
                               }}
                               type="button"
                             >
                               <p className="font-semibold">{customer.name}</p>
-                              <p className="mt-1 text-xs text-[var(--epx-text-muted)]">
+                              <p className="mt-1 text-xs text-neutral-500">
                                 {customer.phone ?? customer.email ?? "Sin contacto"}
                               </p>
                             </button>
@@ -853,18 +957,18 @@ export const DeliveryNotesPage = () => {
                     </div>
                   </div>
 
-                  <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
+                  <div className="border border-neutral-300 bg-white p-3 sm:p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                           Fecha
                         </p>
-                        <p className="mt-2 text-sm font-semibold text-white">
+                        <p className="mt-2 text-sm font-semibold text-neutral-900">
                           {new Date(form.date).toLocaleDateString("es-ES")}
                         </p>
                       </div>
                       <button
-                        className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-2 text-sm font-semibold text-white"
+                        className="border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 sm:text-sm"
                         onClick={() => openDatePicker(formDateInputRef.current)}
                         type="button"
                       >
@@ -884,89 +988,90 @@ export const DeliveryNotesPage = () => {
                   </div>
                 </section>
 
-                <section className="space-y-4">
-                  <div className={`border p-4 ${itemsStepReady ? "border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.08)]" : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"}`}>
+                <section className="space-y-3">
+                  <div className={`border bg-white p-3 sm:p-4 ${itemsStepReady ? "border-[var(--epx-accent)]/35" : "border-neutral-300"}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-accent)]">
                           Paso 2
                         </p>
-                        <h4 className="mt-1 text-lg font-semibold text-white">Piezas del albaran</h4>
+                        <h4 className="mt-1 text-base font-semibold text-neutral-900">Piezas del albaran</h4>
                       </div>
                       <button
-                        className="inline-flex items-center gap-1.5 bg-[var(--epx-accent)] px-2.5 py-1.5 text-xs font-semibold text-[#131313]"
+                        className="inline-flex items-center gap-1 bg-[var(--epx-accent)] px-2 py-1.5 text-[11px] font-semibold text-[#131313] disabled:cursor-not-allowed disabled:opacity-45"
+                        disabled={!selectedCustomer}
                         onClick={() => setSheetState({ index: null, mode: "create", open: true })}
                         type="button"
                       >
-                        <PlusIcon className="h-4 w-4" />
+                        <PlusIcon className="h-3.5 w-3.5" />
                         Anadir pieza
                       </button>
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-3 space-y-2">
                       {form.items.length ? (
                         form.items.map((item, index) => (
                           <article
-                            className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-3"
+                            className="border border-neutral-300 bg-white p-2.5 sm:p-3"
                             key={`draft-item-${index}`}
                           >
-                            <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[11px] text-[var(--epx-text-muted)]">
-                              <span className="min-w-0 flex-1 truncate font-semibold text-white">
-                                <span className="truncate text-[11px] font-semibold text-white">
+                            <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
+                              <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
+                                <span className="truncate text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
                                   {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"} · x${item.quantity} · ML ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
                                 </span>
-                                <span className="hidden truncate text-[10px] text-[var(--epx-text-muted)]">
+                                <span className="hidden truncate text-[10px] text-neutral-500">
                                   {item.color || "Sin color"} · x{item.quantity}
                                 </span>
                               </span>
-                              <span className="shrink-0 text-xs font-semibold text-[var(--epx-accent)]">
+                              <span className="shrink-0 text-[10px] font-semibold text-[var(--epx-accent)] sm:text-xs">
                                 {getItemPreview(item, index, selectedCustomer)
                                   ? formatCurrency(getItemPreview(item, index, selectedCustomer)!.totalPrice)
                                   : "—"}
                               </span>
                             </div>
-                            <div className="hidden mt-3 flex flex-wrap gap-2 text-xs text-[var(--epx-text-muted)]">
+                            <div className="hidden mt-3 flex flex-wrap gap-2 text-xs text-neutral-500">
                               <span>ML {item.linearMeters || "0"}</span>
                               <span>M2 {item.squareMeters || "0"}</span>
                               {item.hasThickness ? <span>Grosor</span> : null}
                               {item.hasPrimer ? <span>Imprimacion</span> : null}
                               {item.saveAsSpecialPiece ? <span>Guardar especial</span> : null}
                             </div>
-                            <div className="mt-4 flex flex-wrap gap-2">
+                            <div className="mt-3 flex flex-wrap gap-2">
                               <button
-                                className="inline-flex items-center gap-2 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-2 text-sm font-semibold text-white"
+                                className="inline-flex items-center gap-1.5 border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700"
                                 onClick={() => setSheetState({ index, mode: "edit", open: true })}
                                 type="button"
                               >
-                                <PencilSquareIcon className="h-4 w-4" />
+                                <PencilSquareIcon className="h-3.5 w-3.5" />
                                 Editar
                               </button>
                               <button
-                                className="inline-flex items-center gap-2 border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200"
+                                className="inline-flex items-center gap-1.5 border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-xs font-semibold text-red-200"
                                 onClick={() => removeItem(index)}
                                 type="button"
                               >
-                                <TrashIcon className="h-4 w-4" />
+                                <TrashIcon className="h-3.5 w-3.5" />
                                 Quitar
                               </button>
                             </div>
                           </article>
                         ))
                       ) : (
-                        <div className="border border-dashed border-[var(--epx-surface-raised)] px-4 py-6 text-sm text-[var(--epx-text-muted)]">
+                        <div className="border border-dashed border-neutral-300 bg-white px-3 py-4 text-xs text-neutral-500 sm:px-4 sm:py-5 sm:text-sm">
                           Todavia no hay piezas. Anade la primera para continuar.
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
+                  <div className="border border-neutral-300 bg-white p-3 sm:p-4">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-accent)]">
                       Paso 3
                     </p>
-                    <h4 className="mt-1 text-lg font-semibold text-white">Revision final</h4>
+                    <h4 className="mt-1 text-base font-semibold text-neutral-900">Revision final</h4>
                     <textarea
-                      className="mt-4 min-h-28 w-full border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
+                      className="mt-3 min-h-24 w-full border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                       onChange={(event) =>
                         setForm((current) => ({ ...current, notes: event.target.value }))
                       }
@@ -975,7 +1080,7 @@ export const DeliveryNotesPage = () => {
                     />
 
                     {formError || mutationError ? (
-                      <p className="mt-3 border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                      <p className="mt-3 border border-red-500/20 bg-red-500/10 px-3 py-2.5 text-sm text-red-200">
                         {formError ?? mutationError}
                       </p>
                     ) : null}
@@ -984,17 +1089,17 @@ export const DeliveryNotesPage = () => {
               </div>
             </div>
 
-            <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur sm:px-6">
+            <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-neutral-300 bg-white px-3 py-3 sm:px-5">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                   Total del albaran
                 </p>
-                <p className="text-2xl font-bold text-[var(--epx-accent)]">{formatCurrency(liveTotal)}</p>
+                <p className="text-xl font-bold text-neutral-900 sm:text-2xl">{formatCurrency(liveTotal)}</p>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <button
-                  className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm font-semibold text-white"
+                  className="border border-neutral-300 bg-white px-3 py-2.5 text-xs font-semibold text-neutral-700 sm:text-sm"
                   disabled={createMutation.isPending || updateMutation.isPending}
                   onClick={() => void submitForm("DRAFT")}
                   type="button"
@@ -1002,12 +1107,12 @@ export const DeliveryNotesPage = () => {
                   Guardar borrador
                 </button>
                 <button
-                  className="inline-flex items-center gap-2 bg-[var(--epx-accent)] px-4 py-3 text-sm font-semibold text-[#131313]"
+                  className="inline-flex items-center gap-1.5 bg-[var(--epx-accent)] px-3 py-2.5 text-xs font-semibold text-[#131313] sm:gap-2 sm:text-sm"
                   disabled={createMutation.isPending || updateMutation.isPending}
                   onClick={() => void submitForm("PENDING")}
                   type="button"
                 >
-                  <CheckCircleIcon className="h-5 w-5" />
+                  <CheckCircleIcon className="h-4 w-4" />
                   Marcar pendiente
                 </button>
               </div>

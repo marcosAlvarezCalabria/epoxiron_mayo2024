@@ -150,19 +150,19 @@ export const CustomerFormStepper = ({
   };
 
   return (
-    <div className="relative z-10 flex max-h-[94vh] w-full flex-col border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] shadow-2xl shadow-black/40 sm:max-w-3xl">
-      <div className="border-b border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur sm:px-6">
+    <div className="relative z-10 flex max-h-[94vh] w-full flex-col border border-neutral-300 bg-white shadow-2xl shadow-black/10 sm:max-w-3xl">
+      <div className="border-b border-neutral-300 bg-white px-5 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-[var(--epx-accent)]">
               {isEditing ? "Editar cliente" : "Alta de cliente"}
             </p>
-            <h3 className="mt-1 text-xl font-bold text-white">
+            <h3 className="mt-1 text-xl font-bold text-neutral-900">
               {isEditing ? "Actualizar ficha" : "Nuevo cliente"}
             </h3>
           </div>
           <button
-            className="border border-[var(--epx-surface-raised)] px-4 py-2 text-sm text-[var(--epx-text-muted)]"
+            className="border border-neutral-300 bg-white px-4 py-2 text-sm text-neutral-600"
             onClick={onClose}
             type="button"
           >
@@ -187,12 +187,12 @@ export const CustomerFormStepper = ({
                       ? "border-[var(--epx-accent)] bg-[var(--epx-accent)] text-[#131313]"
                       : isDone
                         ? "border-[var(--epx-success)] bg-[var(--epx-success)] text-[#131313]"
-                        : "border-[var(--epx-surface-raised)] text-[var(--epx-text-muted)]"
-                  }`}
-                >
-                  {currentStep.id + 1}
-                </span>
-                <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${isActive ? "text-white" : "text-[var(--epx-text-muted)]"}`}>
+                        : "border-neutral-300 text-neutral-500"
+                   }`}
+                 >
+                   {currentStep.id + 1}
+                 </span>
+                <span className={`text-xs font-semibold uppercase tracking-[0.18em] ${isActive ? "text-neutral-900" : "text-neutral-500"}`}>
                   {currentStep.label}
                 </span>
               </button>
@@ -207,10 +207,10 @@ export const CustomerFormStepper = ({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <input
-                  className={`w-full border px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)] ${
+                  className={`w-full border bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 ${
                     fieldErrors.name
                       ? "border-red-500/60 bg-red-500/10"
-                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
+                      : "border-neutral-300"
                   }`}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -226,7 +226,7 @@ export const CustomerFormStepper = ({
               </div>
 
               <input
-                className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
+                className="border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, phone: event.target.value }))
                 }
@@ -235,10 +235,10 @@ export const CustomerFormStepper = ({
               />
               <div>
                 <input
-                  className={`w-full border px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)] ${
+                  className={`w-full border bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 ${
                     fieldErrors.email
                       ? "border-red-500/60 bg-red-500/10"
-                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
+                      : "border-neutral-300"
                   }`}
                   onChange={(event) => {
                     const value = event.target.value;
@@ -254,7 +254,7 @@ export const CustomerFormStepper = ({
               </div>
 
               <input
-                className="sm:col-span-2 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
+                className="sm:col-span-2 border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, address: event.target.value }))
                 }
@@ -263,7 +263,7 @@ export const CustomerFormStepper = ({
               />
 
               <textarea
-                className="sm:col-span-2 min-h-28 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
+                className="sm:col-span-2 min-h-28 border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                 onChange={(event) =>
                   onFormChange((current) => ({ ...current, notes: event.target.value }))
                 }
@@ -286,16 +286,16 @@ export const CustomerFormStepper = ({
                   className={`border px-4 py-4 ${
                     fieldErrors[field.key]
                       ? "border-red-500/60 bg-red-500/10"
-                      : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
+                      : "border-neutral-300 bg-white"
                   }`}
                   key={field.key}
                 >
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                     {field.label}
                   </p>
                   <div className="mt-4 flex items-end justify-between gap-3">
                     <input
-                      className="w-full bg-transparent text-3xl font-bold text-white outline-none"
+                      className="w-full bg-transparent text-3xl font-bold text-neutral-900 outline-none"
                       inputMode="decimal"
                       onChange={(event) => {
                         const value = event.target.value;
@@ -318,12 +318,12 @@ export const CustomerFormStepper = ({
               ))}
             </div>
 
-            <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+            <div className="border border-neutral-300 bg-white px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                 Suplemento por grosor
               </p>
               <input
-                className="mt-3 w-full bg-transparent text-2xl font-bold text-white outline-none"
+                className="mt-3 w-full bg-transparent text-2xl font-bold text-neutral-900 outline-none"
                 inputMode="decimal"
                 onChange={(event) =>
                   onFormChange((current) => ({
@@ -346,12 +346,12 @@ export const CustomerFormStepper = ({
                   <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--epx-accent)]">
                     Piezas especiales
                   </p>
-                  <h4 className="mt-1 text-lg font-semibold text-white">
+                  <h4 className="mt-1 text-lg font-semibold text-neutral-900">
                     Catalogo rapido del cliente
                   </h4>
                 </div>
                 <button
-                  className="inline-flex items-center gap-2 border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-3 py-2 text-sm font-semibold text-white"
+                  className="inline-flex items-center gap-2 border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.12)] px-3 py-2 text-sm font-semibold text-neutral-900"
                   onClick={() => {
                     onFormChange((current) => ({
                       ...current,
@@ -369,7 +369,7 @@ export const CustomerFormStepper = ({
 
               <div className="mt-4">
                 <button
-                  className="flex w-full items-center justify-between border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-left text-sm font-semibold text-white"
+                  className="flex w-full items-center justify-between border border-neutral-300 bg-white px-4 py-3 text-left text-sm font-semibold text-neutral-900"
                   onClick={() => onToggleSpecialPiecesEditor(!isSpecialPiecesEditorOpen)}
                   type="button"
                 >
@@ -389,7 +389,7 @@ export const CustomerFormStepper = ({
                   <div className="mt-3 space-y-3">
                     {form.specialPieces.length > 8 ? (
                       <input
-                        className="w-full border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
+                        className="w-full border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                         onChange={(event) => onSpecialPiecesEditFilterChange(event.target.value)}
                         placeholder="Buscar pieza..."
                         value={specialPiecesEditFilter}
@@ -398,14 +398,14 @@ export const CustomerFormStepper = ({
 
                     {visibleEditPieces.map(({ piece, index }) => (
                       <div
-                        className="grid gap-3 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-3 sm:grid-cols-[1fr_160px_auto]"
+                        className="grid gap-3 border border-neutral-300 bg-white p-3 sm:grid-cols-[1fr_160px_auto]"
                         key={`piece-${index}`}
                       >
                         <input
-                          className={`border px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)] ${
+                          className={`border bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 ${
                             duplicatedSpecialPieceIndexes.has(index)
                               ? "border-red-500/60 bg-red-500/10"
-                              : "border-[var(--epx-surface-raised)] bg-[var(--epx-bg)]"
+                              : "border-neutral-300"
                           }`}
                           onChange={(event) => {
                             const value = event.target.value;
@@ -420,13 +420,13 @@ export const CustomerFormStepper = ({
                           placeholder="Nombre de pieza"
                           value={piece.name}
                         />
-                        <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                        <div className="border border-neutral-300 bg-white px-4 py-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                             Precio fijo
                           </p>
                           <div className="mt-2 flex items-center gap-2">
                             <input
-                              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
+                              className="w-full bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                               inputMode="decimal"
                               onChange={(event) => {
                                 const value = event.target.value;
@@ -468,7 +468,7 @@ export const CustomerFormStepper = ({
                     ))}
 
                     {!form.specialPieces.length ? (
-                      <div className="border border-dashed border-[var(--epx-accent)]/30 bg-[var(--epx-bg)] px-4 py-5 text-sm text-[var(--epx-text-muted)]">
+                      <div className="border border-dashed border-[var(--epx-accent)]/30 bg-white px-4 py-5 text-sm text-neutral-500">
                         No hay piezas especiales cargadas todavia.
                       </div>
                     ) : null}
@@ -490,11 +490,11 @@ export const CustomerFormStepper = ({
         ) : null}
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.96)] px-5 py-4 backdrop-blur sm:px-6">
+      <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-neutral-300 bg-white px-5 py-4 sm:px-6">
         <div className="flex items-center gap-2">
           {step > 0 ? (
             <button
-              className="inline-flex items-center gap-2 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm font-semibold text-white"
+              className="inline-flex items-center gap-2 border border-neutral-300 bg-white px-4 py-3 text-sm font-semibold text-neutral-700"
               onClick={() => setStep((current) => Math.max(current - 1, 0))}
               type="button"
             >

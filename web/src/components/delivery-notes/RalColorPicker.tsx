@@ -48,12 +48,12 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
   return (
     <>
       <button
-        className="flex w-full items-center justify-between gap-3 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-left text-white"
+        className="flex w-full items-center justify-between gap-3 border border-neutral-300 bg-white px-4 py-3 text-left text-neutral-900"
         onClick={() => setIsOpen(true)}
         type="button"
       >
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
             Color RAL
           </p>
           <div className="mt-2 flex items-center gap-3">
@@ -62,10 +62,10 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
               style={{ backgroundColor: selected?.hex ?? "#111111" }}
             />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">
+              <p className="truncate text-sm font-semibold text-neutral-900">
                 {value}
               </p>
-              <p className="truncate text-xs text-[var(--epx-text-muted)]">
+              <p className="truncate text-xs text-neutral-500">
                 {selected ? selected.name : "Selecciona un acabado"}
               </p>
             </div>
@@ -83,18 +83,18 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
             type="button"
           />
 
-          <div className="absolute inset-x-0 bottom-0 top-10 flex flex-col border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] sm:inset-10">
-            <div className="flex items-start justify-between gap-3 border-b border-[var(--epx-surface-raised)] px-4 py-4 sm:px-6">
+          <div className="absolute inset-x-0 bottom-0 top-10 flex flex-col border border-neutral-300 bg-white sm:inset-10">
+            <div className="flex items-start justify-between gap-3 border-b border-neutral-300 px-4 py-4 sm:px-6">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-accent)]">
                   RAL seleccionado
                 </p>
-                <h3 className="mt-2 text-lg font-semibold text-white">
+                <h3 className="mt-2 text-lg font-semibold text-neutral-900">
                   {selected ? `${value} - ${selected.name}` : value}
                 </h3>
               </div>
               <button
-                className="border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-3 py-2 text-[var(--epx-text-muted)]"
+                className="border border-neutral-300 bg-white px-3 py-2 text-neutral-600"
                 onClick={close}
                 type="button"
               >
@@ -102,11 +102,11 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
               </button>
             </div>
 
-            <div className="border-b border-[var(--epx-surface-raised)] px-4 py-3 sm:px-6">
-              <label className="flex items-center gap-3 border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3">
-                <MagnifyingGlassIcon className="h-5 w-5 text-[var(--epx-text-muted)]" />
+            <div className="border-b border-neutral-300 px-4 py-3 sm:px-6">
+              <label className="flex items-center gap-3 border border-neutral-300 bg-white px-4 py-3">
+                <MagnifyingGlassIcon className="h-5 w-5 text-neutral-500" />
                 <input
-                  className="w-full bg-transparent text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)]"
+                  className="w-full bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Buscar por codigo, familia o nombre"
                   value={search}
@@ -118,7 +118,7 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
               <div className="space-y-6">
                 {visibleGroups.map((group) => (
                   <section className="space-y-3" key={group.family}>
-                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--epx-text-muted)]">
+                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                       {group.family}
                     </h4>
                     <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 lg:grid-cols-10">
@@ -130,7 +130,7 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                             className={`relative h-9 w-9 border transition-transform hover:scale-[1.03] ${
                               isSelected
                                 ? "border-[var(--epx-accent)] ring-2 ring-[var(--epx-accent)]/40"
-                                : "border-white/10"
+                                : "border-neutral-300"
                             }`}
                             key={code}
                             onClick={() => {

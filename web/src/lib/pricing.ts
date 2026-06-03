@@ -5,6 +5,23 @@ export interface PricePreviewState {
   unitPrice: number;
 }
 
+export const resolvePricePreview = (
+  primary: PricePreviewState | null | undefined,
+  fallback: PricePreviewState | null | undefined
+): PricePreviewState | null => {
+  const hasUsablePrimary =
+    primary != null &&
+    Number.isFinite(primary.totalPrice) &&
+    Number.isFinite(primary.unitPrice) &&
+    (primary.totalPrice > 0 || fallback == null || fallback.totalPrice <= 0);
+
+  if (hasUsablePrimary) {
+    return primary;
+  }
+
+  return fallback ?? null;
+};
+
 export const estimateDeliveryNoteItemPrice = (
   item: DeliveryNoteItemDraft,
   customer: Customer
