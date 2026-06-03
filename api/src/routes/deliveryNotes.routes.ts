@@ -3,7 +3,8 @@ import { asyncHandler } from "../middleware/asyncHandler.js";
 import {
   calculatePriceSchema,
   deliveryNoteInputSchema,
-  deliveryNoteStatusSchema
+  deliveryNoteStatusSchema,
+  sendDailyDeliveryNotesReportSchema
 } from "../schemas/deliveryNoteSchemas.js";
 import { DeliveryNotesController } from "../controllers/DeliveryNotesController.js";
 
@@ -19,6 +20,14 @@ export const buildDeliveryNotesRouter = (controller: DeliveryNotesController) =>
       next(error);
     }
   }, asyncHandler(controller.calculatePrice));
+  router.post("/send-daily-report", async (request, _response, next) => {
+    try {
+      request.body = sendDailyDeliveryNotesReportSchema.parse(request.body);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  }, asyncHandler(controller.sendDailyReport));
   router.get("/:id", asyncHandler(controller.getById));
   router.post("/", async (request, _response, next) => {
     try {

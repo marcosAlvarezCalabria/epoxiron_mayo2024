@@ -77,7 +77,7 @@ export const ItemFormSheet = ({
   const [preview, setPreview] = useState<PricePreviewState | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [openTemplatePicker, setOpenTemplatePicker] = useState(false);
-  const touchStartYRef = useRef<number | null>(null);
+  const previewRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (!isOpen) {
@@ -97,6 +97,7 @@ export const ItemFormSheet = ({
 
     const quantity = Number.parseInt(item.quantity || "0", 10);
     if (!customerId || quantity <= 0) {
+      previewRequestIdRef.current += 1;
       setPreview(null);
       setIsPreviewLoading(false);
       return;
@@ -109,20 +110,32 @@ export const ItemFormSheet = ({
     }
 
     if (!item.description.trim() || !item.color.trim()) {
+      previewRequestIdRef.current += 1;
       setIsPreviewLoading(false);
       return;
     }
 
     const timeout = window.setTimeout(() => {
+      const requestId = previewRequestIdRef.current + 1;
+      previewRequestIdRef.current = requestId;
       setIsPreviewLoading(true);
       void calculatePricePreview(customerId, normalizedItem)
         .then((result) => {
+          if (previewRequestIdRef.current !== requestId) {
+            return;
+          }
           setPreview(resolvePricePreview(result.pricing, fallbackPreview));
         })
         .catch(() => {
+          if (previewRequestIdRef.current !== requestId) {
+            return;
+          }
           setPreview(fallbackPreview);
         })
         .finally(() => {
+          if (previewRequestIdRef.current !== requestId) {
+            return;
+          }
           setIsPreviewLoading(false);
         });
     }, 220);
@@ -165,32 +178,10 @@ export const ItemFormSheet = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-[color:rgb(19_19_19_/_0.82)] backdrop-blur-sm">
-      <button
-        aria-label="Cerrar formulario de item"
-        className="absolute inset-0"
-        onClick={close}
-        type="button"
-      />
+      <div className="absolute inset-0" />
 
       <div className="absolute inset-0 sm:flex sm:items-center sm:justify-center sm:p-6">
-        <div
-          className="relative flex h-full w-full flex-col border border-neutral-300 bg-white shadow-2xl shadow-black/10 sm:h-auto sm:max-h-[92vh] sm:max-w-2xl"
-          onTouchEnd={(event) => {
-            if (touchStartYRef.current == null) {
-              return;
-            }
-
-            const distance = event.changedTouches[0]?.clientY - touchStartYRef.current;
-            touchStartYRef.current = null;
-
-            if (distance > 100) {
-              close();
-            }
-          }}
-          onTouchStart={(event) => {
-            touchStartYRef.current = event.touches[0]?.clientY ?? null;
-          }}
-        >
+        <div className="relative flex h-full w-full flex-col border border-neutral-300 bg-white shadow-2xl shadow-black/10 sm:h-auto sm:max-h-[92vh] sm:max-w-2xl">
           <div className="flex items-center justify-center border-b border-neutral-300 px-4 py-3 sm:hidden">
             <span className="h-1 w-10 bg-neutral-300" />
           </div>

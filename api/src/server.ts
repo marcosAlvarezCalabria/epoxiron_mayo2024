@@ -18,12 +18,15 @@ import {
   GetDashboardSummaryUseCase,
   GetDeliveryNoteUseCase,
   GetDeliveryNotesUseCase,
+  SendDailyDeliveryNotesReportUseCase,
   UpdateDeliveryNoteUseCase
 } from "./application/use-cases/deliveryNotes.js";
 import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
+import { NodemailerEmailSender } from "./infrastructure/services/NodemailerEmailSender.js";
+import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { buildCustomersRouter } from "./routes/customers.routes.js";
@@ -55,6 +58,23 @@ const updateDeliveryNoteUseCase = new UpdateDeliveryNoteUseCase(
 const deleteDeliveryNoteUseCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
 const changeDeliveryNoteStatusUseCase = new ChangeDeliveryNoteStatusUseCase(deliveryNoteRepository);
 const getDashboardSummaryUseCase = new GetDashboardSummaryUseCase(deliveryNoteRepository);
+const reportGenerator = env.SMTP_HOST ? new PdfKitDailyDeliveryNotesReportGenerator() : null;
+const emailSender = env.SMTP_HOST
+  ? new NodemailerEmailSender({
+      from: env.SMTP_FROM!,
+      host: env.SMTP_HOST,
+      password: env.SMTP_PASS!,
+      port: env.SMTP_PORT!,
+      secure: env.SMTP_SECURE,
+      user: env.SMTP_USER!
+    })
+  : null;
+const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseCase(
+  deliveryNoteRepository,
+  reportGenerator,
+  emailSender,
+  env.DAILY_REPORT_DEFAULT_EMAIL
+);
 
 const customersController = new CustomersController(
   getCustomersUseCase,
@@ -73,7 +93,8 @@ const deliveryNotesController = new DeliveryNotesController(
   changeDeliveryNoteStatusUseCase,
   calculatePriceUseCase,
   getCustomerUseCase,
-  getDashboardSummaryUseCase
+  getDashboardSummaryUseCase,
+  sendDailyDeliveryNotesReportUseCase
 );
 
 const app = express();

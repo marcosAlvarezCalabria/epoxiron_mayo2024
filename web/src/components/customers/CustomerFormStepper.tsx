@@ -150,7 +150,7 @@ export const CustomerFormStepper = ({
   };
 
   return (
-    <div className="relative z-10 flex max-h-[94vh] w-full flex-col border border-neutral-300 bg-white shadow-2xl shadow-black/10 sm:max-w-3xl">
+    <div className="relative z-10 flex min-h-screen w-full flex-col border border-neutral-300 bg-white shadow-2xl shadow-black/10 sm:min-h-0 sm:max-h-[94vh] sm:max-w-3xl">
       <div className="border-b border-neutral-300 bg-white px-5 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -198,6 +198,39 @@ export const CustomerFormStepper = ({
               </button>
             );
           })}
+        </div>
+
+        <div className="mt-3 flex items-center justify-end gap-2 border-t border-neutral-200 pt-3">
+          {step > 0 ? (
+            <button
+              className="inline-flex items-center gap-1 border border-neutral-300 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-neutral-700"
+              onClick={() => setStep((current) => Math.max(current - 1, 0))}
+              type="button"
+            >
+              <ChevronLeftIcon className="h-3.5 w-3.5" />
+              Atras
+            </button>
+          ) : null}
+
+          {step < steps.length - 1 ? (
+            <button
+              className="inline-flex items-center gap-1 bg-[var(--epx-accent)] px-2.5 py-1.5 text-[11px] font-semibold text-[#131313]"
+              onClick={goNext}
+              type="button"
+            >
+              Siguiente
+              <ChevronRightIcon className="h-3.5 w-3.5" />
+            </button>
+          ) : (
+            <button
+              className="bg-[var(--epx-accent)] px-3 py-1.5 text-[11px] font-semibold text-[#131313]"
+              disabled={isPending}
+              onClick={submit}
+              type="button"
+            >
+              {isPending ? "Guardando..." : "Guardar"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -488,41 +521,6 @@ export const CustomerFormStepper = ({
             ) : null}
           </div>
         ) : null}
-      </div>
-
-      <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-neutral-300 bg-white px-5 py-4 sm:px-6">
-        <div className="flex items-center gap-2">
-          {step > 0 ? (
-            <button
-              className="inline-flex items-center gap-2 border border-neutral-300 bg-white px-4 py-3 text-sm font-semibold text-neutral-700"
-              onClick={() => setStep((current) => Math.max(current - 1, 0))}
-              type="button"
-            >
-              <ChevronLeftIcon className="h-4 w-4" />
-              Atras
-            </button>
-          ) : null}
-        </div>
-
-        {step < steps.length - 1 ? (
-          <button
-            className="inline-flex items-center gap-2 bg-[var(--epx-accent)] px-4 py-3 text-sm font-semibold text-[#131313]"
-            onClick={goNext}
-            type="button"
-          >
-            Siguiente
-            <ChevronRightIcon className="h-4 w-4" />
-          </button>
-        ) : (
-          <button
-            className="bg-[var(--epx-accent)] px-5 py-3 text-sm font-semibold text-[#131313]"
-            disabled={isPending}
-            onClick={submit}
-            type="button"
-          >
-            {isPending ? "Guardando..." : "Guardar"}
-          </button>
-        )}
       </div>
     </div>
   );

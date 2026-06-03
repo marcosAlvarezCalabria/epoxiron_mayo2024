@@ -14,6 +14,7 @@ import {
   GetDashboardSummaryUseCase,
   GetDeliveryNoteUseCase,
   GetDeliveryNotesUseCase,
+  SendDailyDeliveryNotesReportUseCase,
   UpdateDeliveryNoteUseCase
 } from "../src/application/use-cases/deliveryNotes.js";
 
@@ -204,6 +205,18 @@ class InMemoryDeliveryNoteRepository {
 
     return matches[0] ?? null;
   }
+}
+
+class FakeDailyDeliveryNotesReportGenerator {
+  public generate = vi.fn(async () => ({
+    filename: "albaranes-2026-01-01.pdf",
+    content: Buffer.from("pdf"),
+    contentType: "application/pdf"
+  }));
+}
+
+class FakeEmailSender {
+  public send = vi.fn(async () => undefined);
 }
 
 const buildCustomer = (): Customer => ({
@@ -446,5 +459,72 @@ describe("delivery note use cases", () => {
     expect(result.stats.pending).toBe(1);
     expect(result.stats.totalPieces).toBe(8);
     expect(result.stats.totalAmount).toBe(210);
+  });
+
+  it("generates the daily report PDF and sends it by email", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const emailSender = new FakeEmailSender();
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      deliveryNoteRepository,
+      reportGenerator,
+      emailSender,
+      "taller@example.com"
+    );
+
+    const result = await useCase.execute({
+      date: new Date("2026-01-01T00:00:00.000Z")
+    });
+
+    expect(reportGenerator.generate).toHaveBeenCalledOnce();
+    expect(emailSender.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachments: [
+          expect.objectContaining({
+            filename: "albaranes-2026-01-01.pdf"
+          })
+        ],
+        to: "taller@example.com"
+      })
+    );
+    expect(result.notesCount).toBe(2);
+  });
+
+  it("fails sending the daily report when there are no delivery notes", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const emailSender = new FakeEmailSender();
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      deliveryNoteRepository,
+      reportGenerator,
+      emailSender,
+      "taller@example.com"
+    );
+
+    await expect(
+      useCase.execute({
+        date: new Date("2026-01-03T00:00:00.000Z")
+      })
+    ).rejects.toMatchObject({
+      message: "No hay albaranes para la fecha seleccionada",
+      statusCode: 404
+    });
+    expect(emailSender.send).not.toHaveBeenCalled();
+  });
+
+  it("fails sending the daily report when email delivery is not configured", async () => {
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      deliveryNoteRepository,
+      null,
+      null,
+      "taller@example.com"
+    );
+
+    await expect(
+      useCase.execute({
+        date: new Date("2026-01-01T00:00:00.000Z")
+      })
+    ).rejects.toMatchObject({
+      message: "El envio por correo no esta configurado",
+      statusCode: 503
+    });
   });
 });

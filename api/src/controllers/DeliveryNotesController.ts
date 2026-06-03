@@ -7,6 +7,7 @@ import type {
   GetDashboardSummaryUseCase,
   GetDeliveryNoteUseCase,
   GetDeliveryNotesUseCase,
+  SendDailyDeliveryNotesReportUseCase,
   UpdateDeliveryNoteUseCase
 } from "../application/use-cases/deliveryNotes.js";
 import type { GetCustomerUseCase } from "../application/use-cases/customers.js";
@@ -28,7 +29,8 @@ export class DeliveryNotesController {
     private readonly changeDeliveryNoteStatusUseCase: ChangeDeliveryNoteStatusUseCase,
     private readonly calculatePriceUseCase: CalculatePriceUseCase,
     private readonly getCustomerUseCase: GetCustomerUseCase,
-    private readonly getDashboardSummaryUseCase: GetDashboardSummaryUseCase
+    private readonly getDashboardSummaryUseCase: GetDashboardSummaryUseCase,
+    private readonly sendDailyDeliveryNotesReportUseCase: SendDailyDeliveryNotesReportUseCase
   ) {}
 
   public list = async (request: Request, response: Response) => {
@@ -98,5 +100,17 @@ export class DeliveryNotesController {
   public getDashboardSummary = async (_request: Request, response: Response) => {
     const summary = await this.getDashboardSummaryUseCase.execute();
     response.json(summary);
+  };
+
+  public sendDailyReport = async (request: Request, response: Response) => {
+    const result = await this.sendDailyDeliveryNotesReportUseCase.execute(request.body);
+    response.json({
+      message: "Correo enviado",
+      result: {
+        date: result.date.toISOString(),
+        email: result.email,
+        notesCount: result.notesCount
+      }
+    });
   };
 }

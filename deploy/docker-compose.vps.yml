@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:15
@@ -8,35 +6,76 @@ services:
       POSTGRES_DB: epoxiron
       POSTGRES_USER: epoxiron
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epoxiron -d epoxiron"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     ports:
       - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - epoxiron_net
 
   api:
     build:
-      context: .
+      context: ..
       dockerfile: api/Dockerfile
     restart: unless-stopped
     env_file:
-      - api/.env.production
+      - path: ../api/.env.production
+        required: false
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:3001:3001"
+    networks:
+      - epoxiron_net
 
-  web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL}
+  engram:
+    image: ghcr.io/gentleman-programming/engram:latest
+    container_name: engram
     restart: unless-stopped
+    env_file:
+      - path: ./engram/engram.env
+        required: false
+    volumes:
+      - engram_data:/var/lib/engram
+    networks:
+      - epoxiron_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7437/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    restart: unless-stopped
+    command: ["gateway", "run"]
+    env_file:
+      - path: ./hermes/hermes.env
+        required: false
     depends_on:
       - api
+      - engram
     ports:
-      - "127.0.0.1:8081:80"
+      - "127.0.0.1:8642:8642"
+      - "127.0.0.1:9119:9119"
+    volumes:
+      - hermes_data:/opt/data
+      - ./hermes/config.vps.yaml:/opt/data/config.yaml:ro
+      - ../:/workspace/epoxiron:ro
+    networks:
+      - epoxiron_net
 
 volumes:
   postgres_data:
+  hermes_data:
+  engram_data:
 
+networks:
+  epoxiron_net:
+    driver: bridge

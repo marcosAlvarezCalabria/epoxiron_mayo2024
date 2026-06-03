@@ -1,12 +1,17 @@
-﻿import {
+import {
   ArrowPathRoundedSquareIcon,
   CheckBadgeIcon,
   ClockIcon,
-  CurrencyEuroIcon
+  CurrencyEuroIcon,
+  EnvelopeIcon
 } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { getDashboardSummary } from "@/application/use-cases";
+import {
+  getDashboardSummary,
+  sendDailyDeliveryNotesReport
+} from "@/application/use-cases";
 import { ApiErrorState } from "@/components/ApiErrorState";
 import { ApiError } from "@/infrastructure/api/apiClient";
 
@@ -44,13 +49,22 @@ const statusLabel = {
 } as const;
 
 export const DashboardPage = () => {
+  const [reportEmail, setReportEmail] = useState("");
   const { data, error } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: getDashboardSummary
   });
+  const reportMutation = useMutation({
+    mutationFn: () =>
+      sendDailyDeliveryNotesReport({
+        email: reportEmail.trim() || undefined
+      })
+  });
 
   const stats = data?.stats;
   const queryError = error instanceof ApiError ? error.message : null;
+  const reportError =
+    reportMutation.error instanceof ApiError ? reportMutation.error.message : null;
 
   return (
     <section className="space-y-6">
@@ -65,7 +79,7 @@ export const DashboardPage = () => {
             trabajo en curso.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:flex">
+        <div className="grid gap-3 sm:flex">
           <Link
             className="rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-3 text-center text-sm font-semibold text-white"
             to="/delivery-notes"
@@ -80,6 +94,43 @@ export const DashboardPage = () => {
           </Link>
         </div>
       </div>
+
+      <section className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-4 sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-white">PDF diario de albaranes</h3>
+            <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
+              Genera el PDF del dia y envialo por correo.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              className="min-w-0 rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)] sm:min-w-[280px]"
+              onChange={(event) => setReportEmail(event.target.value)}
+              placeholder="Correo destino"
+              value={reportEmail}
+            />
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={reportMutation.isPending}
+              onClick={() => reportMutation.mutate()}
+              type="button"
+            >
+              <EnvelopeIcon className="h-4 w-4" />
+              {reportMutation.isPending ? "Enviando..." : "Enviar PDF del dia"}
+            </button>
+          </div>
+        </div>
+
+        {reportMutation.data ? (
+          <p className="mt-3 text-sm text-[var(--epx-success)]">
+            PDF enviado a {reportMutation.data.result.email} con{" "}
+            {reportMutation.data.result.notesCount} albaranes.
+          </p>
+        ) : null}
+        {reportError ? <p className="mt-3 text-sm text-red-300">{reportError}</p> : null}
+      </section>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((card) => {
@@ -204,4 +255,3 @@ export const DashboardPage = () => {
     </section>
   );
 };
-

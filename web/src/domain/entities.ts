@@ -95,6 +95,15 @@ export interface DashboardSummary {
   };
 }
 
+export interface DailyDeliveryNotesReportResponse {
+  message: string;
+  result: {
+    date: string;
+    email: string;
+    notesCount: number;
+  };
+}
+
 export interface DeliveryNotesListResponse {
   deliveryNotes: DeliveryNote[];
   pagination: {

@@ -22,5 +22,5 @@
       "@/schemas/*": ["schemas/*"]
     }
   },
-  "include": ["src/**/*.ts", "prisma/**/*.prisma", "tests/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "prisma/**/*.prisma", "tests/**/*.ts"]
 }

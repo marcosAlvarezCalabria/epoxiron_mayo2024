@@ -1,0 +1,19 @@
+provider: openai
+base_url: https://api.ollama.com/v1
+api_key: ${OLLAMA_API_KEY}
+model: qwen2.5:72b
+
+toolsets:
+  - skills
+  - memory
+
+security:
+  require_approval: dangerous
+
+project_context_files:
+  - /workspace/epoxiron/.hermes.md
+  - /workspace/epoxiron/AGENTS.md
+
+epoxiron:
+  api_base_url: http://api:3001/api/hermes-tools
+  api_key: change-me

@@ -10,6 +10,8 @@ import type {
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
 import type { DeliveryNoteRepository } from "../../domain/repositories/DeliveryNoteRepository.js";
+import type { DailyDeliveryNotesReportGenerator } from "../../domain/services/DailyDeliveryNotesReportGenerator.js";
+import type { EmailSender } from "../../domain/services/EmailSender.js";
 
 export interface PriceCalculationResult {
   unitPrice: number;
@@ -294,6 +296,65 @@ export class GetDashboardSummaryUseCase {
         reviewed,
         pending: notes.filter((note) => note.status === "PENDING").length
       }
+    };
+  }
+}
+
+const buildDailyReportSubject = (date: Date) => {
+  const formattedDate = new Intl.DateTimeFormat("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(date);
+  return `Albaranes del dia ${formattedDate}`;
+};
+
+export class SendDailyDeliveryNotesReportUseCase {
+  public constructor(
+    private readonly repository: DeliveryNoteRepository,
+    private readonly reportGenerator: DailyDeliveryNotesReportGenerator | null,
+    private readonly emailSender: EmailSender | null,
+    private readonly defaultRecipientEmail?: string
+  ) {}
+
+  public async execute(input: { date?: Date; email?: string | null }) {
+    if (!this.reportGenerator || !this.emailSender) {
+      throw new DomainException("El envio por correo no esta configurado", 503);
+    }
+
+    const date = input.date ?? new Date();
+    const recipientEmail = input.email?.trim() || this.defaultRecipientEmail || null;
+
+    if (!recipientEmail) {
+      throw new DomainException("Indica un correo de destino", 400);
+    }
+
+    const notes = await this.repository.findAll({ date });
+
+    if (notes.length === 0) {
+      throw new DomainException("No hay albaranes para la fecha seleccionada", 404);
+    }
+
+    const attachment = await this.reportGenerator.generate({ date, notes });
+    const totalAmount = Math.round(notes.reduce((sum, note) => sum + note.totalAmount, 0) * 100) / 100;
+
+    await this.emailSender.send({
+      attachments: [attachment],
+      subject: buildDailyReportSubject(date),
+      text: [
+        "Adjuntamos el PDF con los albaranes del dia.",
+        "",
+        `Fecha: ${date.toISOString().slice(0, 10)}`,
+        `Albaranes: ${notes.length}`,
+        `Importe total: ${totalAmount.toFixed(2)} EUR`
+      ].join("\n"),
+      to: recipientEmail
+    });
+
+    return {
+      date,
+      email: recipientEmail,
+      notesCount: notes.length
     };
   }
 }

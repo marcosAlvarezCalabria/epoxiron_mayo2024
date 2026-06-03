@@ -18,6 +18,15 @@ const groupedEntries = RAL_FAMILY_ORDER.map((family) => ({
     .sort(([left], [right]) => left.localeCompare(right))
 }));
 
+const getSwatchTextColor = (hex: string) => {
+  const normalized = hex.replace("#", "");
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+  return luminance > 160 ? "#111111" : "#ffffff";
+};
+
 export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -124,10 +133,11 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                     <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 lg:grid-cols-10">
                       {group.colors.map(([code, color]) => {
                         const isSelected = value === code;
+                        const swatchTextColor = getSwatchTextColor(color.hex);
                         return (
                           <button
                             aria-label={`${code} ${color.name}`}
-                            className={`relative h-9 w-9 border transition-transform hover:scale-[1.03] ${
+                            className={`relative flex h-11 w-16 items-center justify-center border px-1 text-center transition-transform hover:scale-[1.03] ${
                               isSelected
                                 ? "border-[var(--epx-accent)] ring-2 ring-[var(--epx-accent)]/40"
                                 : "border-neutral-300"
@@ -141,8 +151,14 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                             title={`${code} - ${color.name}`}
                             type="button"
                           >
+                            <span
+                              className="pointer-events-none text-[10px] font-semibold tracking-[0.08em]"
+                              style={{ color: swatchTextColor }}
+                            >
+                              {code.replace("RAL ", "")}
+                            </span>
                             {isSelected ? (
-                              <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
+                              <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/25 text-white">
                                 <CheckIcon className="h-4 w-4" />
                               </span>
                             ) : null}

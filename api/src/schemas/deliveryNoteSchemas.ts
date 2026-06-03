@@ -27,3 +27,8 @@ export const calculatePriceSchema = z.object({
   customerId: z.string().uuid(),
   item: deliveryNoteItemDraftSchema
 });
+
+export const sendDailyDeliveryNotesReportSchema = z.object({
+  date: z.coerce.date().optional(),
+  email: z.string().email().optional()
+});

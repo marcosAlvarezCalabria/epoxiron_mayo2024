@@ -152,6 +152,7 @@ export const DeliveryNotesPage = () => {
   const dateFilterInputRef = useRef<HTMLInputElement | null>(null);
   const formDateInputRef = useRef<HTMLInputElement | null>(null);
   const composerContentRef = useRef<HTMLDivElement | null>(null);
+  const previewsRequestIdRef = useRef(0);
 
   const openDatePicker = (input: HTMLInputElement | null) => {
     if (!input) {
@@ -265,6 +266,7 @@ export const DeliveryNotesPage = () => {
     }
 
     if (!form.customerId || form.items.length === 0) {
+      previewsRequestIdRef.current += 1;
       setPreviews({});
       return;
     }
@@ -274,11 +276,14 @@ export const DeliveryNotesPage = () => {
       .filter(({ item }) => isItemComplete(item));
 
     if (activeEntries.length === 0) {
+      previewsRequestIdRef.current += 1;
       setPreviews({});
       return;
     }
 
     const timeout = window.setTimeout(() => {
+      const requestId = previewsRequestIdRef.current + 1;
+      previewsRequestIdRef.current = requestId;
       void Promise.all(
         activeEntries.map(async ({ index, item }) => {
           const fallbackPricing = resolvedCustomer
@@ -292,6 +297,9 @@ export const DeliveryNotesPage = () => {
         })
       )
         .then((results) => {
+          if (previewsRequestIdRef.current !== requestId) {
+            return;
+          }
           setPreviews(
             results.reduce<Record<number, PricePreviewState>>((accumulator, result) => {
               if (result.pricing) {
@@ -302,6 +310,9 @@ export const DeliveryNotesPage = () => {
           );
         })
         .catch(() => {
+          if (previewsRequestIdRef.current !== requestId) {
+            return;
+          }
           if (!resolvedCustomer) {
             setPreviews({});
             return;

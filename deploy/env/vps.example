@@ -1,3 +1,1 @@
 POSTGRES_PASSWORD=change-me
-VITE_API_URL=https://app.example.com
-

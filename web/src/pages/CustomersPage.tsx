@@ -681,7 +681,7 @@ export const CustomersPage = () => {
           ) : null}
 
           {isComposerOpen ? (
-            <div className="fixed inset-0 z-40 flex items-end bg-[color:rgb(19_19_19_/_0.78)] backdrop-blur sm:items-center sm:justify-center">
+            <div className="fixed inset-0 z-40 flex items-start justify-center bg-[color:rgb(19_19_19_/_0.78)] backdrop-blur sm:items-center">
               <button
                 aria-label="Cerrar formulario de cliente"
                 className="absolute inset-0"
