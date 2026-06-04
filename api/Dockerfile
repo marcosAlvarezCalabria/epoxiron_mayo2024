@@ -19,8 +19,8 @@ RUN corepack enable
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY api/package.json ./api/package.json
 RUN pnpm install --filter @epoxiron/api... --prod --frozen-lockfile
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/api/prisma ./api/prisma
 COPY --from=build /app/api/dist ./api/dist
 EXPOSE 3001
 CMD ["node", "api/dist/src/server.js"]
-
