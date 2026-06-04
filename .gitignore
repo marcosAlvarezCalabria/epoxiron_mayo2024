@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+*.env.production
+hermes.env
 node_modules/
 .pnpm-store/
 dist/
