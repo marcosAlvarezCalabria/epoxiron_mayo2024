@@ -319,6 +319,8 @@ export const CustomerFormStepper = ({
                   className={`border px-4 py-4 ${
                     fieldErrors[field.key]
                       ? "border-red-500/60 bg-red-500/10"
+                      : field.key === "pricePerSquareMeter"
+                        ? "border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.08)]"
                       : "border-neutral-300 bg-white"
                   }`}
                   key={field.key}
@@ -340,7 +342,7 @@ export const CustomerFormStepper = ({
                       }}
                       value={form[field.key]}
                     />
-                    <span className="pb-1 text-sm font-semibold text-[var(--epx-accent)]">
+                    <span className="border border-[var(--epx-accent)]/20 bg-[color:rgb(255_149_0_/_0.08)] px-2 py-1 text-sm font-semibold text-neutral-900">
                       {field.suffix}
                     </span>
                   </div>
