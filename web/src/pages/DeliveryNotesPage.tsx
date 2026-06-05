@@ -28,6 +28,7 @@ import {
   ItemFormSheet,
   type DeliveryNoteItemFormState
 } from "@/components/delivery-notes/ItemFormSheet";
+import { formatDeliveryNoteTexture } from "@/constants/deliveryNoteTextures";
 import type {
   Customer,
   DeliveryNote,
@@ -69,6 +70,7 @@ const emptyItem = (): DeliveryNoteItemFormState => ({
   saveAsSpecialPiece: false,
   description: "",
   color: "RAL 7016",
+  texture: "NORMAL",
   linearMeters: "",
   quantity: "1",
   squareMeters: ""
@@ -90,6 +92,7 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
     saveAsSpecialPiece: false,
     description: item.description,
     color: item.color,
+    texture: item.texture ?? "NORMAL",
     linearMeters: item.linearMeters?.toString() ?? "",
     quantity: item.quantity.toString(),
     squareMeters: item.squareMeters?.toString() ?? ""
@@ -112,6 +115,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
   squareMeters: parseOptionalNumber(item.squareMeters),
+  texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
 
@@ -807,6 +811,8 @@ export const DeliveryNotesPage = () => {
                             <span className="text-neutral-500">
                               {" | "}
                               {item.color}
+                              {" | "}
+                              {formatDeliveryNoteTexture(item.texture)}
                               {" | x"}
                               {item.quantity}
                               {" | ML "}
@@ -1029,10 +1035,10 @@ export const DeliveryNotesPage = () => {
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
                                 <span className="truncate text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
-                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"} · x${item.quantity} · ML ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
+                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"} · ${formatDeliveryNoteTexture(item.texture)} · x${item.quantity} · ML ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
                                 </span>
                                 <span className="hidden truncate text-[10px] text-neutral-500">
-                                  {item.color || "Sin color"} · x{item.quantity}
+                                  {item.color || "Sin color"} · {formatDeliveryNoteTexture(item.texture)} · x{item.quantity}
                                 </span>
                               </span>
                               <span className="shrink-0 text-[10px] font-semibold text-[var(--epx-accent)] sm:text-xs">

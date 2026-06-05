@@ -252,6 +252,7 @@ const buildNote = (
     {
       description: "Perfil",
       color: "RAL 9005",
+      texture: "NORMAL",
       quantity: status === "REVIEWED" ? 4 : 2,
       unitPrice: status === "REVIEWED" ? 30 : 22.5,
       totalPrice: status === "REVIEWED" ? 120 : 45,
@@ -296,11 +297,13 @@ describe("delivery note use cases", () => {
         {
           description: "Barandilla",
           color: "RAL 7016",
+          texture: "NORMAL",
           quantity: 2
         },
         {
           description: "Perfil",
           color: "RAL 9005",
+          texture: "MATE",
           linearMeters: 1,
           thickness: 4,
           primer: true,
@@ -328,7 +331,7 @@ describe("delivery note use cases", () => {
       useCase.execute({
         customerId: "missing",
         status: "DRAFT",
-        items: [{ description: "Perfil", color: "RAL 9005", quantity: 1, linearMeters: 2 }]
+        items: [{ description: "Perfil", color: "RAL 9005", texture: "NORMAL", quantity: 1, linearMeters: 2 }]
       })
     ).rejects.toMatchObject({
       message: "Cliente no encontrado",
@@ -346,7 +349,7 @@ describe("delivery note use cases", () => {
     const result = await useCase.execute("note-draft", {
       customerId: "customer-1",
       status: "PENDING",
-      items: [{ description: "Perfil", color: "RAL 9005", quantity: 2, linearMeters: 1 }]
+      items: [{ description: "Perfil", color: "RAL 9005", texture: "NORMAL", quantity: 2, linearMeters: 1 }]
     });
 
     expect(deliveryNoteRepository.update).toHaveBeenCalledOnce();
@@ -370,6 +373,7 @@ describe("delivery note use cases", () => {
           description: "Puerta peatonal",
           color: "RAL 7016",
           linearMeters: 2,
+          texture: "TEXTURADO",
           quantity: 1,
           saveAsSpecialPiece: true
         }

@@ -7,7 +7,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePricePreview } from "@/application/use-cases";
 import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
-import type { Customer, DeliveryNoteItemDraft } from "@/domain/entities";
+import type { Customer, DeliveryNoteItemDraft, DeliveryNoteTexture } from "@/domain/entities";
 import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
 
 export interface DeliveryNoteItemFormState {
@@ -16,6 +16,7 @@ export interface DeliveryNoteItemFormState {
   saveAsSpecialPiece: boolean;
   description: string;
   color: string;
+  texture: DeliveryNoteTexture;
   linearMeters: string;
   quantity: string;
   squareMeters: string;
@@ -59,6 +60,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
   squareMeters: parseOptionalNumber(item.squareMeters),
+  texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
 
@@ -294,6 +296,13 @@ export const ItemFormSheet = ({
                   setItem((current) => ({ ...current, color }));
                   setFieldErrors((current) => ({ ...current, color: undefined }));
                 }}
+                onTextureChange={(texture) =>
+                  setItem((current) => ({
+                    ...current,
+                    texture
+                  }))
+                }
+                texture={item.texture}
                 value={item.color}
               />
               {fieldErrors.color ? (

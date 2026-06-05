@@ -26,6 +26,7 @@ describe("CalculatePriceUseCase", () => {
       {
         description: "barandilla",
         color: "RAL 9005",
+        texture: "NORMAL",
         quantity: 2
       },
       customer
@@ -41,6 +42,7 @@ describe("CalculatePriceUseCase", () => {
         description: "Perfil",
         color: "RAL 7016",
         linearMeters: 1,
+        texture: "NORMAL",
         thickness: 4,
         quantity: 1
       },
@@ -58,6 +60,7 @@ describe("CalculatePriceUseCase", () => {
         color: "RAL 7016",
         linearMeters: 1,
         primer: true,
+        texture: "NORMAL",
         quantity: 1
       },
       customer
@@ -74,6 +77,7 @@ describe("CalculatePriceUseCase", () => {
         color: "RAL 9005",
         linearMeters: 2,
         squareMeters: 1.5,
+        texture: "NORMAL",
         quantity: 2
       },
       customer

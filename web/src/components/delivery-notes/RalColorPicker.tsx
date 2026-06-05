@@ -1,6 +1,11 @@
 import { CheckIcon, MagnifyingGlassIcon, SwatchIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useMemo, useState } from "react";
 import {
+  DELIVERY_NOTE_TEXTURE_OPTIONS,
+  formatDeliveryNoteTexture
+} from "@/constants/deliveryNoteTextures";
+import type { DeliveryNoteTexture } from "@/domain/entities";
+import {
   getRalColor,
   RAL_COLORS,
   RAL_FAMILY_ORDER
@@ -8,6 +13,8 @@ import {
 
 interface RalColorPickerProps {
   onChange: (ral: string) => void;
+  onTextureChange: (texture: DeliveryNoteTexture) => void;
+  texture: DeliveryNoteTexture;
   value: string;
 }
 
@@ -27,7 +34,7 @@ const getSwatchTextColor = (hex: string) => {
   return luminance > 160 ? "#111111" : "#ffffff";
 };
 
-export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
+export const RalColorPicker = ({ onChange, onTextureChange, texture, value }: RalColorPickerProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -75,7 +82,7 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                 {value}
               </p>
               <p className="truncate text-xs text-neutral-500">
-                {selected ? selected.name : "Selecciona un acabado"}
+                {selected ? `${selected.name} · ${formatDeliveryNoteTexture(texture)}` : "Selecciona color y textura"}
               </p>
             </div>
           </div>
@@ -101,6 +108,7 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                 <h3 className="mt-2 text-lg font-semibold text-neutral-900">
                   {selected ? `${value} - ${selected.name}` : value}
                 </h3>
+                <p className="mt-1 text-sm text-neutral-500">{formatDeliveryNoteTexture(texture)}</p>
               </div>
               <button
                 className="border border-neutral-300 bg-white px-3 py-2 text-neutral-600"
@@ -121,6 +129,28 @@ export const RalColorPicker = ({ onChange, value }: RalColorPickerProps) => {
                   value={search}
                 />
               </label>
+            </div>
+
+            <div className="border-b border-neutral-300 px-4 py-4 sm:px-6">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                Textura
+              </p>
+              <div className="mt-3 flex gap-2 overflow-x-auto">
+                {DELIVERY_NOTE_TEXTURE_OPTIONS.map((option) => (
+                  <button
+                    className={`shrink-0 border px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap ${
+                      texture === option.value
+                        ? "border-[var(--epx-accent)]/35 bg-[color:rgb(255_149_0_/_0.16)] text-neutral-900"
+                        : "border-neutral-300 bg-white text-neutral-600"
+                    }`}
+                    key={option.value}
+                    onClick={() => onTextureChange(option.value)}
+                    type="button"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">

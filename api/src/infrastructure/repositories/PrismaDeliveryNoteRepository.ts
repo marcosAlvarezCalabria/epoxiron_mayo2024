@@ -1,6 +1,8 @@
 import type {
   DeliveryNote,
   DeliveryNoteFilters,
+  DeliveryNoteItem,
+  DeliveryNoteTexture,
   DeliveryNoteStatus
 } from "../../domain/entities/DeliveryNote.js";
 import type { DeliveryNoteRepository } from "../../domain/repositories/DeliveryNoteRepository.js";
@@ -31,9 +33,76 @@ const buildWhere = (filters: DeliveryNoteFilters) => {
   };
 };
 
+const resolveTexture = (value: unknown): DeliveryNoteTexture => {
+  if (value === "MATE" || value === "TEXTURADO" || value === "GOFRADO") {
+    return value;
+  }
+
+  return "NORMAL";
+};
+
+const toDomainItem = (
+  item: {
+    id: string;
+    description: string;
+    color: string;
+    linearMeters: number | null;
+    squareMeters: number | null;
+    thickness: number | null;
+    primer: boolean;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+  } & { texture?: unknown }
+): DeliveryNoteItem => ({
+  id: item.id,
+  description: item.description,
+  color: item.color,
+  texture: resolveTexture(item.texture),
+  linearMeters: item.linearMeters,
+  squareMeters: item.squareMeters,
+  thickness: item.thickness,
+  primer: item.primer,
+  quantity: item.quantity,
+  unitPrice: item.unitPrice,
+  totalPrice: item.totalPrice
+});
+
+const toDomainNote = (
+  note: {
+    id: string;
+    number: string;
+    customerId: string;
+    customerName: string;
+    status: DeliveryNoteStatus;
+    notes: string | null;
+    totalAmount: number;
+    date: Date;
+    createdAt: Date;
+    updatedAt: Date;
+    items: Array<
+      {
+        id: string;
+        description: string;
+        color: string;
+        linearMeters: number | null;
+        squareMeters: number | null;
+        thickness: number | null;
+        primer: boolean;
+        quantity: number;
+        unitPrice: number;
+        totalPrice: number;
+      } & { texture?: unknown }
+    >;
+  }
+): DeliveryNote => ({
+  ...note,
+  items: note.items.map(toDomainItem)
+});
+
 export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
   public async findAll(filters: DeliveryNoteFilters) {
-    return prisma.deliveryNote.findMany({
+    const notes = await prisma.deliveryNote.findMany({
       where: buildWhere(filters),
       take: filters.limit,
       skip: filters.offset,
@@ -44,6 +113,8 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
         date: "desc"
       }
     });
+
+    return notes.map(toDomainNote);
   }
 
   public async count(filters: DeliveryNoteFilters) {
@@ -53,12 +124,14 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
   }
 
   public async findById(id: string) {
-    return prisma.deliveryNote.findUnique({
+    const note = await prisma.deliveryNote.findUnique({
       where: { id },
       include: {
         items: true
       }
     });
+
+    return note ? toDomainNote(note) : null;
   }
 
   public async findLatestNumberForYear(year: number) {
@@ -86,7 +159,7 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
     status: DeliveryNoteStatus;
     totalAmount: number;
   }) {
-    return prisma.deliveryNote.create({
+    const note = await prisma.deliveryNote.create({
       data: {
         ...input,
         date: input.date ?? new Date(),
@@ -98,6 +171,8 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
         items: true
       }
     });
+
+    return toDomainNote(note);
   }
 
   public async update(
@@ -113,7 +188,7 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
       totalAmount: number;
     }
   ) {
-    return prisma.deliveryNote.update({
+    const note = await prisma.deliveryNote.update({
       where: { id },
       data: {
         ...input,
@@ -127,6 +202,8 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
         items: true
       }
     });
+
+    return toDomainNote(note);
   }
 
   public async delete(id: string) {
@@ -136,12 +213,14 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
   }
 
   public async updateStatus(id: string, status: DeliveryNoteStatus) {
-    return prisma.deliveryNote.update({
+    const note = await prisma.deliveryNote.update({
       where: { id },
       data: { status },
       include: {
         items: true
       }
     });
+
+    return toDomainNote(note);
   }
 }

@@ -1,8 +1,11 @@
 import { z } from "zod";
 
+const deliveryNoteTextureSchema = z.enum(["NORMAL", "MATE", "TEXTURADO", "GOFRADO"]);
+
 export const deliveryNoteItemDraftSchema = z.object({
   description: z.string().min(1),
   color: z.string().min(1),
+  texture: deliveryNoteTextureSchema.optional().default("NORMAL"),
   linearMeters: z.coerce.number().positive().nullable().optional(),
   squareMeters: z.coerce.number().positive().nullable().optional(),
   thickness: z.coerce.number().positive().nullable().optional(),

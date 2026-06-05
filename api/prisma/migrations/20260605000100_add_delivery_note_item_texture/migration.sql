@@ -1,0 +1,2 @@
+ALTER TABLE "DeliveryNoteItem"
+ADD COLUMN "texture" TEXT NOT NULL DEFAULT 'NORMAL';

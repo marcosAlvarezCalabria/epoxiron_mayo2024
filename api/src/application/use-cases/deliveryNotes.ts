@@ -86,6 +86,7 @@ const materializeItems = (
 
     return {
       ...persistedItem,
+      texture: item.texture ?? "NORMAL",
       unitPrice: pricing.unitPrice,
       totalPrice: pricing.totalPrice
     };

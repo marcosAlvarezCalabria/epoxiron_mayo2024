@@ -3,7 +3,7 @@ import type {
   DailyDeliveryNotesReportGenerator,
   ReportAttachment
 } from "../../domain/services/DailyDeliveryNotesReportGenerator.js";
-import type { DeliveryNote } from "../../domain/entities/DeliveryNote.js";
+import type { DeliveryNote, DeliveryNoteTexture } from "../../domain/entities/DeliveryNote.js";
 
 const formatDate = (date: Date) =>
   new Intl.DateTimeFormat("es-ES", {
@@ -13,11 +13,18 @@ const formatDate = (date: Date) =>
   }).format(date);
 
 const formatCurrency = (value: number) => `${value.toFixed(2)} EUR`;
+const textureLabel: Record<DeliveryNoteTexture, string> = {
+  NORMAL: "Normal",
+  MATE: "Mate",
+  TEXTURADO: "Texturado",
+  GOFRADO: "Gofrado"
+};
 
 const buildItemSummary = (item: DeliveryNote["items"][number]) => {
   const segments = [
     item.description,
     item.color,
+    textureLabel[item.texture] ?? item.texture,
     `x${item.quantity}`,
     `ML ${item.linearMeters ?? 0}`,
     `M2 ${item.squareMeters ?? 0}`

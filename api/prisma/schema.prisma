@@ -54,6 +54,7 @@ model DeliveryNoteItem {
   deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
   description    String
   color          String
+  texture        String       @default("NORMAL")
   linearMeters   Float?
   squareMeters   Float?
   thickness      Float?

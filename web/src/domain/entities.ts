@@ -32,10 +32,12 @@ export interface CustomerInput {
 }
 
 export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED";
+export type DeliveryNoteTexture = "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO";
 
 export interface DeliveryNoteItemDraft {
   description: string;
   color: string;
+  texture?: DeliveryNoteTexture;
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;
@@ -48,6 +50,7 @@ export interface DeliveryNoteItem {
   id?: string;
   description: string;
   color: string;
+  texture: DeliveryNoteTexture;
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;
