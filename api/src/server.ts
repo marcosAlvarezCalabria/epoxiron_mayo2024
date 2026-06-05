@@ -25,7 +25,7 @@ import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
-import { NodemailerEmailSender } from "./infrastructure/services/NodemailerEmailSender.js";
+import { GoogleDriveDailyDeliveryNotesReportUploader } from "./infrastructure/services/GoogleDriveDailyDeliveryNotesReportUploader.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -58,22 +58,18 @@ const updateDeliveryNoteUseCase = new UpdateDeliveryNoteUseCase(
 const deleteDeliveryNoteUseCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
 const changeDeliveryNoteStatusUseCase = new ChangeDeliveryNoteStatusUseCase(deliveryNoteRepository);
 const getDashboardSummaryUseCase = new GetDashboardSummaryUseCase(deliveryNoteRepository);
-const reportGenerator = env.SMTP_HOST ? new PdfKitDailyDeliveryNotesReportGenerator() : null;
-const emailSender = env.SMTP_HOST
-  ? new NodemailerEmailSender({
-      from: env.SMTP_FROM!,
-      host: env.SMTP_HOST,
-      password: env.SMTP_PASS!,
-      port: env.SMTP_PORT!,
-      secure: env.SMTP_SECURE,
-      user: env.SMTP_USER!
+const reportGenerator = env.GOOGLE_DRIVE_ENABLED ? new PdfKitDailyDeliveryNotesReportGenerator() : null;
+const reportUploader = env.GOOGLE_DRIVE_ENABLED
+  ? new GoogleDriveDailyDeliveryNotesReportUploader({
+      rootFolderId: env.GOOGLE_DRIVE_ROOT_FOLDER_ID!,
+      serviceAccountEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL!,
+      serviceAccountPrivateKey: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!
     })
   : null;
 const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseCase(
   deliveryNoteRepository,
   reportGenerator,
-  emailSender,
-  env.DAILY_REPORT_DEFAULT_EMAIL
+  reportUploader
 );
 
 const customersController = new CustomersController(

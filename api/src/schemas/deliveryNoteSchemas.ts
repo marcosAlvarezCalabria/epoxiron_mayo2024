@@ -32,6 +32,5 @@ export const calculatePriceSchema = z.object({
 });
 
 export const sendDailyDeliveryNotesReportSchema = z.object({
-  date: z.coerce.date().optional(),
-  email: z.string().email().optional()
+  date: z.coerce.date().optional()
 });

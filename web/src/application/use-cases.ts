@@ -99,7 +99,7 @@ export const calculatePricePreview = async (customerId: string, item: DeliveryNo
 export const getDashboardSummary = async () =>
   apiClient<DashboardSummary>("/api/dashboard/summary");
 
-export const sendDailyDeliveryNotesReport = async (input?: { date?: string; email?: string }) =>
+export const sendDailyDeliveryNotesReport = async (input?: { date?: string }) =>
   apiClient<DailyDeliveryNotesReportResponse>("/api/delivery-notes/send-daily-report", {
     method: "POST",
     body: JSON.stringify(input ?? {})

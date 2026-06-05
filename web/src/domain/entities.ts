@@ -102,8 +102,11 @@ export interface DailyDeliveryNotesReportResponse {
   message: string;
   result: {
     date: string;
-    email: string;
+    fileId: string;
+    fileName: string;
+    folderName: string;
     notesCount: number;
+    webViewLink: string | null;
   };
 }
 

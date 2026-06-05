@@ -215,8 +215,13 @@ class FakeDailyDeliveryNotesReportGenerator {
   }));
 }
 
-class FakeEmailSender {
-  public send = vi.fn(async () => undefined);
+class FakeDailyDeliveryNotesReportUploader {
+  public upload = vi.fn(async () => ({
+    fileId: "drive-file-1",
+    fileName: "albaranes-2026-01-01.pdf",
+    folderName: "2026-01",
+    webViewLink: "https://drive.google.com/file/d/drive-file-1/view"
+  }));
 }
 
 const buildCustomer = (): Customer => ({
@@ -465,14 +470,13 @@ describe("delivery note use cases", () => {
     expect(result.stats.totalAmount).toBe(210);
   });
 
-  it("generates the daily report PDF and sends it by email", async () => {
+  it("generates the daily report PDF and uploads it to drive", async () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
-    const emailSender = new FakeEmailSender();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
     const useCase = new SendDailyDeliveryNotesReportUseCase(
       deliveryNoteRepository,
       reportGenerator,
-      emailSender,
-      "taller@example.com"
+      uploader
     );
 
     const result = await useCase.execute({
@@ -480,27 +484,24 @@ describe("delivery note use cases", () => {
     });
 
     expect(reportGenerator.generate).toHaveBeenCalledOnce();
-    expect(emailSender.send).toHaveBeenCalledWith(
+    expect(uploader.upload).toHaveBeenCalledWith(
       expect.objectContaining({
-        attachments: [
-          expect.objectContaining({
-            filename: "albaranes-2026-01-01.pdf"
-          })
-        ],
-        to: "taller@example.com"
+        attachment: expect.objectContaining({
+          filename: "albaranes-2026-01-01.pdf"
+        })
       })
     );
     expect(result.notesCount).toBe(2);
+    expect(result.fileId).toBe("drive-file-1");
   });
 
-  it("fails sending the daily report when there are no delivery notes", async () => {
+  it("fails uploading the daily report when there are no delivery notes", async () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
-    const emailSender = new FakeEmailSender();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
     const useCase = new SendDailyDeliveryNotesReportUseCase(
       deliveryNoteRepository,
       reportGenerator,
-      emailSender,
-      "taller@example.com"
+      uploader
     );
 
     await expect(
@@ -511,15 +512,14 @@ describe("delivery note use cases", () => {
       message: "No hay albaranes para la fecha seleccionada",
       statusCode: 404
     });
-    expect(emailSender.send).not.toHaveBeenCalled();
+    expect(uploader.upload).not.toHaveBeenCalled();
   });
 
-  it("fails sending the daily report when email delivery is not configured", async () => {
+  it("fails uploading the daily report when drive is not configured", async () => {
     const useCase = new SendDailyDeliveryNotesReportUseCase(
       deliveryNoteRepository,
       null,
-      null,
-      "taller@example.com"
+      null
     );
 
     await expect(
@@ -527,7 +527,7 @@ describe("delivery note use cases", () => {
         date: new Date("2026-01-01T00:00:00.000Z")
       })
     ).rejects.toMatchObject({
-      message: "El envio por correo no esta configurado",
+      message: "La subida a Google Drive no esta configurada",
       statusCode: 503
     });
   });

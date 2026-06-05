@@ -11,7 +11,9 @@ import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
 import type { DeliveryNoteRepository } from "../../domain/repositories/DeliveryNoteRepository.js";
 import type { DailyDeliveryNotesReportGenerator } from "../../domain/services/DailyDeliveryNotesReportGenerator.js";
-import type { EmailSender } from "../../domain/services/EmailSender.js";
+import type {
+  DailyDeliveryNotesReportUploader
+} from "../../domain/services/DailyDeliveryNotesReportUploader.js";
 
 export interface PriceCalculationResult {
   unitPrice: number;
@@ -301,35 +303,19 @@ export class GetDashboardSummaryUseCase {
   }
 }
 
-const buildDailyReportSubject = (date: Date) => {
-  const formattedDate = new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  }).format(date);
-  return `Albaranes del dia ${formattedDate}`;
-};
-
 export class SendDailyDeliveryNotesReportUseCase {
   public constructor(
     private readonly repository: DeliveryNoteRepository,
     private readonly reportGenerator: DailyDeliveryNotesReportGenerator | null,
-    private readonly emailSender: EmailSender | null,
-    private readonly defaultRecipientEmail?: string
+    private readonly uploader: DailyDeliveryNotesReportUploader | null
   ) {}
 
-  public async execute(input: { date?: Date; email?: string | null }) {
-    if (!this.reportGenerator || !this.emailSender) {
-      throw new DomainException("El envio por correo no esta configurado", 503);
+  public async execute(input: { date?: Date }) {
+    if (!this.reportGenerator || !this.uploader) {
+      throw new DomainException("La subida a Google Drive no esta configurada", 503);
     }
 
     const date = input.date ?? new Date();
-    const recipientEmail = input.email?.trim() || this.defaultRecipientEmail || null;
-
-    if (!recipientEmail) {
-      throw new DomainException("Indica un correo de destino", 400);
-    }
-
     const notes = await this.repository.findAll({ date });
 
     if (notes.length === 0) {
@@ -337,25 +323,16 @@ export class SendDailyDeliveryNotesReportUseCase {
     }
 
     const attachment = await this.reportGenerator.generate({ date, notes });
-    const totalAmount = Math.round(notes.reduce((sum, note) => sum + note.totalAmount, 0) * 100) / 100;
-
-    await this.emailSender.send({
-      attachments: [attachment],
-      subject: buildDailyReportSubject(date),
-      text: [
-        "Adjuntamos el PDF con los albaranes del dia.",
-        "",
-        `Fecha: ${date.toISOString().slice(0, 10)}`,
-        `Albaranes: ${notes.length}`,
-        `Importe total: ${totalAmount.toFixed(2)} EUR`
-      ].join("\n"),
-      to: recipientEmail
-    });
+    const upload = await this.uploader.upload({ attachment, date });
 
     return {
       date,
-      email: recipientEmail,
+      fileId: upload.fileId,
+      fileName: upload.fileName,
+      folderName: upload.folderName,
       notesCount: notes.length
+      ,
+      webViewLink: upload.webViewLink
     };
   }
 }

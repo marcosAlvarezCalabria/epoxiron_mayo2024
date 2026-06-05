@@ -3,10 +3,9 @@ import {
   CheckBadgeIcon,
   ClockIcon,
   CurrencyEuroIcon,
-  EnvelopeIcon
+  FolderArrowDownIcon
 } from "@heroicons/react/24/outline";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getDashboardSummary,
@@ -49,16 +48,12 @@ const statusLabel = {
 } as const;
 
 export const DashboardPage = () => {
-  const [reportEmail, setReportEmail] = useState("");
   const { data, error } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: getDashboardSummary
   });
   const reportMutation = useMutation({
-    mutationFn: () =>
-      sendDailyDeliveryNotesReport({
-        email: reportEmail.trim() || undefined
-      })
+    mutationFn: () => sendDailyDeliveryNotesReport()
   });
 
   const stats = data?.stats;
@@ -100,34 +95,38 @@ export const DashboardPage = () => {
           <div>
             <h3 className="text-base font-semibold text-white">PDF diario de albaranes</h3>
             <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
-              Genera el PDF del dia y envialo por correo.
+              Genera el PDF del dia y subelo a Google Drive.
             </p>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <input
-              className="min-w-0 rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] px-4 py-3 text-sm text-white outline-none placeholder:text-[var(--epx-text-muted)] sm:min-w-[280px]"
-              onChange={(event) => setReportEmail(event.target.value)}
-              placeholder="Correo destino"
-              value={reportEmail}
-            />
             <button
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
               disabled={reportMutation.isPending}
               onClick={() => reportMutation.mutate()}
               type="button"
             >
-              <EnvelopeIcon className="h-4 w-4" />
-              {reportMutation.isPending ? "Enviando..." : "Enviar PDF del dia"}
+              <FolderArrowDownIcon className="h-4 w-4" />
+              {reportMutation.isPending ? "Subiendo..." : "Subir PDF del dia"}
             </button>
           </div>
         </div>
 
         {reportMutation.data ? (
           <p className="mt-3 text-sm text-[var(--epx-success)]">
-            PDF enviado a {reportMutation.data.result.email} con{" "}
+            PDF subido a Google Drive en la carpeta {reportMutation.data.result.folderName} con{" "}
             {reportMutation.data.result.notesCount} albaranes.
           </p>
+        ) : null}
+        {reportMutation.data?.result.webViewLink ? (
+          <a
+            className="mt-2 inline-flex text-sm font-semibold text-[var(--epx-accent)]"
+            href={reportMutation.data.result.webViewLink}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Abrir archivo en Drive
+          </a>
         ) : null}
         {reportError ? <p className="mt-3 text-sm text-red-300">{reportError}</p> : null}
       </section>
