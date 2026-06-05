@@ -1,23 +1,20 @@
-﻿# Epoxiron
+# Epoxiron
 
-Monorepo con:
+Monorepo de Epoxiron.
 
 - `api/`: Node.js + TypeScript + Express + Prisma
 - `web/`: React + Vite + Tailwind
+- `deploy/`: infraestructura y operacion de produccion
+- `docs/`: prompts y documentacion auxiliar
 
-## Requisitos
+## Documentacion
 
-### Local (Windows)
+- Infraestructura y despliegue: [deploy/README_DEPLOY.md](C:/Users/Marcos/Documents/Codex/epoxiron%20mayo_2026/deploy/README_DEPLOY.md)
 
-- Node.js instalado
-- `pnpm` disponible en terminal
-- Docker Desktop arrancado
+## Requisitos locales
 
-### Servidor (Linux)
-
-- Ubuntu 22.04 o 24.04
-- Docker Engine + Compose plugin
 - Node.js
+- Docker Desktop
 - `pnpm`
 
 ## Variables de entorno
@@ -26,7 +23,7 @@ Monorepo con:
 
 Crea `api/.env` a partir de `api/.env.example`.
 
-Valores mÃ­nimos:
+Valores minimos:
 
 ```env
 DATABASE_URL="postgresql://epoxiron:epoxiron123@localhost:5432/epoxiron"
@@ -41,13 +38,13 @@ HERMES_TIMEOUT_MS=15000
 
 `web/.env` es opcional. Si no existe, la web usa `http://localhost:3001` por defecto.
 
-Si quieres fijarlo explÃ­citamente:
+Si quieres fijarlo explicitamente:
 
 ```env
 VITE_API_URL="http://localhost:3001"
 ```
 
-## Levantar en local
+## Desarrollo local
 
 ### 1. Instalar dependencias
 
@@ -57,45 +54,55 @@ pnpm install
 
 ### 2. Arrancar Docker Desktop
 
-Sin Docker Desktop levantado, PostgreSQL no arrancarÃ¡ y la API devolverÃ¡ error de base de datos no disponible.
-
 Comprobar:
 
 ```powershell
 docker ps
 ```
 
-Si Docker Desktop no estÃ¡ abierto:
+Si Docker Desktop no esta abierto:
 
 ```powershell
 Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 ```
 
-### 3. Levantar PostgreSQL
+### 3. Levantar PostgreSQL local
 
-Desde la raÃ­z del repo:
+Este repo ya no tiene `docker-compose.yml` en la raiz. Para desarrollo local, arranca PostgreSQL manualmente:
 
 ```powershell
-docker compose up -d postgres
+docker run -d --name epoxiron-local-postgres `
+  -e POSTGRES_DB=epoxiron `
+  -e POSTGRES_USER=epoxiron `
+  -e POSTGRES_PASSWORD=epoxiron123 `
+  -p 127.0.0.1:5432:5432 `
+  -v epoxiron_local_postgres_data:/var/lib/postgresql/data `
+  postgres:15
+```
+
+Si el contenedor ya existe y esta parado:
+
+```powershell
+docker start epoxiron-local-postgres
 ```
 
 Comprobar estado:
 
 ```powershell
-docker compose ps
+docker ps
 ```
 
 ### 4. Ejecutar migraciones y seed
 
 ```powershell
-pnpm --filter @epoxiron/api prisma:migrate
-pnpm --filter @epoxiron/api prisma:seed
+.\api\node_modules\.bin\prisma.CMD migrate dev --schema api\prisma\schema.prisma
+.\node_modules\.bin\pnpm.CMD --filter @epoxiron/api prisma:seed
 ```
 
-### 5. Arrancar API y web en modo desarrollo
+### 5. Arrancar API y web
 
 ```powershell
-pnpm dev
+.\node_modules\.bin\pnpm.CMD dev
 ```
 
 Servicios esperados:
@@ -107,66 +114,44 @@ Servicios esperados:
 ### 6. Parar PostgreSQL local
 
 ```powershell
-docker compose stop postgres
+docker stop epoxiron-local-postgres
 ```
 
-## Problemas habituales en local
+## Problemas habituales
 
 ### Docker no responde
 
 Si ves un error como:
 
 ```text
-failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
+failed to connect to the docker API at npipe:////./pipe/docker_engine
 ```
 
-significa que Docker Desktop no estÃ¡ arrancado.
+significa que Docker Desktop no esta arrancado o el daemon todavia no esta listo.
 
-### La API arranca pero falla al pedir datos
+### La API devuelve 503
 
-Si PostgreSQL no estÃ¡ arriba, la API responderÃ¡ `503` y el frontend mostrarÃ¡ el error en pantalla. El proceso ya no deberÃ­a caerse por esa causa.
+Si PostgreSQL no esta arriba, la API respondera `503` en endpoints como `/api/customers` o `/api/delivery-notes`.
 
-## Levantar en servidor Linux
+### Prisma no alinea la base local
 
-La opcion recomendada para VPS es `docker compose` con un contenedor por servicio.
-
-Servicios:
-
-- `postgres`
-- `api`
-- `web`
-- `hermes`
-- `engram`
-
-Guia operativa completa:
-
-- [deploy/VPS_DOCKER_COMPOSE.md](deploy/VPS_DOCKER_COMPOSE.md)
-
-Comandos base:
-
-```bash
-cd /opt/epoxiron
-docker compose -f deploy/docker-compose.vps.yml up -d --build
-docker compose -f deploy/docker-compose.vps.yml exec api npx prisma migrate deploy --schema api/prisma/schema.prisma
-docker compose -f deploy/docker-compose.vps.yml ps
-```
-
-## Comandos rÃ¡pidos
-
-### Local
+Si has anadido una migracion nueva, ejecuta siempre:
 
 ```powershell
-docker compose up -d postgres
-pnpm --filter @epoxiron/api prisma:migrate
-pnpm --filter @epoxiron/api prisma:seed
-pnpm dev
+.\api\node_modules\.bin\prisma.CMD migrate dev --schema api\prisma\schema.prisma
 ```
 
-### Servidor
+## Comandos rapidos
 
-```bash
-cd /opt/epoxiron
-docker compose -f deploy/docker-compose.vps.yml up -d --build
-docker compose -f deploy/docker-compose.vps.yml exec api npx prisma migrate deploy --schema api/prisma/schema.prisma
-docker compose -f deploy/docker-compose.vps.yml ps
+```powershell
+docker start epoxiron-local-postgres
+.\api\node_modules\.bin\prisma.CMD migrate dev --schema api\prisma\schema.prisma
+.\node_modules\.bin\pnpm.CMD --filter @epoxiron/api prisma:seed
+.\node_modules\.bin\pnpm.CMD dev
 ```
+
+## Produccion
+
+La operacion de produccion, el Compose del VPS y la configuracion de Hermes y Engram estan documentados en:
+
+- [deploy/README_DEPLOY.md](C:/Users/Marcos/Documents/Codex/epoxiron%20mayo_2026/deploy/README_DEPLOY.md)
