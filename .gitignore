@@ -3,6 +3,11 @@
 !.env.example
 *.env.production
 hermes.env
+*.service-account.json
+*google-credentials*.json
+*credentials*.json
+api/google/
+api/credentials/
 node_modules/
 .pnpm-store/
 dist/
