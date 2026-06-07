@@ -2,6 +2,9 @@
 .env.*
 !.env.example
 *.env.production
+api/.env
+api/.env.local
+api/.env.production
 hermes.env
 *.service-account.json
 *google-credentials*.json
