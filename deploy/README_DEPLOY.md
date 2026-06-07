@@ -47,7 +47,6 @@ Puertos publicados:
     engram/
       engram.env
     hermes/
-      config.vps.example.yaml
       hermes.env.example
       skills/
         epoxiron-operations/
@@ -62,7 +61,6 @@ Notas:
 - `api/.env.production` es el `env_file` del servicio `api`
 - `deploy/engram/engram.env` es el `env_file` del servicio `engram`
 - `deploy/hermes/hermes.env` es el `env_file` esperado por el servicio `hermes`
-- `deploy/hermes/config.vps.yaml` es el archivo que el contenedor de Hermes monta como `/opt/data/config.yaml`
 
 ## API Dockerfile
 
@@ -148,11 +146,128 @@ El compose actual define Hermes como servicio Docker permanente.
 
 Montajes del servicio `hermes`:
 
-- volumen `hermes_data` en `/opt/data`
-- `./hermes/config.vps.yaml` en `/opt/data/config.yaml`
-- `../` en `/workspace/epoxiron` como solo lectura
+- `/root/.hermes` en `/root/.hermes`
 
-Si en un VPS concreto Hermes se ejecuta bajo demanda en vez de permanente, eso ya seria un desvio operativo respecto a este repo y deberia documentarse aparte.
+Configuracion relevante del servicio:
+
+- imagen `epoxiron-hermes:latest`
+- `container_name` `hermes-gateway`
+- comando `["/usr/local/bin/hermes", "gateway", "run"]`
+- `env_file` en `deploy/hermes/hermes.env`
+
+`deploy/hermes/hermes.env` es la fuente de verdad del secreto y variables de runtime del servicio `hermes` en produccion.
+
+## Seguridad y Autenticacion
+
+### Resumen
+
+El 2026-06-07 se completo la capa de autenticacion y limpieza de configuracion para produccion.
+
+### 1. Limpieza de variables de entorno
+
+Las variables de la API ya no dependen de una imagen Docker antigua con `ENV` horneados.
+
+- la configuracion real vive en `/opt/epoxiron/api/.env.production`
+- ese fichero no esta en el repo y nunca debe subirse a Git
+- el contenedor de la API carga variables en runtime desde ese fichero
+
+### 2. Google OAuth y JWT en la API
+
+- `POST /api/auth/login/google` recibe el `credential` de Google Identity Services
+- la API verifica el token con Google
+- la API valida que el email exista en `ALLOWED_EMAILS`
+- la API devuelve un JWT propio
+- `authMiddleware` protege todas las rutas `/api/*`
+
+Bypasses permitidos:
+
+- `Authorization: Bearer <JWT>` para usuarios web autenticados
+- `X-Hermes-Secret` o `X-Epoxiron-Hermes-Secret` para Epoxi/Hermes
+
+### 3. Web con login protegido
+
+- la web expone `/login`
+- `ProtectedRoute` redirige a `/login` cuando no hay sesion
+- el JWT se guarda en `sessionStorage`
+- el cliente HTTP del frontend añade el `Bearer` automaticamente
+- solo los emails definidos en `ALLOWED_EMAILS` pueden entrar
+
+### 4. Variables nuevas en `api/.env.production`
+
+Variables relevantes:
+
+```env
+GOOGLE_CLIENT_ID=20604165419-dps72fkkha457807c56d39cqlj5g2j4v.apps.googleusercontent.com
+JWT_SECRET=<generado con openssl rand -hex 32>
+JWT_EXPIRES_IN=7d
+ALLOWED_EMAILS=calalva82@gmail.com,epoxiron@gmail.com
+HERMES_SHARED_SECRET=<generado con openssl rand -hex 32>
+GOOGLE_DRIVE_ENABLED=false
+```
+
+### 5. Google Drive desactivado temporalmente
+
+La subida del PDF diario a Google Drive sigue desactivada con `GOOGLE_DRIVE_ENABLED=false` hasta decidir la integracion final.
+
+Pendiente:
+
+- retomar una estrategia con `rclone`
+- o configurar correctamente la Service Account de Google
+
+### 6. Epoxi y bypass de autenticacion
+
+Epoxi no usa Google OAuth. Accede a la API con secreto compartido.
+
+Ejemplo de llamada:
+
+```bash
+curl -s -H "X-Hermes-Secret: $EPOXIRON_SECRET" http://epoxiron-api-1:3001/api/customers
+```
+
+Notas:
+
+- `deploy/hermes/hermes.env` es la fuente de verdad del secreto del servicio `hermes`
+- la skill de Epoxi debe incluir el header en todos sus `curl`
+
+### 7. `hermes-gateway` en docker-compose
+
+El contenedor `hermes-gateway` ya esta gestionado por `deploy/docker-compose.vps.yml` como el resto del stack.
+
+Configuracion esperada:
+
+```yaml
+hermes:
+  image: epoxiron-hermes:latest
+  container_name: hermes-gateway
+  restart: unless-stopped
+  command: ["/usr/local/bin/hermes", "gateway", "run"]
+  env_file:
+    - path: ./hermes/hermes.env
+      required: false
+  depends_on:
+    api:
+      condition: service_started
+  volumes:
+    - /root/.hermes:/root/.hermes
+  networks:
+    - epoxiron_net
+```
+
+### 8. Cloudflare Pages
+
+Variables de entorno configuradas en Cloudflare Pages:
+
+```env
+VITE_API_URL=https://api.wwwmarcos-alvarez.com
+VITE_GOOGLE_CLIENT_ID=20604165419-dps72fkkha457807c56d39cqlj5g2j4v.apps.googleusercontent.com
+```
+
+### Estado actual
+
+- web protegida con login Google
+- API protegida con JWT
+- Epoxi funciona con `X-Hermes-Secret`
+- Google Drive sigue desactivado temporalmente
 
 ## Notas tecnicas
 
