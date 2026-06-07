@@ -3,6 +3,7 @@ import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import { env } from "./config/env.js";
+import { AuthenticateWithGoogleUseCase } from "./application/use-cases/auth.js";
 import {
   CreateCustomerUseCase,
   DeleteCustomerUseCase,
@@ -26,9 +27,13 @@ import { DeliveryNotesController } from "./controllers/DeliveryNotesController.j
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
 import { GoogleDriveDailyDeliveryNotesReportUploader } from "./infrastructure/services/GoogleDriveDailyDeliveryNotesReportUploader.js";
+import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
+import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
+import { authMiddleware } from "./middleware/authMiddleware.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { buildAuthRouter } from "./routes/auth.routes.js";
 import { buildCustomersRouter } from "./routes/customers.routes.js";
 import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
 import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
@@ -71,6 +76,11 @@ const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseC
   reportGenerator,
   reportUploader
 );
+const authenticateWithGoogleUseCase = new AuthenticateWithGoogleUseCase(
+  new GoogleIdTokenVerifier(env.GOOGLE_CLIENT_ID),
+  new JwtAccessTokenIssuer(env.JWT_SECRET, env.JWT_EXPIRES_IN),
+  env.ALLOWED_EMAILS
+);
 
 const customersController = new CustomersController(
   getCustomersUseCase,
@@ -109,6 +119,8 @@ app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
 });
 
+app.use("/api/auth", buildAuthRouter(authenticateWithGoogleUseCase));
+app.use("/api", authMiddleware);
 app.use("/api/customers", buildCustomersRouter(customersController));
 app.use("/api/delivery-notes", buildDeliveryNotesRouter(deliveryNotesController));
 app.get("/api/dashboard/summary", asyncHandler(deliveryNotesController.getDashboardSummary));

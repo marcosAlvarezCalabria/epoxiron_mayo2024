@@ -6,7 +6,7 @@ export const requireHermesSecret = (
   response: Response,
   next: NextFunction
 ) => {
-  const secret = request.header("x-epoxiron-hermes-secret");
+  const secret = request.header("x-hermes-secret") ?? request.header("x-epoxiron-hermes-secret");
   if (secret !== env.HERMES_SHARED_SECRET) {
     response.status(401).json({ error: "No autorizado" });
     return;
@@ -14,4 +14,3 @@ export const requireHermesSecret = (
 
   next();
 };
-

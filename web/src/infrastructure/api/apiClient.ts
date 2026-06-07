@@ -1,3 +1,5 @@
+import { authService } from "@/services/auth.service";
+
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export class ApiError extends Error {
@@ -10,10 +12,12 @@ export const apiClient = async <T>(
   path: string,
   init?: RequestInit
 ): Promise<T> => {
+  const token = authService.getToken();
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
       "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {})
     }
   });
@@ -22,6 +26,14 @@ export const apiClient = async <T>(
     const body = (await response.json().catch(() => ({ error: "Error desconocido" }))) as {
       error?: string;
     };
+
+    if (response.status === 401) {
+      authService.clearSession();
+      if (window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
+    }
+
     throw new ApiError(body.error ?? "Error de API", response.status);
   }
 
@@ -31,4 +43,3 @@ export const apiClient = async <T>(
 
   return (await response.json()) as T;
 };
-
