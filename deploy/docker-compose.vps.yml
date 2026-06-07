@@ -31,6 +31,9 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:3001:3001"
+    volumes:
+      - /usr/bin/rclone:/usr/bin/rclone:ro
+      - /root/.hermes/rclone.conf:/root/.hermes/rclone.conf:ro
     networks:
       - epoxiron_net
 

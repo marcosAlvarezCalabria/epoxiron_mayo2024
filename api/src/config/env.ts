@@ -32,26 +32,21 @@ const envSchema = z
         message: "ALLOWED_EMAILS debe incluir al menos un email"
       }),
     GOOGLE_DRIVE_ENABLED: optionalBooleanString,
-    GOOGLE_DRIVE_ROOT_FOLDER_ID: z.string().min(1).optional(),
-    GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
-    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: z.string().min(1).optional()
+    RCLONE_REMOTE: z.string().min(1).optional(),
+    RCLONE_CONFIG_PATH: z.string().min(1).optional()
   })
   .superRefine((value, context) => {
     if (!value.GOOGLE_DRIVE_ENABLED) {
       return;
     }
 
-    const googleKeys = [
-      "GOOGLE_DRIVE_ROOT_FOLDER_ID",
-      "GOOGLE_SERVICE_ACCOUNT_EMAIL",
-      "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY"
-    ] as const;
+    const googleKeys = ["RCLONE_REMOTE", "RCLONE_CONFIG_PATH"] as const;
 
     googleKeys.forEach((key) => {
       if (value[key] === undefined) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `${key} es obligatorio cuando se configura Google Drive`,
+          message: `${key} es obligatorio cuando se configura Google Drive con rclone`,
           path: [key]
         });
       }

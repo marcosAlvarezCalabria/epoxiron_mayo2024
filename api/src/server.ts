@@ -26,10 +26,10 @@ import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
-import { GoogleDriveDailyDeliveryNotesReportUploader } from "./infrastructure/services/GoogleDriveDailyDeliveryNotesReportUploader.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
+import { RcloneDriveUploader } from "./infrastructure/services/RcloneDriveUploader.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -65,10 +65,9 @@ const changeDeliveryNoteStatusUseCase = new ChangeDeliveryNoteStatusUseCase(deli
 const getDashboardSummaryUseCase = new GetDashboardSummaryUseCase(deliveryNoteRepository);
 const reportGenerator = env.GOOGLE_DRIVE_ENABLED ? new PdfKitDailyDeliveryNotesReportGenerator() : null;
 const reportUploader = env.GOOGLE_DRIVE_ENABLED
-  ? new GoogleDriveDailyDeliveryNotesReportUploader({
-      rootFolderId: env.GOOGLE_DRIVE_ROOT_FOLDER_ID!,
-      serviceAccountEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL!,
-      serviceAccountPrivateKey: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY!
+  ? new RcloneDriveUploader({
+      rcloneRemote: env.RCLONE_REMOTE!,
+      rcloneConfigPath: env.RCLONE_CONFIG_PATH!
     })
   : null;
 const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseCase(
