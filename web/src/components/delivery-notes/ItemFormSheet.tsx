@@ -8,6 +8,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePricePreview } from "@/application/use-cases";
 import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
 import type { Customer, DeliveryNoteItemDraft, DeliveryNoteTexture } from "@/domain/entities";
+import {
+  parseMillimetersToMeters,
+  parseSquareMillimetersToSquareMeters
+} from "@/lib/measurements";
 import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
 
 export interface DeliveryNoteItemFormState {
@@ -45,21 +49,14 @@ interface ItemFormSheetProps {
 
 const emptyErrors: DeliveryNoteItemFieldErrors = {};
 
-const normalizeDecimalValue = (value: string) => value.trim().replace(",", ".");
-
-const parseOptionalNumber = (value: string) => {
-  const normalized = normalizeDecimalValue(value);
-  return normalized ? Number.parseFloat(normalized) : null;
-};
-
 const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft => ({
   color: item.color.trim(),
   description: item.description.trim(),
-  linearMeters: parseOptionalNumber(item.linearMeters),
+  linearMeters: parseMillimetersToMeters(item.linearMeters),
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
-  squareMeters: parseOptionalNumber(item.squareMeters),
+  squareMeters: parseSquareMillimetersToSquareMeters(item.squareMeters),
   texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
@@ -348,8 +345,8 @@ export const ItemFormSheet = ({
               </div>
 
               {([
-                { key: "linearMeters", label: "Metros lineales", placeholder: "0" },
-                { key: "squareMeters", label: "Metros cuadrados", placeholder: "0" }
+                { key: "linearMeters", label: "Milimetros lineales", placeholder: "0" },
+                { key: "squareMeters", label: "Milimetros cuadrados", placeholder: "0" }
               ] as const).map((field) => (
                 <label
                   className="border border-neutral-300 bg-white px-4 py-3"

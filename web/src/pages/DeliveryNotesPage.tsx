@@ -38,6 +38,14 @@ import type {
 } from "@/domain/entities";
 import { ApiError } from "@/infrastructure/api/apiClient";
 import {
+  formatMetersAsMillimeters,
+  formatMetersSummaryAsMillimeters,
+  formatSquareMetersAsSquareMillimeters,
+  formatSquareMetersSummaryAsSquareMillimeters,
+  parseMillimetersToMeters,
+  parseSquareMillimetersToSquareMeters
+} from "@/lib/measurements";
+import {
   estimateDeliveryNoteItemPrice,
   resolvePricePreview,
   type PricePreviewState
@@ -93,28 +101,21 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
     description: item.description,
     color: item.color,
     texture: item.texture ?? "NORMAL",
-    linearMeters: item.linearMeters?.toString() ?? "",
+    linearMeters: formatMetersAsMillimeters(item.linearMeters),
     quantity: item.quantity.toString(),
-    squareMeters: item.squareMeters?.toString() ?? ""
+    squareMeters: formatSquareMetersAsSquareMillimeters(item.squareMeters)
   })),
   notes: note.notes ?? ""
 });
 
-const normalizeDecimalValue = (value: string) => value.trim().replace(",", ".");
-
-const parseOptionalNumber = (value: string) => {
-  const normalized = normalizeDecimalValue(value);
-  return normalized ? Number.parseFloat(normalized) : null;
-};
-
 const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft => ({
   color: item.color.trim(),
   description: item.description.trim(),
-  linearMeters: parseOptionalNumber(item.linearMeters),
+  linearMeters: parseMillimetersToMeters(item.linearMeters),
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
-  squareMeters: parseOptionalNumber(item.squareMeters),
+  squareMeters: parseSquareMillimetersToSquareMeters(item.squareMeters),
   texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
@@ -815,10 +816,10 @@ export const DeliveryNotesPage = () => {
                               {formatDeliveryNoteTexture(item.texture)}
                               {" | x"}
                               {item.quantity}
-                              {" | ML "}
-                              {item.linearMeters ?? 0}
-                              {" | M2 "}
-                              {item.squareMeters ?? 0}
+                              {" | MM "}
+                              {formatMetersSummaryAsMillimeters(item.linearMeters)}
+                              {" | MM2 "}
+                              {formatSquareMetersSummaryAsSquareMillimeters(item.squareMeters)}
                               {item.thickness != null ? " | G" : ""}
                               {item.primer ? " | I" : ""}
                             </span>
@@ -1035,7 +1036,7 @@ export const DeliveryNotesPage = () => {
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
                                 <span className="truncate text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
-                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"} · ${formatDeliveryNoteTexture(item.texture)} · x${item.quantity} · ML ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
+                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"} · ${formatDeliveryNoteTexture(item.texture)} · x${item.quantity} · MM ${item.linearMeters || "0"} · MM2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
                                 </span>
                                 <span className="hidden truncate text-[10px] text-neutral-500">
                                   {item.color || "Sin color"} · {formatDeliveryNoteTexture(item.texture)} · x{item.quantity}
@@ -1048,8 +1049,8 @@ export const DeliveryNotesPage = () => {
                               </span>
                             </div>
                             <div className="hidden mt-3 flex flex-wrap gap-2 text-xs text-neutral-500">
-                              <span>ML {item.linearMeters || "0"}</span>
-                              <span>M2 {item.squareMeters || "0"}</span>
+                              <span>MM {item.linearMeters || "0"}</span>
+                              <span>MM2 {item.squareMeters || "0"}</span>
                               {item.hasThickness ? <span>Grosor</span> : null}
                               {item.hasPrimer ? <span>Imprimacion</span> : null}
                               {item.saveAsSpecialPiece ? <span>Guardar especial</span> : null}
