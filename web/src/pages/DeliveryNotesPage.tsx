@@ -40,10 +40,10 @@ import { ApiError } from "@/infrastructure/api/apiClient";
 import {
   formatMetersAsMillimeters,
   formatMetersSummaryAsMillimeters,
-  formatSquareMetersAsSquareMillimeters,
-  formatSquareMetersSummaryAsSquareMillimeters,
+  formatSquareMeters,
+  formatSquareMetersSummary,
   parseMillimetersToMeters,
-  parseSquareMillimetersToSquareMeters
+  parseMetersSquared
 } from "@/lib/measurements";
 import {
   estimateDeliveryNoteItemPrice,
@@ -103,7 +103,7 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
     texture: item.texture ?? "NORMAL",
     linearMeters: formatMetersAsMillimeters(item.linearMeters),
     quantity: item.quantity.toString(),
-    squareMeters: formatSquareMetersAsSquareMillimeters(item.squareMeters)
+    squareMeters: formatSquareMeters(item.squareMeters)
   })),
   notes: note.notes ?? ""
 });
@@ -115,7 +115,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
-  squareMeters: parseSquareMillimetersToSquareMeters(item.squareMeters),
+  squareMeters: parseMetersSquared(item.squareMeters),
   texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
@@ -129,6 +129,8 @@ const normalizePayload = (form: DeliveryNoteFormState, status: DeliveryNoteStatu
 });
 
 const formatCurrency = (value: number) => `${value.toFixed(2)} €`;
+const formatArticleTexture = (texture?: DeliveryNoteItemDraft["texture"]) =>
+  texture && texture !== "NORMAL" ? formatDeliveryNoteTexture(texture) : null;
 
 const isItemComplete = (item: DeliveryNoteItemFormState) =>
   Boolean(item.description.trim() && item.color.trim() && Number.parseInt(item.quantity || "0", 10) > 0);
@@ -812,14 +814,15 @@ export const DeliveryNotesPage = () => {
                             <span className="text-neutral-500">
                               {" | "}
                               {item.color}
-                              {" | "}
-                              {formatDeliveryNoteTexture(item.texture)}
+                              {formatArticleTexture(item.texture)
+                                ? ` | ${formatArticleTexture(item.texture)}`
+                                : ""}
                               {" | x"}
                               {item.quantity}
                               {" | MM "}
                               {formatMetersSummaryAsMillimeters(item.linearMeters)}
-                              {" | MM2 "}
-                              {formatSquareMetersSummaryAsSquareMillimeters(item.squareMeters)}
+                              {" | M2 "}
+                              {formatSquareMetersSummary(item.squareMeters)}
                               {item.thickness != null ? " | G" : ""}
                               {item.primer ? " | I" : ""}
                             </span>
@@ -1036,10 +1039,10 @@ export const DeliveryNotesPage = () => {
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
                                 <span className="truncate text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
-                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"} · ${formatDeliveryNoteTexture(item.texture)} · x${item.quantity} · MM ${item.linearMeters || "0"} · MM2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
+                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity} · MM ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
                                 </span>
                                 <span className="hidden truncate text-[10px] text-neutral-500">
-                                  {item.color || "Sin color"} · {formatDeliveryNoteTexture(item.texture)} · x{item.quantity}
+                                  {`${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}`}
                                 </span>
                               </span>
                               <span className="shrink-0 text-[10px] font-semibold text-[var(--epx-accent)] sm:text-xs">
@@ -1050,7 +1053,7 @@ export const DeliveryNotesPage = () => {
                             </div>
                             <div className="hidden mt-3 flex flex-wrap gap-2 text-xs text-neutral-500">
                               <span>MM {item.linearMeters || "0"}</span>
-                              <span>MM2 {item.squareMeters || "0"}</span>
+                              <span>M2 {item.squareMeters || "0"}</span>
                               {item.hasThickness ? <span>Grosor</span> : null}
                               {item.hasPrimer ? <span>Imprimacion</span> : null}
                               {item.saveAsSpecialPiece ? <span>Guardar especial</span> : null}

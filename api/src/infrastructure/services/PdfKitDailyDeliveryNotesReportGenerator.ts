@@ -14,7 +14,7 @@ const formatDate = (date: Date) =>
 
 const formatCurrency = (value: number) => `${value.toFixed(2)} EUR`;
 const formatMillimeters = (value: number | null | undefined) => `${(value ?? 0) * 1000}`;
-const formatSquareMillimeters = (value: number | null | undefined) => `${(value ?? 0) * 1000000}`;
+const formatSquareMeters = (value: number | null | undefined) => `${value ?? 0}`;
 const textureLabel: Record<DeliveryNoteTexture, string> = {
   NORMAL: "Normal",
   MATE: "Mate",
@@ -26,11 +26,14 @@ const buildItemSummary = (item: DeliveryNote["items"][number]) => {
   const segments = [
     item.description,
     item.color,
-    textureLabel[item.texture] ?? item.texture,
     `x${item.quantity}`,
     `MM ${formatMillimeters(item.linearMeters)}`,
-    `MM2 ${formatSquareMillimeters(item.squareMeters)}`
+    `M2 ${formatSquareMeters(item.squareMeters)}`
   ];
+
+  if (item.texture !== "NORMAL") {
+    segments.splice(2, 0, textureLabel[item.texture] ?? item.texture);
+  }
 
   if (item.thickness) {
     segments.push("G");

@@ -10,7 +10,7 @@ import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
 import type { Customer, DeliveryNoteItemDraft, DeliveryNoteTexture } from "@/domain/entities";
 import {
   parseMillimetersToMeters,
-  parseSquareMillimetersToSquareMeters
+  parseMetersSquared
 } from "@/lib/measurements";
 import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
 
@@ -56,7 +56,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
-  squareMeters: parseSquareMillimetersToSquareMeters(item.squareMeters),
+  squareMeters: parseMetersSquared(item.squareMeters),
   texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
@@ -346,7 +346,7 @@ export const ItemFormSheet = ({
 
               {([
                 { key: "linearMeters", label: "Milimetros lineales", placeholder: "0" },
-                { key: "squareMeters", label: "Milimetros cuadrados", placeholder: "0" }
+                { key: "squareMeters", label: "Metros cuadrados", placeholder: "0" }
               ] as const).map((field) => (
                 <label
                   className="border border-neutral-300 bg-white px-4 py-3"
