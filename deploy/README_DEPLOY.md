@@ -9,18 +9,16 @@ La fuente de verdad es:
 
 ## Servicios definidos
 
-El `docker-compose.vps.yml` actual define 4 servicios:
+El `docker-compose.vps.yml` actual define 3 servicios:
 
 - `postgres`
 - `api`
-- `engram`
 - `hermes`
 
 ## Resumen de la arquitectura
 
 - `postgres`: base de datos PostgreSQL 15
 - `api`: backend Node.js/TypeScript con Prisma
-- `engram`: servicio externo de memoria/indexado
 - `hermes`: agente ejecutado como servicio Docker permanente en este compose
 
 ## Estado esperado en el VPS
@@ -33,8 +31,6 @@ Puertos publicados:
 - `api`: `127.0.0.1:3001`
 - `hermes`: `127.0.0.1:8642` y `127.0.0.1:9119`
 
-`engram` no publica puertos al host. Solo queda accesible dentro de la red Docker `epoxiron_net`.
-
 ## Archivos clave en el VPS
 
 ```text
@@ -44,8 +40,6 @@ Puertos publicados:
     .env.production
   deploy/
     docker-compose.vps.yml
-    engram/
-      engram.env
     hermes/
       hermes.env.example
       skills/
@@ -59,7 +53,6 @@ Puertos publicados:
 Notas:
 
 - `api/.env.production` es el `env_file` del servicio `api`
-- `deploy/engram/engram.env` es el `env_file` del servicio `engram`
 - `deploy/hermes/hermes.env` es el `env_file` esperado por el servicio `hermes`
 
 ## API Dockerfile
@@ -122,7 +115,6 @@ Ver logs:
 
 ```bash
 docker compose -f deploy/docker-compose.vps.yml -p epoxiron logs -f api
-docker compose -f deploy/docker-compose.vps.yml -p epoxiron logs -f engram
 docker compose -f deploy/docker-compose.vps.yml -p epoxiron logs -f hermes
 ```
 
@@ -273,7 +265,6 @@ VITE_GOOGLE_CLIENT_ID=20604165419-dps72fkkha457807c56d39cqlj5g2j4v.apps.googleus
 
 - Usa `-p epoxiron` para fijar el prefijo de contenedores, red y volumenes
 - `postgres_data` contiene datos persistentes de PostgreSQL
-- `engram_data` contiene datos persistentes de Engram
 - `hermes_data` contiene datos persistentes de Hermes
 
 ## Riesgos y observaciones

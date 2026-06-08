@@ -152,6 +152,6 @@ docker start epoxiron-local-postgres
 
 ## Produccion
 
-La operacion de produccion, el Compose del VPS y la configuracion de Hermes y Engram estan documentados en:
+La operacion de produccion, el Compose del VPS y la configuracion de Hermes estan documentados en:
 
 - [deploy/README_DEPLOY.md](C:/Users/Marcos/Documents/Codex/epoxiron%20mayo_2026/deploy/README_DEPLOY.md)

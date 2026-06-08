@@ -6,11 +6,9 @@ Servicios:
 
 - `postgres`
 - `api`
-- `web`
 - `hermes`
-- `engram`
 
-`web` sigue siendo un servicio separado. Si quieres proxy inverso y TLS dentro de Docker, eso seria un sexto contenedor.
+Si quieres proxy inverso y TLS dentro de Docker, eso seria un cuarto contenedor.
 
 ## 1. Requisitos
 
@@ -37,7 +35,6 @@ cp deploy/env/vps.example .env
 cp api/.env.production.example api/.env.production
 cp deploy/hermes/hermes.env.example deploy/hermes/hermes.env
 cp deploy/hermes/config.vps.example.yaml deploy/hermes/config.vps.yaml
-cp deploy/engram/engram.env.example deploy/engram/engram.env
 ```
 
 ## 4. Ajustes obligatorios
@@ -48,7 +45,6 @@ Edita estos archivos:
 - `api/.env.production`
 - `deploy/hermes/hermes.env`
 - `deploy/hermes/config.vps.yaml`
-- `deploy/engram/engram.env`
 
 Valores criticos:
 
@@ -84,7 +80,6 @@ docker compose -f deploy/docker-compose.vps.yml exec api npx prisma migrate depl
 docker compose -f deploy/docker-compose.vps.yml ps
 docker compose -f deploy/docker-compose.vps.yml logs api --tail 100
 docker compose -f deploy/docker-compose.vps.yml logs hermes --tail 100
-docker compose -f deploy/docker-compose.vps.yml logs engram --tail 100
 curl http://127.0.0.1:3001/health
 ```
 
@@ -111,8 +106,7 @@ Haz esto solo cuando la API en Docker ya responda bien.
 
 ## 10. Notas
 
-- `engram` queda con volumen persistente `engram_data`
 - `hermes` queda con volumen persistente `hermes_data`
 - `postgres` queda con volumen persistente `postgres_data`
-- los servicios se hablan por nombre interno de Docker: `postgres`, `api`, `engram`, `hermes`
-- este stack deja `api`, `web` y `hermes` publicados en `127.0.0.1`; si quieres cero procesos en el host tambien para la entrada HTTP/HTTPS, mete un `caddy` o `nginx` como contenedor extra delante
+- los servicios se hablan por nombre interno de Docker: `postgres`, `api`, `hermes`
+- este stack deja `api` y `hermes` publicados en `127.0.0.1`; si quieres cero procesos en el host tambien para la entrada HTTP/HTTPS, mete un `caddy` o `nginx` como contenedor extra delante
