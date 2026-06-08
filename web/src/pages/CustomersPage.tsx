@@ -226,6 +226,30 @@ export const CustomersPage = () => {
 
   useEffect(() => {
     if (!isComposerOpen) {
+      return;
+    }
+
+    const { body, documentElement } = document;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverflow = documentElement.style.overflow;
+    const previousBodyOverscrollBehavior = body.style.overscrollBehavior;
+    const previousHtmlOverscrollBehavior = documentElement.style.overscrollBehavior;
+
+    body.style.overflow = "hidden";
+    documentElement.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    documentElement.style.overscrollBehavior = "none";
+
+    return () => {
+      body.style.overflow = previousBodyOverflow;
+      documentElement.style.overflow = previousHtmlOverflow;
+      body.style.overscrollBehavior = previousBodyOverscrollBehavior;
+      documentElement.style.overscrollBehavior = previousHtmlOverscrollBehavior;
+    };
+  }, [isComposerOpen]);
+
+  useEffect(() => {
+    if (!isComposerOpen) {
       setIsSpecialPiecesEditorOpen(false);
       return;
     }
@@ -681,7 +705,7 @@ export const CustomersPage = () => {
           ) : null}
 
           {isComposerOpen ? (
-            <div className="fixed inset-0 z-40 flex items-start justify-center bg-[color:rgb(19_19_19_/_0.78)] backdrop-blur sm:items-center">
+            <div className="fixed inset-0 z-40 flex items-start justify-center overflow-hidden bg-[color:rgb(19_19_19_/_0.78)] backdrop-blur sm:items-center">
               <button
                 aria-label="Cerrar formulario de cliente"
                 className="absolute inset-0"
