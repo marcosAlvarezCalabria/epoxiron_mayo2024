@@ -37,47 +37,23 @@ services:
     networks:
       - epoxiron_net
 
-  engram:
-    image: ghcr.io/gentleman-programming/engram:latest
-    container_name: engram
-    restart: unless-stopped
-    env_file:
-      - path: ./engram/engram.env
-        required: false
-    volumes:
-      - engram_data:/var/lib/engram
-    networks:
-      - epoxiron_net
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7437/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   hermes:
-    image: nousresearch/hermes-agent:latest
+    image: epoxiron-hermes:latest
+    container_name: hermes-gateway
     restart: unless-stopped
-    command: ["gateway", "run"]
+    command: ["/usr/local/bin/hermes", "gateway", "run"]
     env_file:
       - path: ./hermes/hermes.env
         required: false
     depends_on:
       - api
-      - engram
-    ports:
-      - "127.0.0.1:8642:8642"
-      - "127.0.0.1:9119:9119"
     volumes:
-      - hermes_data:/opt/data
-      - ./hermes/config.vps.yaml:/opt/data/config.yaml:ro
-      - ../:/workspace/epoxiron:ro
+      - /root/.hermes:/root/.hermes
     networks:
       - epoxiron_net
 
 volumes:
   postgres_data:
-  hermes_data:
-  engram_data:
 
 networks:
   epoxiron_net:
