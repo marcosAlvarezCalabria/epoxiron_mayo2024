@@ -258,6 +258,8 @@ const buildNote = (
       description: "Perfil",
       color: "RAL 9005",
       texture: "NORMAL",
+      pricingMode: "DIMENSIONS",
+      customUnitPrice: null,
       quantity: status === "REVIEWED" ? 4 : 2,
       unitPrice: status === "REVIEWED" ? 30 : 22.5,
       totalPrice: status === "REVIEWED" ? 120 : 45,
@@ -392,6 +394,34 @@ describe("delivery note use cases", () => {
     ]);
     expect(result.items[0]?.unitPrice).toBe(20);
     expect(result.items[0]?.totalPrice).toBe(20);
+  });
+
+  it("creates a delivery note with custom unit pricing for a regular piece", async () => {
+    const useCase = new CreateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+
+    const result = await useCase.execute({
+      customerId: "customer-1",
+      status: "DRAFT",
+      items: [
+        {
+          description: "Pasamanos suelto",
+          color: "RAL 7016",
+          texture: "NORMAL",
+          pricingMode: "UNIT",
+          customUnitPrice: 18,
+          quantity: 4
+        }
+      ]
+    });
+
+    expect(result.totalAmount).toBe(72);
+    expect(result.items[0]?.pricingMode).toBe("UNIT");
+    expect(result.items[0]?.customUnitPrice).toBe(18);
+    expect(result.items[0]?.unitPrice).toBe(18);
   });
 
   it("blocks deleting non-draft delivery notes", async () => {

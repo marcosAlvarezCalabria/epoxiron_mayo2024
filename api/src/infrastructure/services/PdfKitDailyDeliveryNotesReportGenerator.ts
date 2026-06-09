@@ -27,8 +27,10 @@ const buildItemSummary = (item: DeliveryNote["items"][number]) => {
     item.description,
     item.color,
     `x${item.quantity}`,
-    `MM ${formatMillimeters(item.linearMeters)}`,
-    `M2 ${formatSquareMeters(item.squareMeters)}`
+    item.pricingMode === "UNIT"
+      ? `U ${item.customUnitPrice ?? item.unitPrice}`
+      : `MM ${formatMillimeters(item.linearMeters)}`,
+    item.pricingMode === "UNIT" ? null : `M2 ${formatSquareMeters(item.squareMeters)}`
   ];
 
   if (item.texture !== "NORMAL") {
@@ -45,7 +47,7 @@ const buildItemSummary = (item: DeliveryNote["items"][number]) => {
 
   segments.push(formatCurrency(item.totalPrice));
 
-  return segments.join(" | ");
+  return segments.filter(Boolean).join(" | ");
 };
 
 type PdfDocumentInstance = InstanceType<typeof PDFDocument>;

@@ -27,13 +27,16 @@ export const estimateDeliveryNoteItemPrice = (
   customer: Customer
 ): PricePreviewState => {
   const quantity = item.quantity;
+  const pricingMode = item.pricingMode ?? "DIMENSIONS";
   const specialPiece = customer.specialPieces.find(
     (entry) => entry.name.toLowerCase() === item.description.toLowerCase()
   );
 
   let totalPrice = 0;
 
-  if (specialPiece) {
+  if (pricingMode === "UNIT" && item.customUnitPrice != null) {
+    totalPrice = item.customUnitPrice * quantity;
+  } else if (specialPiece) {
     totalPrice = specialPiece.price * quantity;
   } else {
     const pricePerPiece =

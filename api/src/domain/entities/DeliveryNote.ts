@@ -1,11 +1,14 @@
 export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED";
 export type DeliveryNoteTexture = "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO";
+export type DeliveryNotePricingMode = "DIMENSIONS" | "UNIT";
 
 export interface DeliveryNoteItem {
   id?: string;
   description: string;
   color: string;
   texture: DeliveryNoteTexture;
+  pricingMode: DeliveryNotePricingMode;
+  customUnitPrice?: number | null;
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;
@@ -33,6 +36,8 @@ export interface DeliveryNoteItemDraft {
   description: string;
   color: string;
   texture?: DeliveryNoteTexture;
+  pricingMode?: DeliveryNotePricingMode;
+  customUnitPrice?: number | null;
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;

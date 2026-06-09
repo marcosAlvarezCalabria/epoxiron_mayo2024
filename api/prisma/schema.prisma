@@ -55,6 +55,8 @@ model DeliveryNoteItem {
   description    String
   color          String
   texture        String       @default("NORMAL")
+  pricingMode    String       @default("DIMENSIONS")
+  customUnitPrice Float?
   linearMeters   Float?
   squareMeters   Float?
   thickness      Float?

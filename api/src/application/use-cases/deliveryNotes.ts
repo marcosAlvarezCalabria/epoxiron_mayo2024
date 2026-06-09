@@ -39,13 +39,16 @@ const toCustomerInput = (customer: Customer) => ({
 export class CalculatePriceUseCase {
   public execute(item: DeliveryNoteItemDraft, customer: Customer): PriceCalculationResult {
     const quantity = item.quantity;
+    const pricingMode = item.pricingMode ?? "DIMENSIONS";
     const specialPiece = customer.specialPieces.find(
       (entry) => entry.name.toLowerCase() === item.description.toLowerCase()
     );
 
     let totalPrice = 0;
 
-    if (specialPiece) {
+    if (pricingMode === "UNIT" && item.customUnitPrice != null) {
+      totalPrice = item.customUnitPrice * quantity;
+    } else if (specialPiece) {
       totalPrice = specialPiece.price * quantity;
     } else {
       const pricePerPiece =
@@ -88,6 +91,8 @@ const materializeItems = (
 
     return {
       ...persistedItem,
+      pricingMode: item.pricingMode ?? "DIMENSIONS",
+      customUnitPrice: item.customUnitPrice ?? null,
       texture: item.texture ?? "NORMAL",
       unitPrice: pricing.unitPrice,
       totalPrice: pricing.totalPrice

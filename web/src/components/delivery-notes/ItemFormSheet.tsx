@@ -7,7 +7,12 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePricePreview } from "@/application/use-cases";
 import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
-import type { Customer, DeliveryNoteItemDraft, DeliveryNoteTexture } from "@/domain/entities";
+import type {
+  Customer,
+  DeliveryNoteItemDraft,
+  DeliveryNotePricingMode,
+  DeliveryNoteTexture
+} from "@/domain/entities";
 import {
   parseMillimetersToMeters,
   parseMetersSquared
@@ -18,8 +23,10 @@ export interface DeliveryNoteItemFormState {
   hasThickness: boolean;
   hasPrimer: boolean;
   saveAsSpecialPiece: boolean;
+  customUnitPrice: string;
   description: string;
   color: string;
+  pricingMode: DeliveryNotePricingMode;
   texture: DeliveryNoteTexture;
   linearMeters: string;
   quantity: string;
@@ -28,6 +35,7 @@ export interface DeliveryNoteItemFormState {
 
 interface DeliveryNoteItemFieldErrors {
   color?: string;
+  customUnitPrice?: string;
   description?: string;
 }
 
@@ -49,10 +57,17 @@ interface ItemFormSheetProps {
 
 const emptyErrors: DeliveryNoteItemFieldErrors = {};
 
+const parseDecimal = (value: string) => {
+  const normalized = value.trim().replace(",", ".");
+  return normalized ? Number.parseFloat(normalized) : null;
+};
+
 const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft => ({
   color: item.color.trim(),
+  customUnitPrice: parseDecimal(item.customUnitPrice),
   description: item.description.trim(),
   linearMeters: parseMillimetersToMeters(item.linearMeters),
+  pricingMode: item.pricingMode,
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
@@ -153,6 +168,9 @@ export const ItemFormSheet = ({
 
   const handleSave = () => {
     const nextErrors: DeliveryNoteItemFieldErrors = {};
+    const matchedSpecialPiece = customer?.specialPieces.find(
+      (piece) => piece.name.trim().toLowerCase() === item.description.trim().toLowerCase()
+    );
 
     if (!item.description.trim()) {
       nextErrors.description = "Escribe una pieza o selecciona una especial.";
@@ -160,6 +178,10 @@ export const ItemFormSheet = ({
 
     if (!item.color.trim()) {
       nextErrors.color = "Selecciona un color.";
+    }
+
+    if (item.pricingMode === "UNIT" && !item.customUnitPrice.trim() && !matchedSpecialPiece) {
+      nextErrors.customUnitPrice = "Indica un precio por unidad o usa una pieza especial existente.";
     }
 
     setFieldErrors(nextErrors);
@@ -251,7 +273,7 @@ export const ItemFormSheet = ({
                   type="button"
                 >
                   <span>
-                    {selectedTemplateLabel ? `Pieza especial: ${selectedTemplateLabel}` : "Piezas especiales"}
+                    {selectedTemplateLabel ? `Pieza especial por unidad: ${selectedTemplateLabel}` : "Piezas especiales por unidad"}
                   </span>
                   <ChevronDownIcon
                     className={`h-4 w-4 transition-transform ${openTemplatePicker ? "rotate-180" : ""}`}
@@ -269,7 +291,11 @@ export const ItemFormSheet = ({
                           }`}
                         key={template}
                         onClick={() => {
-                          setItem((current) => ({ ...current, description: template }));
+                          setItem((current) => ({
+                            ...current,
+                            description: template,
+                            pricingMode: "UNIT"
+                          }));
                           setOpenTemplatePicker(false);
                         }}
                         type="button"
@@ -284,6 +310,9 @@ export const ItemFormSheet = ({
                     ))}
                   </div>
                 ) : null}
+                <p className="text-xs text-neutral-600">
+                  Si eliges una pieza especial, el sistema usa su precio por unidad y no calcula por MM o M2.
+                </p>
               </div>
             ) : null}
 
@@ -345,9 +374,70 @@ export const ItemFormSheet = ({
               </div>
 
               {([
+                {
+                  key: "pricingMode",
+                  label: "Modo de precio"
+                },
                 { key: "linearMeters", label: "Milimetros lineales", placeholder: "0" },
                 { key: "squareMeters", label: "Metros cuadrados", placeholder: "0" }
-              ] as const).map((field) => (
+              ] as const).map((field) =>
+                field.key === "pricingMode" ? (
+                  <div className="border border-neutral-300 bg-white px-4 py-3" key={field.key}>
+                    <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                      {field.label}
+                    </span>
+                    <div className="mt-3 flex gap-2">
+                      {([
+                        { label: "Por medidas", value: "DIMENSIONS" },
+                        { label: "Por unidad", value: "UNIT" }
+                      ] as const).map((option) => (
+                        <button
+                          className={`flex-1 border px-3 py-2 text-sm font-semibold ${
+                            item.pricingMode === option.value
+                              ? "border-[var(--epx-accent)] bg-[color:rgb(255_149_0_/_0.16)] text-neutral-900"
+                              : "border-neutral-300 bg-white text-neutral-600"
+                          }`}
+                          key={option.value}
+                          onClick={() =>
+                            setItem((current) => ({
+                              ...current,
+                              pricingMode: option.value
+                            }))
+                          }
+                          type="button"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : item.pricingMode === "UNIT" && field.key !== "linearMeters" ? (
+                  <label
+                    className="border border-neutral-300 bg-white px-4 py-3"
+                    key={field.key}
+                  >
+                    <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                      Precio por unidad
+                    </span>
+                    <input
+                      className={`mt-3 w-full bg-transparent text-lg font-semibold text-neutral-900 outline-none ${
+                        fieldErrors.customUnitPrice ? "text-red-500" : ""
+                      }`}
+                      inputMode="decimal"
+                      onChange={(event) =>
+                        setItem((current) => ({
+                          ...current,
+                          customUnitPrice: event.target.value
+                        }))
+                      }
+                      placeholder="0"
+                      value={item.customUnitPrice}
+                    />
+                    {fieldErrors.customUnitPrice ? (
+                      <p className="mt-2 text-sm text-red-300">{fieldErrors.customUnitPrice}</p>
+                    ) : null}
+                  </label>
+                ) : item.pricingMode === "UNIT" ? null : (
                 <label
                   className="border border-neutral-300 bg-white px-4 py-3"
                   key={field.key}
@@ -368,7 +458,8 @@ export const ItemFormSheet = ({
                     value={item[field.key]}
                   />
                 </label>
-              ))}
+                )
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">

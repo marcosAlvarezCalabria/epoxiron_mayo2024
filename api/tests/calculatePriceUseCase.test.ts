@@ -86,4 +86,21 @@ describe("CalculatePriceUseCase", () => {
     expect(result.totalPrice).toBe(100);
     expect(result.unitPrice).toBe(50);
   });
+
+  it("uses custom unit pricing for a regular piece", () => {
+    const result = useCase.execute(
+      {
+        description: "Pletina suelta",
+        color: "RAL 9005",
+        pricingMode: "UNIT",
+        customUnitPrice: 12.5,
+        texture: "NORMAL",
+        quantity: 3
+      },
+      customer
+    );
+
+    expect(result.totalPrice).toBe(45);
+    expect(result.unitPrice).toBe(15);
+  });
 });

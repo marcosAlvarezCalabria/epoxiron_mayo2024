@@ -33,11 +33,14 @@ export interface CustomerInput {
 
 export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED";
 export type DeliveryNoteTexture = "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO";
+export type DeliveryNotePricingMode = "DIMENSIONS" | "UNIT";
 
 export interface DeliveryNoteItemDraft {
   description: string;
   color: string;
   texture?: DeliveryNoteTexture;
+  pricingMode?: DeliveryNotePricingMode;
+  customUnitPrice?: number | null;
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;
@@ -51,6 +54,8 @@ export interface DeliveryNoteItem {
   description: string;
   color: string;
   texture: DeliveryNoteTexture;
+  pricingMode: DeliveryNotePricingMode;
+  customUnitPrice?: number | null;
   linearMeters?: number | null;
   squareMeters?: number | null;
   thickness?: number | null;

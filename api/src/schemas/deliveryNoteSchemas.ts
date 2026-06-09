@@ -1,11 +1,14 @@
 import { z } from "zod";
 
 const deliveryNoteTextureSchema = z.enum(["NORMAL", "MATE", "TEXTURADO", "GOFRADO"]);
+const deliveryNotePricingModeSchema = z.enum(["DIMENSIONS", "UNIT"]);
 
 export const deliveryNoteItemDraftSchema = z.object({
   description: z.string().min(1),
   color: z.string().min(1),
   texture: deliveryNoteTextureSchema.optional().default("NORMAL"),
+  pricingMode: deliveryNotePricingModeSchema.optional().default("DIMENSIONS"),
+  customUnitPrice: z.coerce.number().positive().nullable().optional(),
   linearMeters: z.coerce.number().positive().nullable().optional(),
   squareMeters: z.coerce.number().positive().nullable().optional(),
   thickness: z.coerce.number().positive().nullable().optional(),

@@ -2,6 +2,7 @@ import type {
   DeliveryNote,
   DeliveryNoteFilters,
   DeliveryNoteItem,
+  DeliveryNotePricingMode,
   DeliveryNoteTexture,
   DeliveryNoteStatus
 } from "../../domain/entities/DeliveryNote.js";
@@ -41,11 +42,21 @@ const resolveTexture = (value: unknown): DeliveryNoteTexture => {
   return "NORMAL";
 };
 
+const resolvePricingMode = (value: unknown): DeliveryNotePricingMode => {
+  if (value === "UNIT") {
+    return "UNIT";
+  }
+
+  return "DIMENSIONS";
+};
+
 const toDomainItem = (
   item: {
     id: string;
     description: string;
     color: string;
+    pricingMode?: unknown;
+    customUnitPrice?: number | null;
     linearMeters: number | null;
     squareMeters: number | null;
     thickness: number | null;
@@ -59,6 +70,8 @@ const toDomainItem = (
   description: item.description,
   color: item.color,
   texture: resolveTexture(item.texture),
+  pricingMode: resolvePricingMode(item.pricingMode),
+  customUnitPrice: item.customUnitPrice,
   linearMeters: item.linearMeters,
   squareMeters: item.squareMeters,
   thickness: item.thickness,
@@ -85,6 +98,8 @@ const toDomainNote = (
         id: string;
         description: string;
         color: string;
+        pricingMode?: unknown;
+        customUnitPrice?: number | null;
         linearMeters: number | null;
         squareMeters: number | null;
         thickness: number | null;
