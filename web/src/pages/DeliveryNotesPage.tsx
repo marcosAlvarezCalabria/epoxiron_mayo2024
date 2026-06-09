@@ -165,11 +165,11 @@ const buildDocumentItemDescription = (item: DeliveryNote["items"][number]) => {
     segments.push("UNIDAD");
   } else {
     if ((item.linearMeters ?? 0) > 0) {
-      segments.push(`${formatMetersSummaryAsMillimeters(item.linearMeters)} MLIN`);
+      segments.push(`${formatMetersSummaryAsMillimeters(item.linearMeters)}MLIN`);
     }
 
     if ((item.squareMeters ?? 0) > 0) {
-      segments.push(`${formatSquareMetersSummary(item.squareMeters)} M2`);
+      segments.push(`${formatSquareMetersSummary(item.squareMeters)}M2`);
     }
   }
 
@@ -181,7 +181,7 @@ const buildDocumentItemDescription = (item: DeliveryNote["items"][number]) => {
     segments.push("I");
   }
 
-  return segments.filter(Boolean).join(" · ");
+  return segments.filter(Boolean).join("·");
 };
 
 const isItemComplete = (item: DeliveryNoteItemFormState) =>
@@ -910,20 +910,20 @@ export const DeliveryNotesPage = () => {
                     </div>
                   </div>
                   <div className="mt-4 overflow-x-auto border border-neutral-300">
-                    <div className="min-w-[560px]">
-                      <div className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] bg-neutral-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600 sm:px-4">
+                    <div className="min-w-[500px] sm:min-w-[560px]">
+                      <div className="grid grid-cols-[minmax(0,1fr)_52px_72px_84px] bg-neutral-100 px-2 py-2 text-[9px] font-semibold uppercase tracking-[0.14em] text-neutral-600 sm:grid-cols-[minmax(0,1fr)_64px_88px_96px] sm:px-4 sm:text-[10px] sm:tracking-[0.16em]">
                         <span>Descripcion</span>
                         <span className="text-right">Unid.</span>
                         <span className="text-right">Precio</span>
                         <span className="text-right">Importe</span>
                       </div>
-                      <div className="border-b border-neutral-300 px-3 py-2 text-[11px] font-medium text-neutral-700 sm:px-4">
+                      <div className="border-b border-neutral-300 px-2 py-2 text-[10px] font-medium text-neutral-700 sm:px-4 sm:text-[11px]">
                         ALBARAN {selectedNote.number} FECHA {formatDocumentDate(selectedNote.date)}
                       </div>
                       <div className="divide-y divide-neutral-200">
                         {selectedNote.items.map((item, index) => (
                           <div
-                            className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] gap-3 px-3 py-2 text-[11px] leading-5 sm:px-4"
+                            className="grid grid-cols-[minmax(0,1fr)_52px_72px_84px] gap-1.5 px-2 py-2 text-[10px] leading-4 sm:grid-cols-[minmax(0,1fr)_64px_88px_96px] sm:gap-3 sm:px-4 sm:text-[11px] sm:leading-5"
                             key={`${selectedNote.id}-${index}`}
                           >
                             <div className="min-w-0 break-words">{buildDocumentItemDescription(item)}</div>
@@ -935,7 +935,7 @@ export const DeliveryNotesPage = () => {
                           </div>
                         ))}
                       </div>
-                      <div className="flex items-center justify-between border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-700 sm:px-4">
+                      <div className="flex items-center justify-between border-t border-neutral-300 bg-neutral-50 px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-700 sm:px-4 sm:text-[11px] sm:tracking-[0.16em]">
                         <span>Suma y sigue</span>
                         <span>{formatDocumentNumber(selectedNote.totalAmount)}</span>
                       </div>
