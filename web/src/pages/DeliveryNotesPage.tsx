@@ -137,6 +137,52 @@ const normalizePayload = (form: DeliveryNoteFormState, status: DeliveryNoteStatu
 const formatCurrency = (value: number) => `${value.toFixed(2)} €`;
 const formatArticleTexture = (texture?: DeliveryNoteItemDraft["texture"]) =>
   texture && texture !== "NORMAL" ? formatDeliveryNoteTexture(texture) : null;
+const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
+const formatDocumentDate = (value: string) => new Date(value).toLocaleDateString("es-ES");
+
+const companyReference = {
+  name: "Epoxiron S.L.",
+  subtitle: "DISEÑOS Y TRANSFORMADOS DEL METAL",
+  addressLines: ["C/ MARMOL 2 Pol. Inds. LA TORRECILLA", "45220 YELES", "TOLEDO"],
+  contactLines: [
+    "AVD DE LOS GREMIOS NAVE 13R",
+    "45200 ILLESCAS",
+    "TELÉF.: 678786551",
+    "CIF: B86428760",
+    "epoxiron@gmail.com"
+  ]
+} as const;
+
+const buildDocumentItemDescription = (item: DeliveryNote["items"][number]) => {
+  const segments = [item.description, item.color];
+  const texture = formatArticleTexture(item.texture);
+
+  if (texture) {
+    segments.push(texture);
+  }
+
+  if (item.pricingMode === "UNIT") {
+    segments.push("UNIDAD");
+  } else {
+    if ((item.linearMeters ?? 0) > 0) {
+      segments.push(`${formatMetersSummaryAsMillimeters(item.linearMeters)} MLIN`);
+    }
+
+    if ((item.squareMeters ?? 0) > 0) {
+      segments.push(`${formatSquareMetersSummary(item.squareMeters)} M2`);
+    }
+  }
+
+  if (item.thickness != null) {
+    segments.push("G");
+  }
+
+  if (item.primer) {
+    segments.push("I");
+  }
+
+  return segments.filter(Boolean).join(" · ");
+};
 
 const isItemComplete = (item: DeliveryNoteItemFormState) =>
   Boolean(item.description.trim() && item.color.trim() && Number.parseInt(item.quantity || "0", 10) > 0);
@@ -252,6 +298,15 @@ export const DeliveryNotesPage = () => {
     deliveryNotesQuery.data?.deliveryNotes.find((note) => note.id === selectedNoteId) ??
     deliveryNotesQuery.data?.deliveryNotes[0] ??
     null;
+  const selectedNoteCustomer = useMemo(() => {
+    if (!selectedNote) {
+      return null;
+    }
+
+    return (
+      customersQuery.data?.customers.find((customer) => customer.id === selectedNote.customerId) ?? null
+    );
+  }, [customersQuery.data?.customers, selectedNote]);
 
   const requestedNoteId = searchParams.get("noteId");
 
@@ -724,21 +779,20 @@ export const DeliveryNotesPage = () => {
                   Volver
                 </button>
 
-                <div className="border border-neutral-300 bg-white px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3 border border-neutral-300 bg-white px-4 py-3">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">
                         Detalle de albaran
                       </p>
-                      <h3 className="mt-2 text-lg font-semibold text-neutral-900 sm:text-xl">{selectedNote.number}</h3>
-                      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-neutral-500">
-                        <span className="inline-flex items-center gap-2 text-[15px] font-medium text-neutral-900">
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-600">
+                        <span className="inline-flex items-center gap-2 font-medium text-neutral-900">
                           <UserCircleIcon className="h-4 w-4 text-neutral-500" />
                           {selectedNote.customerName}
                         </span>
                         <span className="inline-flex items-center gap-2">
                           <CalendarDaysIcon className="h-4 w-4 text-neutral-500" />
-                          {new Date(selectedNote.date).toLocaleDateString("es-ES")}
+                          {formatDocumentDate(selectedNote.date)}
                         </span>
                       </div>
                     </div>
@@ -799,19 +853,98 @@ export const DeliveryNotesPage = () => {
                   </div>
                 </div>
 
-                {isNotesOpen ? (
-                  <div className="border border-neutral-300 bg-white px-4 py-4 text-sm text-neutral-800">
-                    {selectedNote.notes ?? "Sin notas para este albaran."}
-                  </div>
-                ) : null}
+                <section className="border border-neutral-300 bg-white px-4 py-4 text-neutral-900 shadow-[0_18px_36px_rgba(0,0,0,0.05)] sm:px-6">
+                  <div className="flex items-start justify-between gap-4 border-b border-neutral-300 pb-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center border border-neutral-300 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                        QR
+                      </div>
+                      <div>
+                        <p className="text-xl font-semibold tracking-tight">{companyReference.name}</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+                          {companyReference.subtitle}
+                        </p>
+                        <div className="mt-3 grid gap-3 text-[11px] leading-5 text-neutral-700 sm:grid-cols-2">
+                          <div>
+                            {companyReference.addressLines.map((line) => (
+                              <p key={line}>{line}</p>
+                            ))}
+                          </div>
+                          <div>
+                            {companyReference.contactLines.map((line) => (
+                              <p key={line}>{line}</p>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                <section className="border border-neutral-300 bg-white">
-                  <div className="border-b border-neutral-200 px-4 py-3">
-                    <h4 className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-                      Piezas
-                    </h4>
+                    <div className="border border-neutral-300 px-3 py-2 text-right">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
+                        VERI*FACTU
+                      </p>
+                    </div>
                   </div>
-                  <div className="divide-y divide-neutral-200">
+                  <div className="mt-4 grid gap-x-4 gap-y-3 border-b border-neutral-300 pb-4 text-[11px] sm:grid-cols-6">
+                    <div>
+                      <p className="font-semibold uppercase tracking-[0.16em] text-neutral-500">Fecha</p>
+                      <p className="mt-1 text-sm text-neutral-900">{formatDocumentDate(selectedNote.date)}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold uppercase tracking-[0.16em] text-neutral-500">Factura</p>
+                      <p className="mt-1 text-sm text-neutral-900">{selectedNote.number}</p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <p className="font-semibold uppercase tracking-[0.16em] text-neutral-500">Cliente</p>
+                      <p className="mt-1 text-sm text-neutral-900">{selectedNote.customerName}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold uppercase tracking-[0.16em] text-neutral-500">N.I.F.</p>
+                      <p className="mt-1 text-sm text-neutral-900">—</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold uppercase tracking-[0.16em] text-neutral-500">Telefono</p>
+                      <p className="mt-1 text-sm text-neutral-900">
+                        {selectedNoteCustomer?.phone ?? selectedNoteCustomer?.email ?? "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 overflow-hidden border border-neutral-300">
+                    <div className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] bg-neutral-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600 sm:px-4">
+                      <span>Descripcion</span>
+                      <span className="text-right">Unid.</span>
+                      <span className="text-right">Precio</span>
+                      <span className="text-right">Importe</span>
+                    </div>
+                    <div className="border-b border-neutral-300 px-3 py-2 text-[11px] font-medium text-neutral-700 sm:px-4">
+                      ALBARAN {selectedNote.number} FECHA {formatDocumentDate(selectedNote.date)}
+                    </div>
+                    <div className="divide-y divide-neutral-200">
+                      {selectedNote.items.map((item, index) => (
+                        <div
+                          className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] gap-3 px-3 py-2 text-[11px] leading-5 sm:px-4"
+                          key={`${selectedNote.id}-${index}`}
+                        >
+                          <div className="min-w-0 break-words">{buildDocumentItemDescription(item)}</div>
+                          <div className="text-right">{item.quantity}</div>
+                          <div className="text-right">
+                            {formatDocumentNumber(item.customUnitPrice ?? item.unitPrice)}
+                          </div>
+                          <div className="text-right font-medium">{formatDocumentNumber(item.totalPrice)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-700 sm:px-4">
+                      <span>Suma y sigue</span>
+                      <span>{formatDocumentNumber(selectedNote.totalAmount)}</span>
+                    </div>
+                  </div>
+                  {isNotesOpen ? (
+                    <div className="mt-4 border border-neutral-300 px-3 py-3 text-sm text-neutral-800">
+                      {selectedNote.notes ?? "Sin notas para este albaran."}
+                    </div>
+                  ) : null}
+                  <div className="hidden divide-y divide-neutral-200">
                     {selectedNote.items.map((item, index) => (
                       <div className="px-3 py-2 sm:px-4 sm:py-3" key={`${selectedNote.id}-${index}`}>
                         <div className="flex items-start gap-2 sm:gap-3">
