@@ -853,14 +853,14 @@ export const DeliveryNotesPage = () => {
                   </div>
                 </div>
 
-                <section className="border border-neutral-300 bg-white px-4 py-4 text-neutral-900 shadow-[0_18px_36px_rgba(0,0,0,0.05)] sm:px-6">
-                  <div className="flex items-start justify-between gap-4 border-b border-neutral-300 pb-4">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center border border-neutral-300 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                <section className="border border-neutral-300 bg-white px-3 py-3 text-neutral-900 shadow-[0_18px_36px_rgba(0,0,0,0.05)] sm:px-6 sm:py-4">
+                  <div className="flex flex-col gap-4 border-b border-neutral-300 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex items-start gap-3 sm:gap-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center border border-neutral-300 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-500 sm:h-14 sm:w-14">
                         QR
                       </div>
-                      <div>
-                        <p className="text-xl font-semibold tracking-tight">{companyReference.name}</p>
+                      <div className="min-w-0">
+                        <p className="text-lg font-semibold tracking-tight sm:text-xl">{companyReference.name}</p>
                         <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">
                           {companyReference.subtitle}
                         </p>
@@ -879,13 +879,13 @@ export const DeliveryNotesPage = () => {
                       </div>
                     </div>
 
-                    <div className="border border-neutral-300 px-3 py-2 text-right">
+                    <div className="self-start border border-neutral-300 px-3 py-2 text-right">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
                         VERI*FACTU
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-x-4 gap-y-3 border-b border-neutral-300 pb-4 text-[11px] sm:grid-cols-6">
+                  <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-3 border-b border-neutral-300 pb-4 text-[11px] sm:grid-cols-6 sm:gap-x-4">
                     <div>
                       <p className="font-semibold uppercase tracking-[0.16em] text-neutral-500">Fecha</p>
                       <p className="mt-1 text-sm text-neutral-900">{formatDocumentDate(selectedNote.date)}</p>
@@ -909,34 +909,36 @@ export const DeliveryNotesPage = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="mt-4 overflow-hidden border border-neutral-300">
-                    <div className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] bg-neutral-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600 sm:px-4">
-                      <span>Descripcion</span>
-                      <span className="text-right">Unid.</span>
-                      <span className="text-right">Precio</span>
-                      <span className="text-right">Importe</span>
-                    </div>
-                    <div className="border-b border-neutral-300 px-3 py-2 text-[11px] font-medium text-neutral-700 sm:px-4">
-                      ALBARAN {selectedNote.number} FECHA {formatDocumentDate(selectedNote.date)}
-                    </div>
-                    <div className="divide-y divide-neutral-200">
-                      {selectedNote.items.map((item, index) => (
-                        <div
-                          className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] gap-3 px-3 py-2 text-[11px] leading-5 sm:px-4"
-                          key={`${selectedNote.id}-${index}`}
-                        >
-                          <div className="min-w-0 break-words">{buildDocumentItemDescription(item)}</div>
-                          <div className="text-right">{item.quantity}</div>
-                          <div className="text-right">
-                            {formatDocumentNumber(item.customUnitPrice ?? item.unitPrice)}
+                  <div className="mt-4 overflow-x-auto border border-neutral-300">
+                    <div className="min-w-[560px]">
+                      <div className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] bg-neutral-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-600 sm:px-4">
+                        <span>Descripcion</span>
+                        <span className="text-right">Unid.</span>
+                        <span className="text-right">Precio</span>
+                        <span className="text-right">Importe</span>
+                      </div>
+                      <div className="border-b border-neutral-300 px-3 py-2 text-[11px] font-medium text-neutral-700 sm:px-4">
+                        ALBARAN {selectedNote.number} FECHA {formatDocumentDate(selectedNote.date)}
+                      </div>
+                      <div className="divide-y divide-neutral-200">
+                        {selectedNote.items.map((item, index) => (
+                          <div
+                            className="grid grid-cols-[minmax(0,1fr)_64px_88px_96px] gap-3 px-3 py-2 text-[11px] leading-5 sm:px-4"
+                            key={`${selectedNote.id}-${index}`}
+                          >
+                            <div className="min-w-0 break-words">{buildDocumentItemDescription(item)}</div>
+                            <div className="text-right">{item.quantity}</div>
+                            <div className="text-right">
+                              {formatDocumentNumber(item.customUnitPrice ?? item.unitPrice)}
+                            </div>
+                            <div className="text-right font-medium">{formatDocumentNumber(item.totalPrice)}</div>
                           </div>
-                          <div className="text-right font-medium">{formatDocumentNumber(item.totalPrice)}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-700 sm:px-4">
-                      <span>Suma y sigue</span>
-                      <span>{formatDocumentNumber(selectedNote.totalAmount)}</span>
+                        ))}
+                      </div>
+                      <div className="flex items-center justify-between border-t border-neutral-300 bg-neutral-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-700 sm:px-4">
+                        <span>Suma y sigue</span>
+                        <span>{formatDocumentNumber(selectedNote.totalAmount)}</span>
+                      </div>
                     </div>
                   </div>
                   {isNotesOpen ? (
