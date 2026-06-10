@@ -562,7 +562,7 @@ export const CustomersPage = () => {
                         Piezas especiales
                       </h4>
                       <p className="mt-1 text-sm text-gray-500">
-                        Solo se muestran si quieres desplegarlas.
+                        Se cobran por unidad y solo se muestran si quieres desplegarlas.
                       </p>
                     </div>
                     <span className="text-xs text-gray-500">
@@ -603,7 +603,7 @@ export const CustomersPage = () => {
                               className="rounded-full border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-3 py-2 text-sm text-[var(--epx-accent)]"
                               key={`${selectedCustomer.id}-piece-${index}`}
                             >
-                              {piece.name} · {piece.price.toFixed(2)} €
+                              {piece.name} · {piece.price.toFixed(2)} €/ud
                             </span>
                           ))
                         ) : (

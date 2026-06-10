@@ -382,8 +382,11 @@ export const CustomerFormStepper = ({
                     Piezas especiales
                   </p>
                   <h4 className="mt-1 text-lg font-semibold text-neutral-900">
-                    Catalogo rapido del cliente
+                    Catalogo con precio por unidad
                   </h4>
+                  <p className="mt-2 text-sm text-neutral-600">
+                    Estas piezas no se calculan por metros. Se cobran por unidad usando el precio fijo que definas aqui.
+                  </p>
                 </div>
                 <button
                   className="inline-flex items-center gap-2 border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.12)] px-3 py-2 text-sm font-semibold text-neutral-900"
@@ -457,7 +460,7 @@ export const CustomerFormStepper = ({
                         />
                         <div className="border border-neutral-300 bg-white px-4 py-3">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-                            Precio fijo
+                            Precio por unidad
                           </p>
                           <div className="mt-2 flex items-center gap-2">
                             <input

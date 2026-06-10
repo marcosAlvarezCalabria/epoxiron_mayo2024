@@ -225,11 +225,31 @@ export const ItemFormSheet = ({
             </button>
           </div>
 
-          <div className="border-b border-neutral-300 bg-[color:rgb(255_149_0_/_0.06)] px-5 py-3 sm:px-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-              Precio calculado
-            </p>
-            <div className="mt-1.5 flex items-center gap-2">
+          <div className="border-b border-neutral-300 bg-[color:rgb(255_149_0_/_0.06)] px-5 py-1.5 sm:px-6">
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[11px] text-neutral-500">
+              <span className="font-semibold uppercase tracking-[0.16em]">
+                Precio
+              </span>
+              <span className="text-neutral-300">|</span>
+              <span className="text-base font-bold text-neutral-900">
+                {preview ? `${preview.totalPrice.toFixed(2)} €` : "—"}
+              </span>
+              <span className="text-neutral-300">|</span>
+              <span>{item.pricingMode === "UNIT" ? "Unidad" : "MM/M2"}</span>
+              {preview ? (
+                <>
+                  <span className="text-neutral-300">|</span>
+                  <span className="text-neutral-500">Unitario {preview.unitPrice.toFixed(2)} €</span>
+                </>
+              ) : null}
+              {isPreviewLoading ? (
+                <>
+                  <span className="text-neutral-300">|</span>
+                  <span className="font-medium text-[var(--epx-accent)]">Calculando</span>
+                </>
+              ) : null}
+            </div>
+            <div className="hidden">
               <p className="text-xl font-bold text-neutral-900 sm:text-2xl">
                 {preview ? `${preview.totalPrice.toFixed(2)} €` : "—"}
               </p>
@@ -238,7 +258,7 @@ export const ItemFormSheet = ({
               ) : null}
             </div>
             {preview ? (
-                <p className="mt-0.5 text-xs text-neutral-500">
+                <p className="hidden">
                 Base viva · Unitario {preview.unitPrice.toFixed(2)} €
               </p>
             ) : null}
@@ -383,32 +403,36 @@ export const ItemFormSheet = ({
               ] as const).map((field) =>
                 field.key === "pricingMode" ? (
                   <div className="border border-neutral-300 bg-white px-4 py-3" key={field.key}>
-                    <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
-                      {field.label}
-                    </span>
-                    <div className="mt-3 flex gap-2">
-                      {([
-                        { label: "Por medidas", value: "DIMENSIONS" },
-                        { label: "Por unidad", value: "UNIT" }
-                      ] as const).map((option) => (
-                        <button
-                          className={`flex-1 border px-3 py-2 text-sm font-semibold ${
-                            item.pricingMode === option.value
-                              ? "border-[var(--epx-accent)] bg-[color:rgb(255_149_0_/_0.16)] text-neutral-900"
-                              : "border-neutral-300 bg-white text-neutral-600"
-                          }`}
-                          key={option.value}
-                          onClick={() =>
-                            setItem((current) => ({
-                              ...current,
-                              pricingMode: option.value
-                            }))
-                          }
-                          type="button"
-                        >
-                          {option.label}
-                        </button>
-                      ))}
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                          {field.label}
+                        </span>
+                      </div>
+                      <div className="inline-flex rounded-full border border-neutral-300 bg-neutral-100 p-1">
+                        {([
+                          { label: "MM/M2", value: "DIMENSIONS" },
+                          { label: "Unidad", value: "UNIT" }
+                        ] as const).map((option) => (
+                          <button
+                            className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                              item.pricingMode === option.value
+                                ? "bg-[var(--epx-accent)] text-[#131313]"
+                                : "text-neutral-600"
+                            }`}
+                            key={option.value}
+                            onClick={() =>
+                              setItem((current) => ({
+                                ...current,
+                                pricingMode: option.value
+                              }))
+                            }
+                            type="button"
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : item.pricingMode === "UNIT" && field.key !== "linearMeters" ? (
