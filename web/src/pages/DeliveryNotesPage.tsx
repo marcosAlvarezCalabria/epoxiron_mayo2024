@@ -38,11 +38,11 @@ import type {
 } from "@/domain/entities";
 import { ApiError } from "@/infrastructure/api/apiClient";
 import {
-  formatMetersAsMillimeters,
-  formatMetersSummaryAsMillimeters,
+  formatMeters,
+  formatMetersSummary,
   formatSquareMeters,
   formatSquareMetersSummary,
-  parseMillimetersToMeters,
+  parseMeters,
   parseMetersSquared
 } from "@/lib/measurements";
 import {
@@ -105,7 +105,7 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
     color: item.color,
     pricingMode: item.pricingMode,
     texture: item.texture ?? "NORMAL",
-    linearMeters: formatMetersAsMillimeters(item.linearMeters),
+    linearMeters: formatMeters(item.linearMeters),
     quantity: item.quantity.toString(),
     squareMeters: formatSquareMeters(item.squareMeters)
   })),
@@ -116,7 +116,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   color: item.color.trim(),
   customUnitPrice: item.customUnitPrice.trim() ? Number.parseFloat(item.customUnitPrice.replace(",", ".")) : null,
   description: item.description.trim(),
-  linearMeters: parseMillimetersToMeters(item.linearMeters),
+  linearMeters: parseMeters(item.linearMeters),
   pricingMode: item.pricingMode,
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
@@ -165,7 +165,7 @@ const buildDocumentItemDescription = (item: DeliveryNote["items"][number]) => {
     segments.push("UNIDAD");
   } else {
     if ((item.linearMeters ?? 0) > 0) {
-      segments.push(`${formatMetersSummaryAsMillimeters(item.linearMeters)}MLIN`);
+      segments.push(`${formatMetersSummary(item.linearMeters)}MLIN`);
     }
 
     if ((item.squareMeters ?? 0) > 0) {
@@ -992,7 +992,7 @@ export const DeliveryNotesPage = () => {
                               {item.quantity}
                               {item.pricingMode === "UNIT"
                                 ? ` | U ${item.customUnitPrice?.toFixed(2) ?? item.unitPrice.toFixed(2)}€`
-                                : ` | MM ${formatMetersSummaryAsMillimeters(item.linearMeters)} | M2 ${formatSquareMetersSummary(item.squareMeters)}`}
+                                : ` | M ${formatMetersSummary(item.linearMeters)} | M2 ${formatSquareMetersSummary(item.squareMeters)}`}
                               {item.thickness != null ? " | G" : ""}
                               {item.primer ? " | I" : ""}
                             </span>
@@ -1209,7 +1209,7 @@ export const DeliveryNotesPage = () => {
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
                                 <span className="truncate text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
-                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}${item.pricingMode === "UNIT" ? ` · U ${item.customUnitPrice || "0"}` : ` · MM ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}`}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
+                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}${item.pricingMode === "UNIT" ? ` · U ${item.customUnitPrice || "0"}` : ` · M ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}`}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
                                 </span>
                                 <span className="hidden truncate text-[10px] text-neutral-500">
                                   {`${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}`}
@@ -1226,7 +1226,7 @@ export const DeliveryNotesPage = () => {
                                 <span>U {item.customUnitPrice || "0"} €</span>
                               ) : (
                                 <>
-                                  <span>MM {item.linearMeters || "0"}</span>
+                                  <span>M {item.linearMeters || "0"}</span>
                                   <span>M2 {item.squareMeters || "0"}</span>
                                 </>
                               )}

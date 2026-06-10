@@ -13,7 +13,7 @@ const formatDate = (date: Date) =>
   }).format(date);
 
 const formatCurrency = (value: number) => `${value.toFixed(2)} EUR`;
-const formatMillimeters = (value: number | null | undefined) => `${(value ?? 0) * 1000}`;
+const formatMeters = (value: number | null | undefined) => `${value ?? 0}`;
 const formatSquareMeters = (value: number | null | undefined) => `${value ?? 0}`;
 const textureLabel: Record<DeliveryNoteTexture, string> = {
   NORMAL: "Normal",
@@ -29,7 +29,7 @@ const buildItemSummary = (item: DeliveryNote["items"][number]) => {
     `x${item.quantity}`,
     item.pricingMode === "UNIT"
       ? `U ${item.customUnitPrice ?? item.unitPrice}`
-      : `MM ${formatMillimeters(item.linearMeters)}`,
+      : `M ${formatMeters(item.linearMeters)}`,
     item.pricingMode === "UNIT" ? null : `M2 ${formatSquareMeters(item.squareMeters)}`
   ];
 

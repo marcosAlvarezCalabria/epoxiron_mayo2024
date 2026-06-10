@@ -14,7 +14,7 @@ import type {
   DeliveryNoteTexture
 } from "@/domain/entities";
 import {
-  parseMillimetersToMeters,
+  parseMeters,
   parseMetersSquared
 } from "@/lib/measurements";
 import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
@@ -66,7 +66,7 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   color: item.color.trim(),
   customUnitPrice: parseDecimal(item.customUnitPrice),
   description: item.description.trim(),
-  linearMeters: parseMillimetersToMeters(item.linearMeters),
+  linearMeters: parseMeters(item.linearMeters),
   pricingMode: item.pricingMode,
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
@@ -235,7 +235,7 @@ export const ItemFormSheet = ({
                 {preview ? `${preview.totalPrice.toFixed(2)} €` : "—"}
               </span>
               <span className="text-neutral-300">|</span>
-              <span>{item.pricingMode === "UNIT" ? "Unidad" : "MM/M2"}</span>
+              <span>{item.pricingMode === "UNIT" ? "Unidad" : "M/M2"}</span>
               {preview ? (
                 <>
                   <span className="text-neutral-300">|</span>
@@ -331,7 +331,7 @@ export const ItemFormSheet = ({
                   </div>
                 ) : null}
                 <p className="text-xs text-neutral-600">
-                  Si eliges una pieza especial, el sistema usa su precio por unidad y no calcula por MM o M2.
+                  Si eliges una pieza especial, el sistema usa su precio por unidad y no calcula por M o M2.
                 </p>
               </div>
             ) : null}
@@ -398,7 +398,7 @@ export const ItemFormSheet = ({
                   key: "pricingMode",
                   label: "Modo de precio"
                 },
-                { key: "linearMeters", label: "Milimetros lineales", placeholder: "0" },
+                { key: "linearMeters", label: "Metros lineales", placeholder: "0" },
                 { key: "squareMeters", label: "Metros cuadrados", placeholder: "0" }
               ] as const).map((field) =>
                 field.key === "pricingMode" ? (
@@ -411,7 +411,7 @@ export const ItemFormSheet = ({
                       </div>
                       <div className="inline-flex rounded-full border border-neutral-300 bg-neutral-100 p-1">
                         {([
-                          { label: "MM/M2", value: "DIMENSIONS" },
+                          { label: "M/M2", value: "DIMENSIONS" },
                           { label: "Unidad", value: "UNIT" }
                         ] as const).map((option) => (
                           <button
