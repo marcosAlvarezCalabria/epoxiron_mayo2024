@@ -424,14 +424,13 @@ describe("delivery note use cases", () => {
     expect(result.items[0]?.unitPrice).toBe(18);
   });
 
-  it("blocks deleting non-draft delivery notes", async () => {
+  it("deletes non-draft delivery notes", async () => {
     const useCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
 
-    await expect(useCase.execute("note-reviewed")).rejects.toMatchObject({
-      message: "Solo se pueden eliminar albaranes en borrador",
-      statusCode: 409
-    });
-    expect(deliveryNoteRepository.delete).not.toHaveBeenCalled();
+    await useCase.execute("note-reviewed");
+
+    expect(deliveryNoteRepository.delete).toHaveBeenCalledWith("note-reviewed");
+    expect(await deliveryNoteRepository.findById("note-reviewed")).toBeNull();
   });
 
   it("deletes draft delivery notes", async () => {

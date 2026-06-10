@@ -240,10 +240,6 @@ export class DeleteDeliveryNoteUseCase {
       throw new DomainException("Albarán no encontrado", 404);
     }
 
-    if (deliveryNote.status !== "DRAFT") {
-      throw new DomainException("Solo se pueden eliminar albaranes en borrador", 409);
-    }
-
     await this.repository.delete(id);
   }
 }
