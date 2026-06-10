@@ -10,7 +10,10 @@ import type {
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
 import type { DeliveryNoteRepository } from "../../domain/repositories/DeliveryNoteRepository.js";
-import type { DailyDeliveryNotesReportGenerator } from "../../domain/services/DailyDeliveryNotesReportGenerator.js";
+import type {
+  DailyDeliveryNotesReportGenerator,
+  DeliveryNoteReportCustomerDetails
+} from "../../domain/services/DailyDeliveryNotesReportGenerator.js";
 import type {
   DailyDeliveryNotesReportUploader
 } from "../../domain/services/DailyDeliveryNotesReportUploader.js";
@@ -306,6 +309,7 @@ export class GetDashboardSummaryUseCase {
 
 export class SendDailyDeliveryNotesReportUseCase {
   public constructor(
+    private readonly customerRepository: CustomerRepository,
     private readonly repository: DeliveryNoteRepository,
     private readonly reportGenerator: DailyDeliveryNotesReportGenerator | null,
     private readonly uploader: DailyDeliveryNotesReportUploader | null
@@ -323,7 +327,25 @@ export class SendDailyDeliveryNotesReportUseCase {
       throw new DomainException("No hay albaranes para la fecha seleccionada", 404);
     }
 
-    const attachment = await this.reportGenerator.generate({ date, notes });
+    const uniqueCustomerIds = [...new Set(notes.map((note) => note.customerId))];
+    const customerEntries = await Promise.all(
+      uniqueCustomerIds.map(async (customerId) => {
+        const customer = await this.customerRepository.findById(customerId);
+        const fallbackNote = notes.find((note) => note.customerId === customerId);
+        const customerDetails: DeliveryNoteReportCustomerDetails = {
+          name: customer?.name ?? fallbackNote?.customerName ?? "Cliente",
+          email: customer?.email ?? null,
+          phone: customer?.phone ?? null,
+          address: customer?.address ?? null
+        };
+
+        return [customerId, customerDetails] as const;
+      })
+    );
+
+    const customersById = Object.fromEntries(customerEntries);
+
+    const attachment = await this.reportGenerator.generate({ date, notes, customersById });
     const upload = await this.uploader.upload({ attachment, date });
 
     return {

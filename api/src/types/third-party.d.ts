@@ -66,9 +66,22 @@ declare module "pdfkit" {
     public save(): this;
     public stroke(): this;
     public strokeColor(color: string): this;
+    public heightOfString(
+      text: string,
+      options?: {
+        width?: number;
+        align?: "left" | "right" | "center" | "justify";
+        lineGap?: number;
+      }
+    ): number;
     public text(
       text: string,
-      options?: { continued?: boolean; width?: number }
+      options?: {
+        continued?: boolean;
+        width?: number;
+        align?: "left" | "right" | "center" | "justify";
+        lineGap?: number;
+      }
     ): this;
   }
 }

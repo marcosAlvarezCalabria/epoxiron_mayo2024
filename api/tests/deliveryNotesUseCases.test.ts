@@ -503,6 +503,7 @@ describe("delivery note use cases", () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
     const uploader = new FakeDailyDeliveryNotesReportUploader();
     const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
       deliveryNoteRepository,
       reportGenerator,
       uploader
@@ -512,7 +513,18 @@ describe("delivery note use cases", () => {
       date: new Date("2026-01-01T00:00:00.000Z")
     });
 
-    expect(reportGenerator.generate).toHaveBeenCalledOnce();
+    expect(reportGenerator.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customersById: {
+          "customer-1": expect.objectContaining({
+            name: "Pinturas Lopez",
+            address: null,
+            phone: null,
+            email: null
+          })
+        }
+      })
+    );
     expect(uploader.upload).toHaveBeenCalledWith(
       expect.objectContaining({
         attachment: expect.objectContaining({
@@ -528,6 +540,7 @@ describe("delivery note use cases", () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
     const uploader = new FakeDailyDeliveryNotesReportUploader();
     const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
       deliveryNoteRepository,
       reportGenerator,
       uploader
@@ -546,6 +559,7 @@ describe("delivery note use cases", () => {
 
   it("fails uploading the daily report when drive is not configured", async () => {
     const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
       deliveryNoteRepository,
       null,
       null

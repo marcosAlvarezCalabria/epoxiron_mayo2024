@@ -71,6 +71,7 @@ const reportUploader = env.GOOGLE_DRIVE_ENABLED
     })
   : null;
 const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseCase(
+  customerRepository,
   deliveryNoteRepository,
   reportGenerator,
   reportUploader
