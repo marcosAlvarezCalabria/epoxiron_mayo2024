@@ -51,4 +51,35 @@ describe("daily delivery notes report scheduler", () => {
 
     expect(sendDailyDeliveryNotesReportUseCase.execute).not.toHaveBeenCalled();
   });
+
+  it("retries on the same day when the previous attempt failed", async () => {
+    const sendDailyDeliveryNotesReportUseCase = {
+      execute: vi
+        .fn()
+        .mockRejectedValueOnce(new Error("No hay albaranes para la fecha seleccionada"))
+        .mockResolvedValueOnce({
+          date: new Date("2026-06-11T00:00:00.000Z"),
+          fileId: "drive-file-1",
+          fileName: "albaranes-2026-06-11.pdf",
+          folderName: "2026-06",
+          notesCount: 3,
+          webViewLink: null
+        })
+    };
+
+    const scheduler = new DailyDeliveryNotesReportScheduler(
+      sendDailyDeliveryNotesReportUseCase,
+      {
+        enabled: true,
+        hour: 18,
+        minute: 0
+      }
+    );
+
+    await scheduler.tick(new Date(2026, 5, 11, 18, 0, 0, 0));
+    await scheduler.tick(new Date(2026, 5, 11, 18, 1, 0, 0));
+    await scheduler.tick(new Date(2026, 5, 11, 18, 2, 0, 0));
+
+    expect(sendDailyDeliveryNotesReportUseCase.execute).toHaveBeenCalledTimes(2);
+  });
 });

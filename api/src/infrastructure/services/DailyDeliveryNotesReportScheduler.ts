@@ -23,7 +23,7 @@ const atStartOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(
 export class DailyDeliveryNotesReportScheduler {
   private intervalId: NodeJS.Timeout | null = null;
 
-  private lastAttemptedDayKey: string | null = null;
+  private lastProcessedDayKey: string | null = null;
 
   public constructor(
     private readonly sendDailyDeliveryNotesReportUseCase: DailyDeliveryNotesReportExecutor,
@@ -70,16 +70,15 @@ export class DailyDeliveryNotesReportScheduler {
     }
 
     const dayKey = buildDayKey(referenceDate);
-    if (this.lastAttemptedDayKey === dayKey) {
+    if (this.lastProcessedDayKey === dayKey) {
       return;
     }
-
-    this.lastAttemptedDayKey = dayKey;
 
     try {
       const result = await this.sendDailyDeliveryNotesReportUseCase.execute({
         date: atStartOfDay(referenceDate)
       });
+      this.lastProcessedDayKey = dayKey;
       console.log(
         `[daily-report-scheduler] reporte diario procesado para ${dayKey}: ${result.fileName}`
       );
