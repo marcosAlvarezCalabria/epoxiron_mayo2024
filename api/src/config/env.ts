@@ -8,6 +8,11 @@ const optionalBooleanString = z
   .optional()
   .transform((value) => value === "true");
 
+const booleanStringWithDefaultFalse = z
+  .enum(["true", "false"])
+  .default("false")
+  .transform((value) => value === "true");
+
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
@@ -36,36 +41,50 @@ const envSchema = z
     RCLONE_CONFIG_PATH: z.string().min(1).optional(),
     DAILY_REPORT_AUTOMATION_ENABLED: optionalBooleanString,
     DAILY_REPORT_AUTOMATION_HOUR: z.coerce.number().int().min(0).max(23).default(18),
-    DAILY_REPORT_AUTOMATION_MINUTE: z.coerce.number().int().min(0).max(59).default(0)
+    DAILY_REPORT_AUTOMATION_MINUTE: z.coerce.number().int().min(0).max(59).default(0),
+    EMAIL_NOTIFICATIONS_ENABLED: booleanStringWithDefaultFalse,
+    EMAIL_FROM: z.string().default(""),
+    EMAIL_TO: z.string().default(""),
+    EMAIL_APP_PASSWORD: z.string().default("")
   })
   .superRefine((value, context) => {
-    if (!value.GOOGLE_DRIVE_ENABLED) {
-      return;
+    if (value.GOOGLE_DRIVE_ENABLED) {
+      const googleKeys = ["RCLONE_REMOTE", "RCLONE_CONFIG_PATH"] as const;
+
+      googleKeys.forEach((key) => {
+        if (value[key] === undefined) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${key} es obligatorio cuando se configura Google Drive con rclone`,
+            path: [key]
+          });
+        }
+      });
     }
 
-    const googleKeys = ["RCLONE_REMOTE", "RCLONE_CONFIG_PATH"] as const;
-
-    googleKeys.forEach((key) => {
-      if (value[key] === undefined) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${key} es obligatorio cuando se configura Google Drive con rclone`,
-          path: [key]
-        });
-      }
-    });
-
-    if (!value.DAILY_REPORT_AUTOMATION_ENABLED) {
-      return;
-    }
-
-    if (!value.GOOGLE_DRIVE_ENABLED) {
+    if (value.DAILY_REPORT_AUTOMATION_ENABLED && !value.GOOGLE_DRIVE_ENABLED) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "GOOGLE_DRIVE_ENABLED debe ser true cuando se activa la automatizacion diaria",
         path: ["GOOGLE_DRIVE_ENABLED"]
       });
     }
+
+    if (!value.EMAIL_NOTIFICATIONS_ENABLED) {
+      return;
+    }
+
+    const emailKeys = ["EMAIL_FROM", "EMAIL_TO", "EMAIL_APP_PASSWORD"] as const;
+
+    emailKeys.forEach((key) => {
+      if (!value[key].trim()) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `${key} es obligatorio cuando se activa el envio de emails`,
+          path: [key]
+        });
+      }
+    });
   });
 
 export const env = envSchema.parse(process.env);

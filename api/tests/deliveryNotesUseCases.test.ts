@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Customer, CustomerInput } from "../src/domain/entities/Customer.js";
 import type { DailyDeliveryNotesReportUpload } from "../src/domain/entities/DailyDeliveryNotesReportUpload.js";
+import type { IEmailNotifier } from "../src/domain/ports/IEmailNotifier.js";
 import type {
   DeliveryNote,
   DeliveryNoteFilters,
@@ -217,12 +218,19 @@ class FakeDailyDeliveryNotesReportGenerator {
 }
 
 class FakeDailyDeliveryNotesReportUploader {
-  public upload = vi.fn(async () => ({
-    fileId: "drive-file-1",
-    fileName: "albaranes-2026-01-01.pdf",
-    folderName: "2026-01",
-    webViewLink: "https://drive.google.com/file/d/drive-file-1/view"
-  }));
+  public upload = vi.fn(
+    async (): Promise<{
+      fileId: string;
+      fileName: string;
+      folderName: string;
+      webViewLink: string | null;
+    }> => ({
+      fileId: "drive-file-1",
+      fileName: "albaranes-2026-01-01.pdf",
+      folderName: "2026-01",
+      webViewLink: "https://drive.google.com/file/d/drive-file-1/view"
+    })
+  );
 }
 
 class InMemoryDailyDeliveryNotesReportUploadRepository {
@@ -265,6 +273,10 @@ class InMemoryDailyDeliveryNotesReportUploadRepository {
       ) ?? null
     );
   }
+}
+
+class FakeEmailNotifier implements IEmailNotifier {
+  public sendDailyReportNotification = vi.fn(async () => undefined);
 }
 
 const buildCustomer = (): Customer => ({
@@ -320,6 +332,7 @@ describe("delivery note use cases", () => {
   let customerRepository: InMemoryCustomerRepository;
   let deliveryNoteRepository: InMemoryDeliveryNoteRepository;
   let reportUploadRepository: InMemoryDailyDeliveryNotesReportUploadRepository;
+  let emailNotifier: FakeEmailNotifier;
   let calculatePriceUseCase: CalculatePriceUseCase;
 
   beforeEach(() => {
@@ -327,6 +340,7 @@ describe("delivery note use cases", () => {
     customerRepository.customers = [buildCustomer()];
     deliveryNoteRepository = new InMemoryDeliveryNoteRepository();
     reportUploadRepository = new InMemoryDailyDeliveryNotesReportUploadRepository();
+    emailNotifier = new FakeEmailNotifier();
     deliveryNoteRepository.notes = [
       buildNote("note-draft", "DRAFT", "2026-01-01T00:00:00.000Z"),
       buildNote("note-reviewed", "REVIEWED", "2026-01-01T00:00:00.000Z"),
@@ -552,7 +566,8 @@ describe("delivery note use cases", () => {
       deliveryNoteRepository,
       reportGenerator,
       uploader,
-      reportUploadRepository
+      reportUploadRepository,
+      emailNotifier
     );
 
     const result = await useCase.execute({
@@ -581,6 +596,12 @@ describe("delivery note use cases", () => {
     expect(result.notesCount).toBe(2);
     expect(result.fileId).toBe("drive-file-1");
     expect(reportUploadRepository.create).toHaveBeenCalledOnce();
+    expect(emailNotifier.sendDailyReportNotification).toHaveBeenCalledWith({
+      date: "2026-01-01",
+      notesCount: 2,
+      fileName: "albaranes-2026-01-01.pdf",
+      webViewLink: "https://drive.google.com/file/d/drive-file-1/view"
+    });
   });
 
   it("reuses the stored daily upload and avoids duplicate drive writes", async () => {
@@ -591,7 +612,8 @@ describe("delivery note use cases", () => {
       deliveryNoteRepository,
       reportGenerator,
       uploader,
-      reportUploadRepository
+      reportUploadRepository,
+      emailNotifier
     );
 
     const firstResult = await useCase.execute({
@@ -605,6 +627,62 @@ describe("delivery note use cases", () => {
     expect(uploader.upload).toHaveBeenCalledOnce();
     expect(reportUploadRepository.create).toHaveBeenCalledOnce();
     expect(secondResult).toEqual(firstResult);
+    expect(emailNotifier.sendDailyReportNotification).toHaveBeenCalledOnce();
+  });
+
+  it("logs email failures without failing the uploaded report", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
+    emailNotifier.sendDailyReportNotification = vi.fn(async () => {
+      throw new Error("smtp failed");
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      reportGenerator,
+      uploader,
+      reportUploadRepository,
+      emailNotifier
+    );
+
+    const result = await useCase.execute({
+      date: new Date("2026-01-01T00:00:00.000Z")
+    });
+
+    expect(result.fileId).toBe("drive-file-1");
+    expect(consoleErrorSpy).toHaveBeenCalledWith("[EmailNotifier]", expect.any(Error));
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("uses the stored file id as fallback when drive does not return a web link", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
+    uploader.upload = vi.fn(async () => ({
+      fileId: "gdrive:Epoxiron albaranes/2026-01/albaranes-2026-01-01.pdf",
+      fileName: "albaranes-2026-01-01.pdf",
+      folderName: "2026-01",
+      webViewLink: null
+    }));
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      reportGenerator,
+      uploader,
+      reportUploadRepository,
+      emailNotifier
+    );
+
+    await useCase.execute({
+      date: new Date("2026-01-01T00:00:00.000Z")
+    });
+
+    expect(emailNotifier.sendDailyReportNotification).toHaveBeenCalledWith({
+      date: "2026-01-01",
+      notesCount: 2,
+      fileName: "albaranes-2026-01-01.pdf",
+      webViewLink: "gdrive:Epoxiron albaranes/2026-01/albaranes-2026-01-01.pdf"
+    });
   });
 
   it("fails uploading the daily report when there are no delivery notes", async () => {
@@ -615,7 +693,8 @@ describe("delivery note use cases", () => {
       deliveryNoteRepository,
       reportGenerator,
       uploader,
-      reportUploadRepository
+      reportUploadRepository,
+      emailNotifier
     );
 
     await expect(
@@ -635,7 +714,8 @@ describe("delivery note use cases", () => {
       deliveryNoteRepository,
       null,
       null,
-      reportUploadRepository
+      reportUploadRepository,
+      emailNotifier
     );
 
     await expect(

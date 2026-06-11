@@ -9,6 +9,7 @@ import type {
 } from "../../domain/entities/DeliveryNote.js";
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
+import type { IEmailNotifier } from "../../domain/ports/IEmailNotifier.js";
 import type { DailyDeliveryNotesReportUploadRepository } from "../../domain/repositories/DailyDeliveryNotesReportUploadRepository.js";
 import type { DeliveryNoteRepository } from "../../domain/repositories/DeliveryNoteRepository.js";
 import type {
@@ -155,6 +156,8 @@ const buildDeliveryNoteNumber = async (
 
   return `ALB-${year}-${(lastSequence + 1).toString().padStart(4, "0")}`;
 };
+
+const formatReportDate = (date: Date) => date.toISOString().slice(0, 10);
 
 export class CreateDeliveryNoteUseCase {
   public constructor(
@@ -314,7 +317,8 @@ export class SendDailyDeliveryNotesReportUseCase {
     private readonly repository: DeliveryNoteRepository,
     private readonly reportGenerator: DailyDeliveryNotesReportGenerator | null,
     private readonly uploader: DailyDeliveryNotesReportUploader | null,
-    private readonly uploadRepository: DailyDeliveryNotesReportUploadRepository
+    private readonly uploadRepository: DailyDeliveryNotesReportUploadRepository,
+    private readonly emailNotifier: IEmailNotifier
   ) {}
 
   public async execute(input: { date?: Date }) {
@@ -370,6 +374,17 @@ export class SendDailyDeliveryNotesReportUseCase {
       notesCount: notes.length,
       webViewLink: upload.webViewLink
     });
+
+    try {
+      await this.emailNotifier.sendDailyReportNotification({
+        date: formatReportDate(savedUpload.reportDate),
+        notesCount: savedUpload.notesCount,
+        fileName: savedUpload.fileName,
+        webViewLink: savedUpload.webViewLink ?? savedUpload.fileId
+      });
+    } catch (error: unknown) {
+      console.error("[EmailNotifier]", error);
+    }
 
     return {
       date: savedUpload.reportDate,

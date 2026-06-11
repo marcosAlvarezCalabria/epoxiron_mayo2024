@@ -30,6 +30,7 @@ import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/Pris
 import { DailyDeliveryNotesReportScheduler } from "./infrastructure/services/DailyDeliveryNotesReportScheduler.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
+import { NodemailerEmailNotifier } from "./infrastructure/services/NodemailerEmailNotifier.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { RcloneDriveUploader } from "./infrastructure/services/RcloneDriveUploader.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
@@ -43,6 +44,12 @@ import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
 const customerRepository = new PrismaCustomerRepository();
 const deliveryNoteRepository = new PrismaDeliveryNoteRepository();
 const dailyReportUploadRepository = new PrismaDailyDeliveryNotesReportUploadRepository();
+const emailNotifier = new NodemailerEmailNotifier({
+  enabled: env.EMAIL_NOTIFICATIONS_ENABLED,
+  from: env.EMAIL_FROM,
+  to: env.EMAIL_TO,
+  appPassword: env.EMAIL_APP_PASSWORD
+});
 const calculatePriceUseCase = new CalculatePriceUseCase();
 
 const getCustomersUseCase = new GetCustomersUseCase(customerRepository);
@@ -78,7 +85,8 @@ const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseC
   deliveryNoteRepository,
   reportGenerator,
   reportUploader,
-  dailyReportUploadRepository
+  dailyReportUploadRepository,
+  emailNotifier
 );
 const dailyDeliveryNotesReportScheduler = new DailyDeliveryNotesReportScheduler(
   sendDailyDeliveryNotesReportUseCase,

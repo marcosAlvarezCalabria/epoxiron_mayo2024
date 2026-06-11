@@ -1,8 +1,9 @@
 declare module "nodemailer" {
   interface TransportConfig {
-    host: string;
-    port: number;
-    secure: boolean;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    service?: string;
     auth?: {
       user: string;
       pass: string;
