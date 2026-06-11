@@ -34,14 +34,18 @@ export class NodemailerEmailNotifier implements IEmailNotifier {
     await this.transporter.sendMail({
       from: this.config.from,
       to: this.config.to,
-      subject: `✅ Reporte diario Epoxiron — ${payload.date}`,
+      subject: `Reporte diario Epoxiron - ${payload.date}`,
       text:
         "Se ha generado y subido correctamente el reporte diario.\n\n" +
         `Fecha: ${payload.date}\n` +
         `Albaranes incluidos: ${payload.notesCount}\n` +
         `Archivo: ${payload.fileName}\n\n` +
         `Ver en Google Drive: ${payload.webViewLink}\n\n` +
-        "— Epoxi, sistema automático de Epoxiron"
+        "Epoxi, sistema automatico de Epoxiron"
     });
+
+    console.log(
+      `[EmailNotifier] reporte diario enviado a ${this.config.to} para ${payload.date}`
+    );
   }
 }
