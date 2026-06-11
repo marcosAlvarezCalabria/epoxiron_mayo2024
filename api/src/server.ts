@@ -25,7 +25,9 @@ import {
 import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
+import { PrismaDailyDeliveryNotesReportUploadRepository } from "./infrastructure/repositories/PrismaDailyDeliveryNotesReportUploadRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
+import { DailyDeliveryNotesReportScheduler } from "./infrastructure/services/DailyDeliveryNotesReportScheduler.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
@@ -40,6 +42,7 @@ import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
 
 const customerRepository = new PrismaCustomerRepository();
 const deliveryNoteRepository = new PrismaDeliveryNoteRepository();
+const dailyReportUploadRepository = new PrismaDailyDeliveryNotesReportUploadRepository();
 const calculatePriceUseCase = new CalculatePriceUseCase();
 
 const getCustomersUseCase = new GetCustomersUseCase(customerRepository);
@@ -74,7 +77,16 @@ const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseC
   customerRepository,
   deliveryNoteRepository,
   reportGenerator,
-  reportUploader
+  reportUploader,
+  dailyReportUploadRepository
+);
+const dailyDeliveryNotesReportScheduler = new DailyDeliveryNotesReportScheduler(
+  sendDailyDeliveryNotesReportUseCase,
+  {
+    enabled: env.DAILY_REPORT_AUTOMATION_ENABLED,
+    hour: env.DAILY_REPORT_AUTOMATION_HOUR,
+    minute: env.DAILY_REPORT_AUTOMATION_MINUTE
+  }
 );
 const authenticateWithGoogleUseCase = new AuthenticateWithGoogleUseCase(
   new GoogleIdTokenVerifier(env.GOOGLE_CLIENT_ID),
@@ -130,4 +142,5 @@ app.use(errorHandler);
 
 app.listen(env.PORT, () => {
   console.log(`API listening on ${env.PORT}`);
+  dailyDeliveryNotesReportScheduler.start();
 });

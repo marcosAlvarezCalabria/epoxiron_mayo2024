@@ -33,7 +33,10 @@ const envSchema = z
       }),
     GOOGLE_DRIVE_ENABLED: optionalBooleanString,
     RCLONE_REMOTE: z.string().min(1).optional(),
-    RCLONE_CONFIG_PATH: z.string().min(1).optional()
+    RCLONE_CONFIG_PATH: z.string().min(1).optional(),
+    DAILY_REPORT_AUTOMATION_ENABLED: optionalBooleanString,
+    DAILY_REPORT_AUTOMATION_HOUR: z.coerce.number().int().min(0).max(23).default(18),
+    DAILY_REPORT_AUTOMATION_MINUTE: z.coerce.number().int().min(0).max(59).default(0)
   })
   .superRefine((value, context) => {
     if (!value.GOOGLE_DRIVE_ENABLED) {
@@ -51,6 +54,18 @@ const envSchema = z
         });
       }
     });
+
+    if (!value.DAILY_REPORT_AUTOMATION_ENABLED) {
+      return;
+    }
+
+    if (!value.GOOGLE_DRIVE_ENABLED) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "GOOGLE_DRIVE_ENABLED debe ser true cuando se activa la automatizacion diaria",
+        path: ["GOOGLE_DRIVE_ENABLED"]
+      });
+    }
   });
 
 export const env = envSchema.parse(process.env);

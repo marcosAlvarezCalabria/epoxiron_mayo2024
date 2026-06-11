@@ -9,6 +9,7 @@ import type {
 } from "../../domain/entities/DeliveryNote.js";
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
+import type { DailyDeliveryNotesReportUploadRepository } from "../../domain/repositories/DailyDeliveryNotesReportUploadRepository.js";
 import type { DeliveryNoteRepository } from "../../domain/repositories/DeliveryNoteRepository.js";
 import type {
   DailyDeliveryNotesReportGenerator,
@@ -312,15 +313,29 @@ export class SendDailyDeliveryNotesReportUseCase {
     private readonly customerRepository: CustomerRepository,
     private readonly repository: DeliveryNoteRepository,
     private readonly reportGenerator: DailyDeliveryNotesReportGenerator | null,
-    private readonly uploader: DailyDeliveryNotesReportUploader | null
+    private readonly uploader: DailyDeliveryNotesReportUploader | null,
+    private readonly uploadRepository: DailyDeliveryNotesReportUploadRepository
   ) {}
 
   public async execute(input: { date?: Date }) {
+    const date = input.date ?? new Date();
+    const existingUpload = await this.uploadRepository.findByDate(date);
+
+    if (existingUpload) {
+      return {
+        date: existingUpload.reportDate,
+        fileId: existingUpload.fileId,
+        fileName: existingUpload.fileName,
+        folderName: existingUpload.folderName,
+        notesCount: existingUpload.notesCount,
+        webViewLink: existingUpload.webViewLink
+      };
+    }
+
     if (!this.reportGenerator || !this.uploader) {
       throw new DomainException("La subida a Google Drive no esta configurada", 503);
     }
 
-    const date = input.date ?? new Date();
     const notes = await this.repository.findAll({ date });
 
     if (notes.length === 0) {
@@ -347,15 +362,22 @@ export class SendDailyDeliveryNotesReportUseCase {
 
     const attachment = await this.reportGenerator.generate({ date, notes, customersById });
     const upload = await this.uploader.upload({ attachment, date });
-
-    return {
-      date,
+    const savedUpload = await this.uploadRepository.create({
+      reportDate: date,
       fileId: upload.fileId,
       fileName: upload.fileName,
       folderName: upload.folderName,
-      notesCount: notes.length
-      ,
+      notesCount: notes.length,
       webViewLink: upload.webViewLink
+    });
+
+    return {
+      date: savedUpload.reportDate,
+      fileId: savedUpload.fileId,
+      fileName: savedUpload.fileName,
+      folderName: savedUpload.folderName,
+      notesCount: savedUpload.notesCount,
+      webViewLink: savedUpload.webViewLink
     };
   }
 }

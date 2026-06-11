@@ -66,6 +66,17 @@ model DeliveryNoteItem {
   totalPrice     Float
 }
 
+model DailyDeliveryNotesReportUpload {
+  id          String   @id @default(uuid())
+  reportDate  DateTime @unique
+  fileId      String
+  fileName    String
+  folderName  String
+  notesCount  Int
+  webViewLink String?
+  createdAt   DateTime @default(now())
+}
+
 enum DeliveryNoteStatus {
   DRAFT
   PENDING

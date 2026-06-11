@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Customer, CustomerInput } from "../src/domain/entities/Customer.js";
+import type { DailyDeliveryNotesReportUpload } from "../src/domain/entities/DailyDeliveryNotesReportUpload.js";
 import type {
   DeliveryNote,
   DeliveryNoteFilters,
@@ -224,6 +225,48 @@ class FakeDailyDeliveryNotesReportUploader {
   }));
 }
 
+class InMemoryDailyDeliveryNotesReportUploadRepository {
+  public uploads: DailyDeliveryNotesReportUpload[] = [];
+
+  public create = vi.fn(async (input: {
+    reportDate: Date;
+    fileId: string;
+    fileName: string;
+    folderName: string;
+    notesCount: number;
+    webViewLink: string | null;
+  }) => {
+    const created: DailyDeliveryNotesReportUpload = {
+      id: crypto.randomUUID(),
+      reportDate: new Date(
+        input.reportDate.getFullYear(),
+        input.reportDate.getMonth(),
+        input.reportDate.getDate()
+      ),
+      fileId: input.fileId,
+      fileName: input.fileName,
+      folderName: input.folderName,
+      notesCount: input.notesCount,
+      webViewLink: input.webViewLink,
+      createdAt: new Date()
+    };
+
+    this.uploads.push(created);
+    return created;
+  });
+
+  public async findByDate(reportDate: Date) {
+    return (
+      this.uploads.find(
+        (upload) =>
+          upload.reportDate.getFullYear() === reportDate.getFullYear() &&
+          upload.reportDate.getMonth() === reportDate.getMonth() &&
+          upload.reportDate.getDate() === reportDate.getDate()
+      ) ?? null
+    );
+  }
+}
+
 const buildCustomer = (): Customer => ({
   id: "customer-1",
   name: "Pinturas Lopez",
@@ -276,12 +319,14 @@ const buildNote = (
 describe("delivery note use cases", () => {
   let customerRepository: InMemoryCustomerRepository;
   let deliveryNoteRepository: InMemoryDeliveryNoteRepository;
+  let reportUploadRepository: InMemoryDailyDeliveryNotesReportUploadRepository;
   let calculatePriceUseCase: CalculatePriceUseCase;
 
   beforeEach(() => {
     customerRepository = new InMemoryCustomerRepository();
     customerRepository.customers = [buildCustomer()];
     deliveryNoteRepository = new InMemoryDeliveryNoteRepository();
+    reportUploadRepository = new InMemoryDailyDeliveryNotesReportUploadRepository();
     deliveryNoteRepository.notes = [
       buildNote("note-draft", "DRAFT", "2026-01-01T00:00:00.000Z"),
       buildNote("note-reviewed", "REVIEWED", "2026-01-01T00:00:00.000Z"),
@@ -506,7 +551,8 @@ describe("delivery note use cases", () => {
       customerRepository,
       deliveryNoteRepository,
       reportGenerator,
-      uploader
+      uploader,
+      reportUploadRepository
     );
 
     const result = await useCase.execute({
@@ -534,6 +580,31 @@ describe("delivery note use cases", () => {
     );
     expect(result.notesCount).toBe(2);
     expect(result.fileId).toBe("drive-file-1");
+    expect(reportUploadRepository.create).toHaveBeenCalledOnce();
+  });
+
+  it("reuses the stored daily upload and avoids duplicate drive writes", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      reportGenerator,
+      uploader,
+      reportUploadRepository
+    );
+
+    const firstResult = await useCase.execute({
+      date: new Date("2026-01-01T00:00:00.000Z")
+    });
+    const secondResult = await useCase.execute({
+      date: new Date("2026-01-01T12:30:00.000Z")
+    });
+
+    expect(reportGenerator.generate).toHaveBeenCalledOnce();
+    expect(uploader.upload).toHaveBeenCalledOnce();
+    expect(reportUploadRepository.create).toHaveBeenCalledOnce();
+    expect(secondResult).toEqual(firstResult);
   });
 
   it("fails uploading the daily report when there are no delivery notes", async () => {
@@ -543,7 +614,8 @@ describe("delivery note use cases", () => {
       customerRepository,
       deliveryNoteRepository,
       reportGenerator,
-      uploader
+      uploader,
+      reportUploadRepository
     );
 
     await expect(
@@ -562,7 +634,8 @@ describe("delivery note use cases", () => {
       customerRepository,
       deliveryNoteRepository,
       null,
-      null
+      null,
+      reportUploadRepository
     );
 
     await expect(
