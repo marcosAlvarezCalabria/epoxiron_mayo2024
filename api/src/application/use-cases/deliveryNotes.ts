@@ -25,6 +25,22 @@ export interface PriceCalculationResult {
   totalPrice: number;
 }
 
+const normalizeSpecialPieceName = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[+/_-]+/g, " ")
+    .replace(/\bmas\b/g, " ")
+    .replace(/\bk/g, "c")
+    .replace(
+      /\b(?:pieza|especial|incluir|incluye|incluida|incluido|guardar|como|pon|poner|mete|meter)\b/g,
+      " "
+    )
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, "")
+    .trim();
+
 const toCustomerInput = (customer: Customer) => ({
   name: customer.name,
   email: customer.email,
@@ -45,8 +61,16 @@ export class CalculatePriceUseCase {
   public execute(item: DeliveryNoteItemDraft, customer: Customer): PriceCalculationResult {
     const quantity = item.quantity;
     const pricingMode = item.pricingMode ?? "DIMENSIONS";
+    const normalizedDescription = normalizeSpecialPieceName(item.description);
     const specialPiece = customer.specialPieces.find(
-      (entry) => entry.name.toLowerCase() === item.description.toLowerCase()
+      (entry) => {
+        const normalizedEntryName = normalizeSpecialPieceName(entry.name);
+        return (
+          normalizedEntryName === normalizedDescription ||
+          normalizedEntryName.includes(normalizedDescription) ||
+          normalizedDescription.includes(normalizedEntryName)
+        );
+      }
     );
 
     let totalPrice = 0;
@@ -114,7 +138,7 @@ const syncCustomerSpecialPieces = async (
   pricedItems: DeliveryNoteItem[],
   customerRepository: CustomerRepository
 ) => {
-  const existingNames = new Set(customer.specialPieces.map((piece) => piece.name.trim().toLowerCase()));
+  const existingNames = new Set(customer.specialPieces.map((piece) => normalizeSpecialPieceName(piece.name)));
   const specialPiecesToAdd: { name: string; price: number }[] = [];
 
   items.forEach((item, index) => {
@@ -122,7 +146,7 @@ const syncCustomerSpecialPieces = async (
       return;
     }
 
-    const normalizedName = item.description.trim().toLowerCase();
+    const normalizedName = normalizeSpecialPieceName(item.description);
     if (!normalizedName || existingNames.has(normalizedName)) {
       return;
     }

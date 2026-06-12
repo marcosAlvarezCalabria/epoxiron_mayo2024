@@ -375,6 +375,18 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
                           <span>{item.customUnitPrice} EUR/u</span>
                         </>
                       ) : null}
+                      {item.saveAsSpecialPiece ? (
+                        <>
+                          <span className="text-white/28">|</span>
+                          <span
+                            aria-label="Pieza especial"
+                            className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[color:rgb(255_149_0_/_0.18)] text-[10px] text-[#ffd08a]"
+                            title="Pieza especial"
+                          >
+                            ★
+                          </span>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                 ))

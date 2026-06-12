@@ -558,7 +558,7 @@ export const DeliveryNotesPage = () => {
   const handleVoiceDataExtracted = (data: ParsedVoiceAlbaranData) => {
     const customers = customersQuery.data?.customers ?? [];
     const matchedCustomer = findCustomerByVoiceName(customers, data.customerName);
-    const nextItems = data.items.map(mapParsedVoiceItemToFormState);
+    const nextItems = data.items.map((item) => mapParsedVoiceItemToFormState(item, matchedCustomer));
 
     setForm((current) => ({
       customerId: matchedCustomer?.id ?? current.customerId,
@@ -1338,7 +1338,13 @@ export const DeliveryNotesPage = () => {
                                   {item.saveAsSpecialPiece ? (
                                     <>
                                       <span className="text-neutral-400">·</span>
-                                      <span>ESP</span>
+                                      <span
+                                        aria-label="Pieza especial"
+                                        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[color:rgb(255_149_0_/_0.14)] text-[10px] text-[var(--epx-accent)]"
+                                        title="Pieza especial"
+                                      >
+                                        ★
+                                      </span>
                                     </>
                                   ) : null}
                                 </span>

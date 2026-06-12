@@ -75,10 +75,28 @@ const formatNumericField = (value: number | null): string => {
 
 const normalizeLooseText = (value: string): string =>
   value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .replace(/[.,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+const compactLooseText = (value: string): string => normalizeLooseText(value).replace(/\s+/g, "");
+
+const normalizeSpecialPieceName = (value: string): string =>
+  normalizeLooseText(value)
+    .replace(/[+/_-]+/g, " ")
+    .replace(/\bmas\b/g, " ")
+    .replace(/\bk/g, "c")
+    .replace(
+      /\b(?:pieza|especial|incluir|incluye|incluida|incluido|guardar|como|pon|poner|mete|meter)\b/g,
+      " "
+    )
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\s+/g, "");
 
 const stripFillerWords = (value: string): string =>
   normalizeLooseText(value)
@@ -336,19 +354,48 @@ export const buildVoiceDraftPreview = (transcript: string): VoiceDraftPreview =>
 };
 
 export const mapParsedVoiceItemToFormState = (
-  item: ParsedVoiceAlbaranItem
+  item: ParsedVoiceAlbaranItem,
+  customer?: Customer | null
 ): DeliveryNoteItemFormState => ({
-  hasThickness: item.hasThickness,
-  hasPrimer: item.hasPrimer,
-  saveAsSpecialPiece: item.saveAsSpecialPiece,
-  customUnitPrice: item.customUnitPrice != null ? formatNumericField(item.customUnitPrice) : "",
-  description: item.description.trim(),
-  color: item.color?.trim() ?? "",
-  pricingMode: item.pricingMode,
-  texture: item.texture,
-  linearMeters: item.pricingMode === "UNIT" ? "" : formatNumericField(item.linearMeters),
-  quantity: item.quantity.toString(),
-  squareMeters: item.pricingMode === "UNIT" ? "" : formatNumericField(item.squareMeters)
+  ...(() => {
+    const normalizedDescription = normalizeSpecialPieceName(item.description);
+    const matchedSpecialPiece =
+      customer?.specialPieces.find((piece) => {
+        const normalizedPieceName = normalizeSpecialPieceName(piece.name);
+        if (!normalizedDescription || !normalizedPieceName) {
+          return false;
+        }
+
+        return (
+          normalizedPieceName === normalizedDescription ||
+          normalizedPieceName.includes(normalizedDescription) ||
+          normalizedDescription.includes(normalizedPieceName)
+        );
+      }) ?? null;
+
+    const usesExistingSpecialPiece = matchedSpecialPiece !== null;
+
+    return {
+      hasThickness: item.hasThickness,
+      hasPrimer: item.hasPrimer,
+      saveAsSpecialPiece: item.saveAsSpecialPiece || usesExistingSpecialPiece,
+      customUnitPrice:
+        usesExistingSpecialPiece
+          ? formatNumericField(matchedSpecialPiece.price)
+          : item.customUnitPrice != null
+            ? formatNumericField(item.customUnitPrice)
+            : "",
+      description: usesExistingSpecialPiece ? matchedSpecialPiece.name : item.description.trim(),
+      color: item.color?.trim() ?? "",
+      pricingMode: usesExistingSpecialPiece ? "UNIT" : item.pricingMode,
+      texture: item.texture,
+      linearMeters:
+        usesExistingSpecialPiece || item.pricingMode === "UNIT" ? "" : formatNumericField(item.linearMeters),
+      quantity: item.quantity.toString(),
+      squareMeters:
+        usesExistingSpecialPiece || item.pricingMode === "UNIT" ? "" : formatNumericField(item.squareMeters)
+    };
+  })()
 });
 
 export const findCustomerByVoiceName = (
