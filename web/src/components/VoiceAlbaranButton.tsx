@@ -6,7 +6,7 @@ import {
   TrashIcon
 } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parseVoiceAlbaran } from "@/application/use-cases";
+import { parseVoiceAlbaran, parseVoiceAlbaranAudio } from "@/application/use-cases";
 import { type ParsedVoiceAlbaranData } from "@/features/voice/voiceAlbaran";
 import { ApiError } from "@/infrastructure/api/apiClient";
 
@@ -24,9 +24,6 @@ const UnitToken = ({ base, suffix }: { base: string; suffix?: string }) => (
   </span>
 );
 
-const getRecognitionConstructor = (): SpeechRecognitionConstructorLike | null =>
-  window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
-
 const appendTranscript = (current: string, incoming: string): string => {
   const normalizedIncoming = incoming.trim();
   if (!normalizedIncoming) {
@@ -41,131 +38,217 @@ const appendTranscript = (current: string, incoming: string): string => {
 };
 
 export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranButtonProps) => {
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const silenceFrameRef = useRef<number | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const lastSoundAtRef = useRef<number>(0);
   const statusRef = useRef<VoiceStatus>("idle");
-  const processedResultCountRef = useRef(0);
-  const silenceTimeoutRef = useRef<number | null>(null);
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [transcriptDraft, setTranscriptDraft] = useState("");
-  const [interimTranscript, setInterimTranscript] = useState("");
   const [parsedPreviewState, setParsedPreviewState] = useState<{
     data: ParsedVoiceAlbaranData;
     transcript: string;
   } | null>(null);
-  const isSupported = useMemo(() => getRecognitionConstructor() !== null, []);
+  const isSupported = useMemo(
+    () =>
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function" &&
+      typeof MediaRecorder !== "undefined",
+    []
+  );
 
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
 
-  const clearSilenceTimeout = () => {
-    if (silenceTimeoutRef.current !== null) {
-      window.clearTimeout(silenceTimeoutRef.current);
-      silenceTimeoutRef.current = null;
+  const clearSilenceDetection = () => {
+    if (silenceFrameRef.current !== null) {
+      window.cancelAnimationFrame(silenceFrameRef.current);
+      silenceFrameRef.current = null;
+    }
+  };
+
+  const stopAudioStream = () => {
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    audioStreamRef.current = null;
+  };
+
+  const cleanupAudioGraph = async () => {
+    clearSilenceDetection();
+    sourceNodeRef.current?.disconnect();
+    sourceNodeRef.current = null;
+    analyserRef.current = null;
+
+    if (audioContextRef.current) {
+      await audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
     }
   };
 
   useEffect(
     () => () => {
-      clearSilenceTimeout();
-      recognitionRef.current?.stop();
+      clearSilenceDetection();
+      mediaRecorderRef.current?.stop();
+      stopAudioStream();
+      void cleanupAudioGraph();
     },
     []
   );
 
   const handleRecognitionError = (message: string) => {
-    clearSilenceTimeout();
+    clearSilenceDetection();
     setStatus("idle");
-    setInterimTranscript("");
+    stopAudioStream();
+    void cleanupAudioGraph();
     onError?.(message);
   };
 
   const stopListening = () => {
-    clearSilenceTimeout();
-    setStatus("idle");
-    recognitionRef.current?.stop();
-  };
-
-  const scheduleSilenceStop = () => {
-    clearSilenceTimeout();
-    silenceTimeoutRef.current = window.setTimeout(() => {
-      if (statusRef.current !== "listening") {
-        return;
-      }
-
-      stopListening();
-    }, 1800);
-  };
-
-  const startListening = () => {
-    const Recognition = getRecognitionConstructor();
-    if (!Recognition || status !== "idle") {
+    clearSilenceDetection();
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      setStatus("idle");
       return;
     }
 
-    const recognition = new Recognition();
-    processedResultCountRef.current = 0;
-    setParsedPreviewState(null);
-    recognition.lang = "es-ES";
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.onresult = (event) => {
-      let nextInterimTranscript = "";
+    recorder.stop();
+  };
 
-      for (let index = processedResultCountRef.current; index < event.results.length; index += 1) {
-        const transcript = event.results[index]?.[0]?.transcript?.trim() ?? "";
-        if (!transcript) {
-          continue;
-        }
+  const monitorSilence = () => {
+    const analyser = analyserRef.current;
+    if (!analyser) {
+      return;
+    }
 
-        if (event.results[index]?.isFinal) {
-          setTranscriptDraft((current) => appendTranscript(current, transcript));
-          processedResultCountRef.current = index + 1;
-          scheduleSilenceStop();
-          continue;
-        }
-
-        nextInterimTranscript = transcript;
-      }
-
-      setInterimTranscript(nextInterimTranscript);
-      scheduleSilenceStop();
-    };
-    recognition.onerror = () => {
-      recognitionRef.current = null;
-      handleRecognitionError("No se pudo capturar la voz.");
-    };
-    recognition.onspeechend = () => {
-      if (statusRef.current !== "listening") {
+    const data = new Uint8Array(analyser.fftSize);
+    const tick = () => {
+      if (statusRef.current !== "listening" || !analyserRef.current) {
         return;
       }
 
-      stopListening();
-    };
-    recognition.onsoundend = () => {
-      if (statusRef.current !== "listening") {
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+
+      for (const sample of data) {
+        const normalized = (sample - 128) / 128;
+        sum += normalized * normalized;
+      }
+
+      const rms = Math.sqrt(sum / data.length);
+      const now = Date.now();
+
+      if (rms > 0.035) {
+        lastSoundAtRef.current = now;
+      } else if (now - lastSoundAtRef.current >= 1800) {
+        stopListening();
         return;
       }
 
-      stopListening();
+      silenceFrameRef.current = window.requestAnimationFrame(tick);
     };
-    recognition.onend = () => {
-      clearSilenceTimeout();
-      recognitionRef.current = null;
-      setInterimTranscript("");
 
-      if (statusRef.current === "listening") {
-        setStatus("idle");
+    lastSoundAtRef.current = Date.now();
+    silenceFrameRef.current = window.requestAnimationFrame(tick);
+  };
+
+  const startListening = async () => {
+    if (!isSupported || status !== "idle") {
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType =
+        (typeof MediaRecorder.isTypeSupported === "function" &&
+          [
+            "audio/webm;codecs=opus",
+            "audio/mp4",
+            "audio/webm",
+            "audio/mpeg"
+          ].find((candidate) => MediaRecorder.isTypeSupported(candidate))) ||
+        undefined;
+
+      audioStreamRef.current = stream;
+      audioChunksRef.current = [];
+      setParsedPreviewState(null);
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = recorder;
+
+      const AudioContextCtor = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (AudioContextCtor) {
+        const audioContext = new AudioContextCtor();
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        audioContextRef.current = audioContext;
+        sourceNodeRef.current = source;
+        analyserRef.current = analyser;
       }
-    };
 
-    recognitionRef.current = recognition;
-    setStatus("listening");
-    recognition.start();
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        handleRecognitionError("No se pudo capturar el audio.");
+      };
+
+      recorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm"
+        });
+
+        mediaRecorderRef.current = null;
+        stopAudioStream();
+        void cleanupAudioGraph();
+
+        if (audioBlob.size === 0) {
+          setStatus("idle");
+          onError?.("No se pudo capturar ningun audio.");
+          return;
+        }
+
+        setStatus("processing");
+        void parseVoiceAlbaranAudio(audioBlob)
+          .then((result) => {
+            setTranscriptDraft(result.transcript);
+            setParsedPreviewState({
+              data: result.parsed,
+              transcript: result.transcript
+            });
+            onDataExtracted(result.parsed);
+          })
+          .catch((error: unknown) => {
+            if (error instanceof ApiError) {
+              handleRecognitionError(error.message);
+              return;
+            }
+
+            handleRecognitionError("No se pudo procesar el audio.");
+          })
+          .finally(() => {
+            setStatus("idle");
+          });
+      };
+
+      setStatus("listening");
+      recorder.start();
+      monitorSilence();
+    } catch {
+      handleRecognitionError("No se pudo acceder al microfono.");
+    }
   };
 
   const sendTranscriptToBackend = () => {
-    const transcript = appendTranscript(transcriptDraft, interimTranscript);
+    const transcript = appendTranscript(transcriptDraft, "");
     if (!transcript) {
       handleRecognitionError("Todavia no hay texto de voz para procesar.");
       return;
@@ -190,14 +273,13 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
         handleRecognitionError("No se pudo procesar la entrada por voz.");
       })
       .finally(() => {
-        recognitionRef.current = null;
         setStatus("idle");
       });
   };
 
   const isListening = status === "listening";
   const isProcessing = status === "processing";
-  const visibleTranscript = appendTranscript(transcriptDraft, interimTranscript);
+  const visibleTranscript = transcriptDraft;
   const preview = useMemo(
     () => (parsedPreviewState?.transcript === visibleTranscript ? parsedPreviewState.data : null),
     [parsedPreviewState, visibleTranscript]
@@ -245,7 +327,7 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
                             : "border-white/12 bg-white/6 text-white"
                     }`}
                     disabled={!isSupported || isProcessing}
-                    onClick={isListening ? stopListening : startListening}
+                    onClick={isListening ? stopListening : () => void startListening()}
                     title={isListening ? "Detener dictado" : "Iniciar dictado"}
                     type="button"
                   >
@@ -263,7 +345,6 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
                     disabled={!visibleTranscript || isProcessing}
                     onClick={() => {
                       setTranscriptDraft("");
-                      setInterimTranscript("");
                       setParsedPreviewState(null);
                     }}
                     title="Limpiar borrador"

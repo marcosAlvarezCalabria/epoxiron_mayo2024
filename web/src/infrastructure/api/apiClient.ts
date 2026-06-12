@@ -13,11 +13,12 @@ export const apiClient = async <T>(
   init?: RequestInit
 ): Promise<T> => {
   const token = authService.getToken();
+  const bodyIsFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: {
-      "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(bodyIsFormData ? {} : { "content-type": "application/json" }),
       ...(init?.headers ?? {})
     }
   });

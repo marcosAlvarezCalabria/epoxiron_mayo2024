@@ -23,6 +23,7 @@ import {
   UpdateDeliveryNoteUseCase
 } from "./application/use-cases/deliveryNotes.js";
 import { ParseVoiceAlbaranUseCase } from "./application/use-cases/parseVoiceAlbaran.js";
+import { ParseVoiceAlbaranAudioUseCase } from "./application/use-cases/parseVoiceAlbaranAudio.js";
 import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
 import { VoiceController } from "./controllers/VoiceController.js";
@@ -35,6 +36,7 @@ import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIs
 import { NodemailerEmailNotifier } from "./infrastructure/services/NodemailerEmailNotifier.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { RcloneDriveUploader } from "./infrastructure/services/RcloneDriveUploader.js";
+import { OpenAiVoiceTranscriber } from "./infrastructure/services/OpenAiVoiceTranscriber.js";
 import { createVoiceAlbaranParser } from "./infrastructure/services/VoiceAlbaranParserFactory.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
@@ -61,6 +63,13 @@ const voiceAlbaranParser = createVoiceAlbaranParser({
   model: env.VOICE_PARSER_MODEL!,
   provider: env.VOICE_PARSER_PROVIDER,
   timeoutMs: env.VOICE_PARSER_TIMEOUT_MS!
+});
+const voiceTranscriber = new OpenAiVoiceTranscriber({
+  apiKey: env.VOICE_TRANSCRIBER_API_KEY!,
+  baseUrl: env.VOICE_TRANSCRIBER_BASE_URL!,
+  model: env.VOICE_TRANSCRIBER_MODEL!,
+  language: env.VOICE_TRANSCRIBER_LANGUAGE,
+  timeoutMs: env.VOICE_TRANSCRIBER_TIMEOUT_MS!
 });
 
 const getCustomersUseCase = new GetCustomersUseCase(customerRepository);
@@ -113,6 +122,10 @@ const authenticateWithGoogleUseCase = new AuthenticateWithGoogleUseCase(
   env.ALLOWED_EMAILS
 );
 const parseVoiceAlbaranUseCase = new ParseVoiceAlbaranUseCase(voiceAlbaranParser, customerRepository);
+const parseVoiceAlbaranAudioUseCase = new ParseVoiceAlbaranAudioUseCase(
+  voiceTranscriber,
+  parseVoiceAlbaranUseCase
+);
 
 const customersController = new CustomersController(
   getCustomersUseCase,
@@ -134,7 +147,7 @@ const deliveryNotesController = new DeliveryNotesController(
   getDashboardSummaryUseCase,
   sendDailyDeliveryNotesReportUseCase
 );
-const voiceController = new VoiceController(parseVoiceAlbaranUseCase);
+const voiceController = new VoiceController(parseVoiceAlbaranUseCase, parseVoiceAlbaranAudioUseCase);
 
 const app = express();
 

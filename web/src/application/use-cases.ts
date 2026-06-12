@@ -13,6 +13,11 @@ import type {
 } from "@/domain/entities";
 import type { ParsedVoiceAlbaranData } from "@/features/voice/voiceAlbaran";
 
+export interface ParsedVoiceAlbaranAudioResponse {
+  transcript: string;
+  parsed: ParsedVoiceAlbaranData;
+}
+
 export const getCustomers = async (search?: string) =>
   apiClient<{ customers: Customer[] }>(
     `/api/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`
@@ -111,3 +116,13 @@ export const parseVoiceAlbaran = async (transcript: string) =>
     method: "POST",
     body: JSON.stringify({ transcript })
   });
+
+export const parseVoiceAlbaranAudio = async (audio: Blob) => {
+  const formData = new FormData();
+  formData.set("audio", audio, "voice-input.webm");
+
+  return apiClient<ParsedVoiceAlbaranAudioResponse>("/api/voice/parse-albaran-audio", {
+    method: "POST",
+    body: formData
+  });
+};

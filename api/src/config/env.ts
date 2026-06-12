@@ -14,6 +14,7 @@ const booleanStringWithDefaultFalse = z
   .transform((value) => value === "true");
 
 const voiceParserProviderSchema = z.enum(["ollama", "openai-compatible"]);
+const voiceTranscriberProviderSchema = z.enum(["openai"]);
 
 const envSchema = z
   .object({
@@ -33,6 +34,12 @@ const envSchema = z
     OLLAMA_MODEL: z.string().min(1).optional(),
     OLLAMA_API_KEY: z.string().optional(),
     OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+    VOICE_TRANSCRIBER_PROVIDER: voiceTranscriberProviderSchema.default("openai"),
+    VOICE_TRANSCRIBER_BASE_URL: z.string().url().optional(),
+    VOICE_TRANSCRIBER_MODEL: z.string().min(1).optional(),
+    VOICE_TRANSCRIBER_API_KEY: z.string().optional(),
+    VOICE_TRANSCRIBER_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+    VOICE_TRANSCRIBER_LANGUAGE: z.string().trim().min(2).optional(),
     GOOGLE_CLIENT_ID: z.string().min(1),
     JWT_SECRET: z.string().min(1),
     JWT_EXPIRES_IN: z.string().min(1).default("7d"),
@@ -69,12 +76,23 @@ const envSchema = z
       (value.VOICE_PARSER_PROVIDER === "ollama" ? "llama3.1:8b" : "gpt-4o-mini");
     const resolvedVoiceParserApiKey = value.VOICE_PARSER_API_KEY ?? value.OLLAMA_API_KEY ?? "";
     const resolvedVoiceParserTimeoutMs = value.VOICE_PARSER_TIMEOUT_MS ?? value.OLLAMA_TIMEOUT_MS ?? 15000;
+    const resolvedVoiceTranscriberBaseUrl = value.VOICE_TRANSCRIBER_BASE_URL ?? "https://api.openai.com/v1";
+    const resolvedVoiceTranscriberModel = value.VOICE_TRANSCRIBER_MODEL ?? "gpt-4o-mini-transcribe";
+    const resolvedVoiceTranscriberApiKey =
+      value.VOICE_TRANSCRIBER_API_KEY ?? value.VOICE_PARSER_API_KEY ?? value.OLLAMA_API_KEY ?? "";
+    const resolvedVoiceTranscriberTimeoutMs = value.VOICE_TRANSCRIBER_TIMEOUT_MS ?? 30000;
+    const resolvedVoiceTranscriberLanguage = value.VOICE_TRANSCRIBER_LANGUAGE ?? "es";
 
     Object.assign(value, {
       VOICE_PARSER_API_KEY: resolvedVoiceParserApiKey,
       VOICE_PARSER_BASE_URL: resolvedVoiceParserBaseUrl,
       VOICE_PARSER_MODEL: resolvedVoiceParserModel,
-      VOICE_PARSER_TIMEOUT_MS: resolvedVoiceParserTimeoutMs
+      VOICE_PARSER_TIMEOUT_MS: resolvedVoiceParserTimeoutMs,
+      VOICE_TRANSCRIBER_API_KEY: resolvedVoiceTranscriberApiKey,
+      VOICE_TRANSCRIBER_BASE_URL: resolvedVoiceTranscriberBaseUrl,
+      VOICE_TRANSCRIBER_MODEL: resolvedVoiceTranscriberModel,
+      VOICE_TRANSCRIBER_TIMEOUT_MS: resolvedVoiceTranscriberTimeoutMs,
+      VOICE_TRANSCRIBER_LANGUAGE: resolvedVoiceTranscriberLanguage
     });
 
     if (value.VOICE_PARSER_PROVIDER === "openai-compatible" && !resolvedVoiceParserApiKey.trim()) {
@@ -82,6 +100,14 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         message: "VOICE_PARSER_API_KEY es obligatorio cuando se usa openai-compatible",
         path: ["VOICE_PARSER_API_KEY"]
+      });
+    }
+
+    if (!resolvedVoiceTranscriberApiKey.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "VOICE_TRANSCRIBER_API_KEY es obligatorio",
+        path: ["VOICE_TRANSCRIBER_API_KEY"]
       });
     }
 
