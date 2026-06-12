@@ -11,6 +11,7 @@ import type {
   DeliveryNoteStatus,
   PricePreview
 } from "@/domain/entities";
+import type { ParsedVoiceAlbaranData } from "@/features/voice/voiceAlbaran";
 
 export const getCustomers = async (search?: string) =>
   apiClient<{ customers: Customer[] }>(
@@ -103,4 +104,10 @@ export const sendDailyDeliveryNotesReport = async (input?: { date?: string }) =>
   apiClient<DailyDeliveryNotesReportResponse>("/api/delivery-notes/send-daily-report", {
     method: "POST",
     body: JSON.stringify(input ?? {})
+  });
+
+export const parseVoiceAlbaran = async (transcript: string) =>
+  apiClient<ParsedVoiceAlbaranData>("/api/voice/parse-albaran", {
+    method: "POST",
+    body: JSON.stringify({ transcript })
   });

@@ -22,8 +22,10 @@ import {
   SendDailyDeliveryNotesReportUseCase,
   UpdateDeliveryNoteUseCase
 } from "./application/use-cases/deliveryNotes.js";
+import { ParseVoiceAlbaranUseCase } from "./application/use-cases/parseVoiceAlbaran.js";
 import { CustomersController } from "./controllers/CustomersController.js";
 import { DeliveryNotesController } from "./controllers/DeliveryNotesController.js";
+import { VoiceController } from "./controllers/VoiceController.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDailyDeliveryNotesReportUploadRepository } from "./infrastructure/repositories/PrismaDailyDeliveryNotesReportUploadRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
@@ -33,6 +35,7 @@ import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIs
 import { NodemailerEmailNotifier } from "./infrastructure/services/NodemailerEmailNotifier.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { RcloneDriveUploader } from "./infrastructure/services/RcloneDriveUploader.js";
+import { createVoiceAlbaranParser } from "./infrastructure/services/VoiceAlbaranParserFactory.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -40,6 +43,7 @@ import { buildAuthRouter } from "./routes/auth.routes.js";
 import { buildCustomersRouter } from "./routes/customers.routes.js";
 import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
 import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
+import { buildVoiceRouter } from "./routes/voice.routes.js";
 
 const customerRepository = new PrismaCustomerRepository();
 const deliveryNoteRepository = new PrismaDeliveryNoteRepository();
@@ -51,6 +55,13 @@ const emailNotifier = new NodemailerEmailNotifier({
   appPassword: env.EMAIL_APP_PASSWORD
 });
 const calculatePriceUseCase = new CalculatePriceUseCase();
+const voiceAlbaranParser = createVoiceAlbaranParser({
+  apiKey: env.VOICE_PARSER_API_KEY,
+  baseUrl: env.VOICE_PARSER_BASE_URL!,
+  model: env.VOICE_PARSER_MODEL!,
+  provider: env.VOICE_PARSER_PROVIDER,
+  timeoutMs: env.VOICE_PARSER_TIMEOUT_MS!
+});
 
 const getCustomersUseCase = new GetCustomersUseCase(customerRepository);
 const getCustomerUseCase = new GetCustomerUseCase(customerRepository);
@@ -101,6 +112,7 @@ const authenticateWithGoogleUseCase = new AuthenticateWithGoogleUseCase(
   new JwtAccessTokenIssuer(env.JWT_SECRET, env.JWT_EXPIRES_IN),
   env.ALLOWED_EMAILS
 );
+const parseVoiceAlbaranUseCase = new ParseVoiceAlbaranUseCase(voiceAlbaranParser, customerRepository);
 
 const customersController = new CustomersController(
   getCustomersUseCase,
@@ -122,6 +134,7 @@ const deliveryNotesController = new DeliveryNotesController(
   getDashboardSummaryUseCase,
   sendDailyDeliveryNotesReportUseCase
 );
+const voiceController = new VoiceController(parseVoiceAlbaranUseCase);
 
 const app = express();
 
@@ -143,6 +156,7 @@ app.use("/api/auth", buildAuthRouter(authenticateWithGoogleUseCase));
 app.use("/api", authMiddleware);
 app.use("/api/customers", buildCustomersRouter(customersController));
 app.use("/api/delivery-notes", buildDeliveryNotesRouter(deliveryNotesController));
+app.use("/api/voice", buildVoiceRouter(voiceController));
 app.get("/api/dashboard/summary", asyncHandler(deliveryNotesController.getDashboardSummary));
 app.use("/api/hermes-tools", buildHermesToolsRouter(customersController, deliveryNotesController));
 

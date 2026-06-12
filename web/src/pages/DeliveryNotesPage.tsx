@@ -11,7 +11,7 @@ import {
   UserCircleIcon,
   XMarkIcon
 } from "@heroicons/react/24/outline";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import {
@@ -24,6 +24,7 @@ import {
   updateDeliveryNoteStatus
 } from "@/application/use-cases";
 import { ApiErrorState } from "@/components/ApiErrorState";
+import { VoiceAlbaranButton } from "@/components/VoiceAlbaranButton";
 import {
   ItemFormSheet,
   type DeliveryNoteItemFormState
@@ -36,6 +37,12 @@ import type {
   DeliveryNoteItemDraft,
   DeliveryNoteStatus
 } from "@/domain/entities";
+import {
+  buildVoiceFeedbackMessage,
+  findCustomerByVoiceName,
+  mapParsedVoiceItemToFormState,
+  type ParsedVoiceAlbaranData
+} from "@/features/voice/voiceAlbaran";
 import { ApiError } from "@/infrastructure/api/apiClient";
 import {
   formatMeters,
@@ -139,6 +146,12 @@ const formatArticleTexture = (texture?: DeliveryNoteItemDraft["texture"]) =>
   texture && texture !== "NORMAL" ? formatDeliveryNoteTexture(texture) : null;
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
 const formatDocumentDate = (value: string) => new Date(value).toLocaleDateString("es-ES");
+const UnitToken = ({ base, suffix }: { base: string; suffix?: string }) => (
+  <span className="inline-flex items-start gap-[1px]">
+    <span>{base}</span>
+    {suffix ? <span className="text-[0.62em] leading-none opacity-80">{suffix}</span> : null}
+  </span>
+);
 
 const companyReference = {
   name: "Epoxiron S.L.",
@@ -201,6 +214,7 @@ export const DeliveryNotesPage = () => {
   const [customerFilter, setCustomerFilter] = useState("");
   const [todayOnly, setTodayOnly] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [sheetState, setSheetState] = useState<{ index: number | null; mode: "create" | "edit"; open: boolean }>({
@@ -212,6 +226,18 @@ export const DeliveryNotesPage = () => {
   const formDateInputRef = useRef<HTMLInputElement | null>(null);
   const composerContentRef = useRef<HTMLDivElement | null>(null);
   const previewsRequestIdRef = useRef(0);
+
+  const handleComposerWheelCapture = (event: WheelEvent<HTMLDivElement>) => {
+    const container = composerContentRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.scrollBy({
+      top: event.deltaY,
+      behavior: "auto"
+    });
+  };
 
   const openDatePicker = (input: HTMLInputElement | null) => {
     if (!input) {
@@ -327,6 +353,23 @@ export const DeliveryNotesPage = () => {
   useEffect(() => {
     setIsNotesOpen(false);
   }, [selectedNoteId]);
+
+  useEffect(() => {
+    if (!isComposerOpen) {
+      return;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [isComposerOpen]);
 
   useEffect(() => {
     if (!isComposerOpen) {
@@ -484,6 +527,7 @@ export const DeliveryNotesPage = () => {
     setForm(emptyForm());
     setPreviews({});
     setFormError(null);
+    setVoiceFeedback(null);
     setCustomerSearch("");
     setIsComposerOpen(false);
     setSheetState({ index: null, mode: "create", open: false });
@@ -494,6 +538,7 @@ export const DeliveryNotesPage = () => {
     setForm(emptyForm());
     setPreviews({});
     setFormError(null);
+    setVoiceFeedback(null);
     setCustomerSearch("");
     setMobilePane("detail");
     setIsComposerOpen(true);
@@ -504,9 +549,30 @@ export const DeliveryNotesPage = () => {
     setForm(noteToFormState(note));
     setPreviews({});
     setFormError(null);
+    setVoiceFeedback(null);
     setCustomerSearch("");
     setMobilePane("detail");
     setIsComposerOpen(true);
+  };
+
+  const handleVoiceDataExtracted = (data: ParsedVoiceAlbaranData) => {
+    const customers = customersQuery.data?.customers ?? [];
+    const matchedCustomer = findCustomerByVoiceName(customers, data.customerName);
+    const nextItems = data.items.map(mapParsedVoiceItemToFormState);
+
+    setForm((current) => ({
+      customerId: matchedCustomer?.id ?? current.customerId,
+      date: data.date || current.date,
+      items: nextItems.length > 0 ? nextItems : current.items,
+      notes: data.notes ?? current.notes
+    }));
+    setCustomerSearch(matchedCustomer ? "" : data.customerName ?? "");
+    setFormError(null);
+    setVoiceFeedback(buildVoiceFeedbackMessage(data, matchedCustomer));
+  };
+
+  const handleVoiceError = (message: string) => {
+    setVoiceFeedback(message);
   };
 
   const submitForm = async (status: DeliveryNoteStatus) => {
@@ -1055,14 +1121,12 @@ export const DeliveryNotesPage = () => {
             type="button"
           />
 
-          <div className="absolute inset-x-0 bottom-0 top-0 flex flex-col border border-neutral-300 bg-white sm:inset-6">
-            <div className="border-b border-neutral-300 bg-white px-4 py-3 sm:px-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
-                    {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
-                  </p>
-                </div>
+          <div className="absolute inset-x-0 bottom-0 top-0 flex min-h-0 flex-col overflow-hidden border border-neutral-300 bg-white sm:inset-6">
+            <div className="shrink-0 border-b border-neutral-300 bg-white px-4 py-3 sm:px-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="min-w-0 text-sm font-semibold text-neutral-900 sm:text-base">
+                  {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
+                </p>
                 <button
                   className="inline-flex h-8 w-8 items-center justify-center border border-neutral-300 bg-white text-neutral-600"
                   onClick={closeComposer}
@@ -1071,11 +1135,25 @@ export const DeliveryNotesPage = () => {
                   <XMarkIcon className="h-4 w-4" />
                 </button>
               </div>
-
+              {voiceFeedback ? (
+                <p className="mt-3 border border-[var(--epx-accent)]/25 bg-[color:rgb(255_149_0_/_0.08)] px-3 py-2 text-sm text-neutral-700">
+                  {voiceFeedback}
+                </p>
+              ) : null}
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-5 sm:py-4" ref={composerContentRef}>
-              <div className="grid gap-4 xl:grid-cols-[0.74fr_1.26fr]">
+            <div
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-5 sm:py-4"
+              onWheelCapture={handleComposerWheelCapture}
+              ref={composerContentRef}
+            >
+              <div className="space-y-4">
+                <VoiceAlbaranButton
+                  onDataExtracted={handleVoiceDataExtracted}
+                  onError={handleVoiceError}
+                />
+
+                <div className="grid gap-4 xl:grid-cols-[0.74fr_1.26fr]">
                 <section className="space-y-3">
                   <div className={`border bg-white p-3 sm:p-4 ${customerStepReady ? "border-[var(--epx-accent)]/35" : "border-neutral-300"}`}>
                     <div className="flex items-start justify-between gap-3">
@@ -1208,8 +1286,61 @@ export const DeliveryNotesPage = () => {
                           >
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
-                                <span className="truncate text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
+                                <span className="hidden text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
                                   {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}${item.pricingMode === "UNIT" ? ` · U ${item.customUnitPrice || "0"}` : ` · M ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}`}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
+                                </span>
+                                <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
+                                  <span className="truncate">{item.description || "Pieza pendiente"}</span>
+                                  <span className="text-neutral-400">·</span>
+                                  <span className="truncate">{item.color || "Sin color"}</span>
+                                  {formatArticleTexture(item.texture) ? (
+                                    <>
+                                      <span className="text-neutral-400">·</span>
+                                      <span>{formatArticleTexture(item.texture)}</span>
+                                    </>
+                                  ) : null}
+                                  <span className="text-neutral-400">·</span>
+                                  <span>x{item.quantity}</span>
+                                  {item.pricingMode === "UNIT" ? (
+                                    <>
+                                      <span className="text-neutral-400">·</span>
+                                      <span className="inline-flex items-center gap-1">
+                                        <span>U</span>
+                                        <span>{item.customUnitPrice || "0"}</span>
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-neutral-400">·</span>
+                                      <span className="inline-flex items-center gap-1">
+                                        <UnitToken base="m" suffix="l" />
+                                        <span>{item.linearMeters || "0"}</span>
+                                      </span>
+                                      <span className="text-neutral-400">·</span>
+                                      <span className="inline-flex items-center gap-1">
+                                        <UnitToken base="m" suffix="2" />
+                                        <span>{item.squareMeters || "0"}</span>
+                                      </span>
+                                    </>
+                                  )}
+                                  {item.hasThickness ? (
+                                    <>
+                                      <span className="text-neutral-400">·</span>
+                                      <span>G</span>
+                                    </>
+                                  ) : null}
+                                  {item.hasPrimer ? (
+                                    <>
+                                      <span className="text-neutral-400">·</span>
+                                      <span>I</span>
+                                    </>
+                                  ) : null}
+                                  {item.saveAsSpecialPiece ? (
+                                    <>
+                                      <span className="text-neutral-400">·</span>
+                                      <span>ESP</span>
+                                    </>
+                                  ) : null}
                                 </span>
                                 <span className="hidden truncate text-[10px] text-neutral-500">
                                   {`${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}`}
@@ -1226,8 +1357,14 @@ export const DeliveryNotesPage = () => {
                                 <span>U {item.customUnitPrice || "0"} €</span>
                               ) : (
                                 <>
-                                  <span>M {item.linearMeters || "0"}</span>
-                                  <span>M2 {item.squareMeters || "0"}</span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <UnitToken base="m" suffix="l" />
+                                    <span>{item.linearMeters || "0"}</span>
+                                  </span>
+                                  <span className="inline-flex items-center gap-1">
+                                    <UnitToken base="m" suffix="2" />
+                                    <span>{item.squareMeters || "0"}</span>
+                                  </span>
                                 </>
                               )}
                               {item.hasThickness ? <span>Grosor</span> : null}
@@ -1283,10 +1420,11 @@ export const DeliveryNotesPage = () => {
                     ) : null}
                   </div>
                 </section>
+                </div>
               </div>
             </div>
 
-            <div className="sticky bottom-0 flex items-center justify-between gap-3 border-t border-neutral-300 bg-white px-3 py-3 sm:px-5">
+            <div className="sticky bottom-0 shrink-0 flex items-center justify-between gap-3 border-t border-neutral-300 bg-white px-3 py-3 sm:px-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                   Total del albaran

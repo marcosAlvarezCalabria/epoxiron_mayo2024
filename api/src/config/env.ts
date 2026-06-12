@@ -13,6 +13,8 @@ const booleanStringWithDefaultFalse = z
   .default("false")
   .transform((value) => value === "true");
 
+const voiceParserProviderSchema = z.enum(["ollama", "openai-compatible"]);
+
 const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1),
@@ -22,6 +24,15 @@ const envSchema = z
     HERMES_BASE_URL: z.string().url(),
     HERMES_SHARED_SECRET: z.string().min(1),
     HERMES_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+    VOICE_PARSER_PROVIDER: voiceParserProviderSchema.default("ollama"),
+    VOICE_PARSER_BASE_URL: z.string().url().optional(),
+    VOICE_PARSER_MODEL: z.string().min(1).optional(),
+    VOICE_PARSER_API_KEY: z.string().optional(),
+    VOICE_PARSER_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+    OLLAMA_BASE_URL: z.string().url().optional(),
+    OLLAMA_MODEL: z.string().min(1).optional(),
+    OLLAMA_API_KEY: z.string().optional(),
+    OLLAMA_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
     GOOGLE_CLIENT_ID: z.string().min(1),
     JWT_SECRET: z.string().min(1),
     JWT_EXPIRES_IN: z.string().min(1).default("7d"),
@@ -48,6 +59,32 @@ const envSchema = z
     EMAIL_APP_PASSWORD: z.string().default("")
   })
   .superRefine((value, context) => {
+    const resolvedVoiceParserBaseUrl =
+      value.VOICE_PARSER_BASE_URL ??
+      value.OLLAMA_BASE_URL ??
+      (value.VOICE_PARSER_PROVIDER === "ollama" ? "http://127.0.0.1:11434" : "https://api.openai.com/v1");
+    const resolvedVoiceParserModel =
+      value.VOICE_PARSER_MODEL ??
+      value.OLLAMA_MODEL ??
+      (value.VOICE_PARSER_PROVIDER === "ollama" ? "llama3.1:8b" : "gpt-4o-mini");
+    const resolvedVoiceParserApiKey = value.VOICE_PARSER_API_KEY ?? value.OLLAMA_API_KEY ?? "";
+    const resolvedVoiceParserTimeoutMs = value.VOICE_PARSER_TIMEOUT_MS ?? value.OLLAMA_TIMEOUT_MS ?? 15000;
+
+    Object.assign(value, {
+      VOICE_PARSER_API_KEY: resolvedVoiceParserApiKey,
+      VOICE_PARSER_BASE_URL: resolvedVoiceParserBaseUrl,
+      VOICE_PARSER_MODEL: resolvedVoiceParserModel,
+      VOICE_PARSER_TIMEOUT_MS: resolvedVoiceParserTimeoutMs
+    });
+
+    if (value.VOICE_PARSER_PROVIDER === "openai-compatible" && !resolvedVoiceParserApiKey.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "VOICE_PARSER_API_KEY es obligatorio cuando se usa openai-compatible",
+        path: ["VOICE_PARSER_API_KEY"]
+      });
+    }
+
     if (value.GOOGLE_DRIVE_ENABLED) {
       const googleKeys = ["RCLONE_REMOTE", "RCLONE_CONFIG_PATH"] as const;
 

@@ -48,3 +48,443 @@ textarea {
 [class*="rounded"] {
   border-radius: 0 !important;
 }
+
+@keyframes voiceReactiveFloatA {
+  0% {
+    transform: translate3d(-8%, -6%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(10%, 8%, 0) scale(1.12);
+  }
+  100% {
+    transform: translate3d(-8%, -6%, 0) scale(1);
+  }
+}
+
+@keyframes voiceReactiveFloatB {
+  0% {
+    transform: translate3d(6%, -8%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-12%, 10%, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(6%, -8%, 0) scale(1);
+  }
+}
+
+@keyframes voiceReactiveFloatC {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(8%, -10%, 0) scale(1.14);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.voice-reactive-shell {
+  position: relative;
+  background:
+    radial-gradient(circle at top left, rgb(255 255 255 / 0.06), transparent 30%),
+    linear-gradient(145deg, #1d1713 0%, #241d18 42%, #171311 100%);
+  isolation: isolate;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.voice-reactive-panel {
+  position: relative;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0.015));
+}
+
+.voice-reactive-orb {
+  position: absolute;
+  border-radius: 999px;
+  opacity: 0.78;
+  filter: blur(54px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.voice-reactive-orb--amber {
+  top: -18%;
+  left: -6%;
+  width: 17rem;
+  height: 17rem;
+  background: radial-gradient(circle, rgb(255 190 110 / 0.24) 0%, rgb(255 190 110 / 0.04) 66%, transparent 100%);
+  animation: voiceReactiveFloatA 14s ease-in-out infinite;
+}
+
+.voice-reactive-orb--blue {
+  top: 8%;
+  right: -10%;
+  width: 18rem;
+  height: 18rem;
+  background: radial-gradient(circle, rgb(255 149 0 / 0.22) 0%, rgb(255 149 0 / 0.04) 66%, transparent 100%);
+  animation: voiceReactiveFloatB 16s ease-in-out infinite;
+}
+
+.voice-reactive-orb--red {
+  bottom: -20%;
+  left: 28%;
+  width: 16rem;
+  height: 16rem;
+  background: radial-gradient(circle, rgb(255 214 143 / 0.12) 0%, rgb(255 214 143 / 0.02) 70%, transparent 100%);
+  animation: voiceReactiveFloatC 18s ease-in-out infinite;
+}
+
+.voice-reactive-orb--green {
+  bottom: -24%;
+  right: 8%;
+  width: 15rem;
+  height: 15rem;
+  background: radial-gradient(circle, rgb(255 169 77 / 0.14) 0%, rgb(255 169 77 / 0.02) 72%, transparent 100%);
+  animation: voiceReactiveFloatA 20s ease-in-out infinite reverse;
+}
+
+@keyframes voiceListeningPulse {
+  0% {
+    transform: scale(0.88);
+    opacity: 0.18;
+  }
+  70% {
+    transform: scale(1.18);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.34);
+    opacity: 0;
+  }
+}
+
+@keyframes voiceListeningWave {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.voice-listening-indicator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.voice-listening-ring,
+.voice-listening-core,
+.voice-listening-wave {
+  position: absolute;
+  pointer-events: none;
+}
+
+.voice-listening-ring {
+  border-radius: 999px;
+  border: 1px solid rgb(125 211 252 / 0.32);
+}
+
+.voice-listening-ring--outer {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.voice-listening-ring--inner {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-color: rgb(94 234 212 / 0.28);
+}
+
+.voice-listening-core {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(186 230 253), rgb(94 234 212));
+  box-shadow: 0 0 18px rgb(103 232 249 / 0.45);
+}
+
+.voice-listening-wave {
+  bottom: 0.8rem;
+  width: 0.18rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(147 197 253 / 0.2), rgb(94 234 212));
+  transform-origin: bottom center;
+}
+
+.voice-listening-wave--1 {
+  left: 1.05rem;
+  height: 0.85rem;
+}
+
+.voice-listening-wave--2 {
+  left: 1.66rem;
+  height: 1.2rem;
+}
+
+.voice-listening-wave--3 {
+  right: 1.05rem;
+  height: 0.95rem;
+}
+
+.voice-listening-indicator--active .voice-listening-ring--outer,
+.voice-listening-indicator--active .voice-listening-ring--inner {
+  animation: voiceListeningPulse 1.8s ease-out infinite;
+}
+
+.voice-listening-indicator--active .voice-listening-ring--inner {
+  animation-delay: 0.25s;
+}
+
+.voice-listening-indicator--active .voice-listening-wave {
+  animation: voiceListeningWave 1s ease-in-out infinite;
+}
+
+.voice-listening-indicator--active .voice-listening-wave--2 {
+  animation-delay: 0.12s;
+}
+
+.voice-listening-indicator--active .voice-listening-wave--3 {
+  animation-delay: 0.24s;
+}
+
+@keyframes voiceAuraFloat {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.96);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.04);
+    opacity: 0.9;
+  }
+}
+
+@keyframes voiceAuraWave {
+  0%,
+  100% {
+    transform: translateY(-50%) scaleY(0.35);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-50%) scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes voiceAuraThinking {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+.voice-listening-indicator--button {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.voice-listening-indicator--button .voice-listening-ring--outer {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-color: rgb(186 230 253 / 0.85);
+}
+
+.voice-listening-indicator--button .voice-listening-ring--inner {
+  width: 1rem;
+  height: 1rem;
+  border-color: rgb(94 234 212 / 0.85);
+}
+
+.voice-listening-indicator--button .voice-listening-core {
+  width: 0.16rem;
+  height: 0.16rem;
+  background: rgb(240 249 255);
+  box-shadow: 0 0 8px rgb(165 243 252 / 0.6);
+}
+
+.voice-listening-indicator--button .voice-listening-wave {
+  bottom: 0.32rem;
+  width: 0.12rem;
+  background: linear-gradient(180deg, rgb(186 230 253 / 0.2), rgb(94 234 212 / 1));
+}
+
+.voice-listening-indicator--button .voice-listening-wave--1 {
+  left: 0.36rem;
+  height: 0.34rem;
+}
+
+.voice-listening-indicator--button .voice-listening-wave--2 {
+  left: 0.66rem;
+  height: 0.5rem;
+}
+
+.voice-listening-indicator--button .voice-listening-wave--3 {
+  right: 0.36rem;
+  height: 0.38rem;
+}
+
+.voice-audio-aura {
+  position: relative;
+  display: inline-flex;
+  width: 3.4rem;
+  height: 2.2rem;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.45rem;
+  overflow: visible;
+}
+
+.voice-audio-aura__glow,
+.voice-audio-aura__wave {
+  position: absolute;
+  pointer-events: none;
+}
+
+.voice-audio-aura__glow {
+  top: 50%;
+  left: 50%;
+  width: 3.2rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  filter: blur(8px);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition:
+    width 240ms ease,
+    height 240ms ease,
+    opacity 180ms ease,
+    transform 240ms ease,
+    border-radius 240ms ease;
+}
+
+.voice-audio-aura__glow--one {
+  background: radial-gradient(
+    ellipse at center,
+    rgb(255 214 142 / 0.62) 0%,
+    rgb(255 151 82 / 0.34) 42%,
+    transparent 72%
+  );
+}
+
+.voice-audio-aura__glow--two {
+  background: radial-gradient(
+    ellipse at center,
+    rgb(255 247 237 / 0.48) 0%,
+    rgb(255 177 104 / 0.28) 40%,
+    rgb(230 120 55 / 0.18) 62%,
+    transparent 78%
+  );
+}
+
+.voice-audio-aura__wave {
+  top: 50%;
+  width: 0.16rem;
+  border-radius: 999px;
+  transform: translateY(-50%) scaleY(1);
+  transform-origin: center center;
+  background: linear-gradient(
+    180deg,
+    rgb(255 214 163 / 0.08) 0%,
+    rgb(255 196 120 / 0.72) 20%,
+    rgb(255 248 240 / 1) 50%,
+    rgb(255 169 95 / 0.72) 80%,
+    rgb(255 214 163 / 0.08) 100%
+  );
+  box-shadow:
+    0 0 10px rgb(255 188 94 / 0.55),
+    0 0 18px rgb(255 135 61 / 0.24);
+  opacity: 0.56;
+  transition:
+    opacity 180ms ease,
+    transform 240ms ease,
+    height 240ms ease;
+}
+
+.voice-audio-aura__wave--1 {
+  left: 0.42rem;
+  height: 0.5rem;
+}
+
+.voice-audio-aura__wave--2 {
+  left: 1.08rem;
+  height: 0.95rem;
+}
+
+.voice-audio-aura__wave--center {
+  left: 1.62rem;
+  height: 1.42rem;
+}
+
+.voice-audio-aura__wave--3 {
+  right: 1.08rem;
+  height: 0.95rem;
+}
+
+.voice-audio-aura__wave--4 {
+  right: 0.42rem;
+  height: 0.5rem;
+}
+
+.voice-audio-aura--idle .voice-audio-aura__glow {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  opacity: 0.82;
+  animation: voiceAuraFloat 2.6s ease-in-out infinite;
+}
+
+.voice-audio-aura--idle .voice-audio-aura__wave {
+  opacity: 0.42;
+  transform: translateY(-50%) scaleY(0.3);
+}
+
+.voice-audio-aura--active .voice-audio-aura__glow {
+  width: 3.2rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  opacity: 0.9;
+  animation: voiceAuraFloat 1.5s ease-in-out infinite;
+}
+
+.voice-audio-aura--active .voice-audio-aura__wave {
+  opacity: 0.72;
+  transform: translateY(-50%) scaleY(1);
+  animation: voiceAuraWave 0.9s ease-in-out infinite;
+}
+
+.voice-audio-aura--active .voice-audio-aura__wave--2 {
+  animation-delay: 0.08s;
+}
+
+.voice-audio-aura--active .voice-audio-aura__wave--3 {
+  animation-delay: 0.16s;
+}
+
+.voice-audio-aura--active .voice-audio-aura__wave--4 {
+  animation-delay: 0.24s;
+}
+
+.voice-audio-aura--thinking .voice-audio-aura__glow {
+  opacity: 0.82;
+  animation: voiceAuraThinking 1.2s ease-in-out infinite;
+}
+
+.voice-audio-aura--thinking .voice-audio-aura__wave {
+  animation: voiceAuraWave 0.65s ease-in-out infinite;
+}

@@ -24,3 +24,4 @@ package-lock.json
 api/generated/
 api/prisma/dev.db
 api/prisma/dev.db-journal
+backups/
