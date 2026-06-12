@@ -62,8 +62,18 @@ export class ParseVoiceAlbaranUseCase {
 
   public async execute(transcript: string): Promise<ParsedVoiceAlbaran> {
     const customers = await this.customerRepository.findAll();
+    const specialPieceNames = Array.from(
+      new Set(
+        customers.flatMap((customer) =>
+          customer.specialPieces
+            .map((piece) => piece.name.trim())
+            .filter((pieceName) => pieceName.length > 0)
+        )
+      )
+    ).slice(0, 200);
     const parsed = await this.parser.parseTranscript(transcript, {
-      customerNames: customers.map((customer) => customer.name)
+      customerNames: customers.map((customer) => customer.name),
+      specialPieceNames
     });
 
     return {

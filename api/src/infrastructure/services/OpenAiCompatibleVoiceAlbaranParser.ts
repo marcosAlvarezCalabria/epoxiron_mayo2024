@@ -67,7 +67,11 @@ export class OpenAiCompatibleVoiceAlbaranParser implements VoiceAlbaranParser {
             },
             {
               role: "user",
-              content: buildVoiceAlbaranUserPrompt(transcript, context?.customerNames)
+              content: buildVoiceAlbaranUserPrompt(
+                transcript,
+                context?.customerNames,
+                context?.specialPieceNames
+              )
             }
           ]
         }),

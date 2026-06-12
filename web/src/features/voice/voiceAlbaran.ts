@@ -204,18 +204,25 @@ const extractSquareMetersGuess = (text: string): number | null => {
     return normalizeDecimal(explicitMatch[1]);
   }
 
-  const dimensionsMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)/i);
-  if (!dimensionsMatch?.[1] || !dimensionsMatch[2]) {
+  const dimensionMatches = Array.from(
+    text.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)/gi)
+  );
+
+  if (dimensionMatches.length === 0) {
     return null;
   }
 
-  const width = normalizeDecimal(dimensionsMatch[1]);
-  const height = normalizeDecimal(dimensionsMatch[2]);
-  if (width == null || height == null) {
-    return null;
-  }
+  const totalSquareMeters = dimensionMatches.reduce((sum, match) => {
+    const width = normalizeDecimal(match[1] ?? "");
+    const height = normalizeDecimal(match[2] ?? "");
+    if (width == null || height == null) {
+      return sum;
+    }
 
-  return Number.parseFloat(((width * height) / 1_000_000).toFixed(3));
+    return sum + (width * height) / 1_000_000;
+  }, 0);
+
+  return totalSquareMeters > 0 ? Number.parseFloat(totalSquareMeters.toFixed(3)) : null;
 };
 
 const extractUnitPriceGuess = (text: string): number | null => {
