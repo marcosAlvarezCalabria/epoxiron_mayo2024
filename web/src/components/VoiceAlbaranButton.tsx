@@ -16,6 +16,7 @@ interface VoiceAlbaranButtonProps {
 }
 
 type VoiceStatus = "idle" | "listening" | "processing";
+const VOICE_SILENCE_STOP_MS = 3000;
 
 const UnitToken = ({ base, suffix }: { base: string; suffix?: string }) => (
   <span className="inline-flex items-start gap-[1px]">
@@ -143,7 +144,7 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
 
       if (rms > 0.035) {
         lastSoundAtRef.current = now;
-      } else if (now - lastSoundAtRef.current >= 1800) {
+      } else if (now - lastSoundAtRef.current >= VOICE_SILENCE_STOP_MS) {
         stopListening();
         return;
       }

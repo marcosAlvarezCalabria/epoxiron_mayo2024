@@ -32,8 +32,10 @@ import { PrismaDailyDeliveryNotesReportUploadRepository } from "./infrastructure
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
 import { DailyDeliveryNotesReportScheduler } from "./infrastructure/services/DailyDeliveryNotesReportScheduler.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
+import { GeminiVoiceTranscriber } from "./infrastructure/services/GeminiVoiceTranscriber.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
 import { NodemailerEmailNotifier } from "./infrastructure/services/NodemailerEmailNotifier.js";
+import { OllamaVoiceTranscriber } from "./infrastructure/services/OllamaVoiceTranscriber.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { RcloneDriveUploader } from "./infrastructure/services/RcloneDriveUploader.js";
 import { OpenAiVoiceTranscriber } from "./infrastructure/services/OpenAiVoiceTranscriber.js";
@@ -64,13 +66,29 @@ const voiceAlbaranParser = createVoiceAlbaranParser({
   provider: env.VOICE_PARSER_PROVIDER,
   timeoutMs: env.VOICE_PARSER_TIMEOUT_MS!
 });
-const voiceTranscriber = new OpenAiVoiceTranscriber({
-  apiKey: env.VOICE_TRANSCRIBER_API_KEY!,
-  baseUrl: env.VOICE_TRANSCRIBER_BASE_URL!,
-  model: env.VOICE_TRANSCRIBER_MODEL!,
-  language: env.VOICE_TRANSCRIBER_LANGUAGE,
-  timeoutMs: env.VOICE_TRANSCRIBER_TIMEOUT_MS!
-});
+const voiceTranscriber =
+  env.VOICE_TRANSCRIBER_PROVIDER === "ollama"
+    ? new OllamaVoiceTranscriber({
+        apiKey: env.VOICE_TRANSCRIBER_API_KEY!,
+        baseUrl: env.VOICE_TRANSCRIBER_BASE_URL!,
+        model: env.VOICE_TRANSCRIBER_MODEL!,
+        timeoutMs: env.VOICE_TRANSCRIBER_TIMEOUT_MS!
+      })
+    : env.VOICE_TRANSCRIBER_PROVIDER === "gemini"
+      ? new GeminiVoiceTranscriber({
+          apiKey: env.VOICE_TRANSCRIBER_API_KEY!,
+          baseUrl: env.VOICE_TRANSCRIBER_BASE_URL!,
+          model: env.VOICE_TRANSCRIBER_MODEL!,
+          language: env.VOICE_TRANSCRIBER_LANGUAGE,
+          timeoutMs: env.VOICE_TRANSCRIBER_TIMEOUT_MS!
+        })
+    : new OpenAiVoiceTranscriber({
+        apiKey: env.VOICE_TRANSCRIBER_API_KEY!,
+        baseUrl: env.VOICE_TRANSCRIBER_BASE_URL!,
+        model: env.VOICE_TRANSCRIBER_MODEL!,
+        language: env.VOICE_TRANSCRIBER_LANGUAGE,
+        timeoutMs: env.VOICE_TRANSCRIBER_TIMEOUT_MS!
+      });
 
 const getCustomersUseCase = new GetCustomersUseCase(customerRepository);
 const getCustomerUseCase = new GetCustomerUseCase(customerRepository);

@@ -23,7 +23,11 @@ declare module "multer" {
 declare module "ollama" {
   export interface OllamaChatMessage {
     role: "system" | "user" | "assistant";
-    content: string;
+    content: string | Array<unknown>;
+    audios?: string[];
+    audio?: string[];
+    files?: string[];
+    [key: string]: unknown;
   }
 
   export interface OllamaChatRequest {
@@ -35,6 +39,7 @@ declare module "ollama" {
       temperature?: number;
     };
     messages: OllamaChatMessage[];
+    [key: string]: unknown;
   }
 
   export interface OllamaChatResponse {

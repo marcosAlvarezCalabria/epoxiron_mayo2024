@@ -1,3 +1,4 @@
+import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { ParsedVoiceAlbaran } from "../../domain/ports/VoiceAlbaranParser.js";
 import type { VoiceTranscriber, VoiceTranscriptionInput } from "../../domain/ports/VoiceTranscriber.js";
 import { normalizeVoiceTranscript } from "./normalizeVoiceTranscript.js";
@@ -16,7 +17,20 @@ export class ParseVoiceAlbaranAudioUseCase {
 
   public async execute(input: VoiceTranscriptionInput): Promise<ParsedVoiceAlbaranAudioResult> {
     const transcript = normalizeVoiceTranscript(await this.voiceTranscriber.transcribe(input));
-    const parsed = await this.parseVoiceAlbaranUseCase.execute(transcript);
+    let parsed: ParsedVoiceAlbaran;
+
+    try {
+      parsed = await this.parseVoiceAlbaranUseCase.execute(transcript);
+    } catch (error) {
+      if (error instanceof DomainException && error.statusCode === 422) {
+        throw new DomainException(
+          `${error.message}. Transcript detectado: ${transcript.slice(0, 800)}`,
+          error.statusCode
+        );
+      }
+
+      throw error;
+    }
 
     return {
       transcript,
