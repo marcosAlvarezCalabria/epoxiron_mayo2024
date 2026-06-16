@@ -17,27 +17,6 @@ interface GeminiGenerateContentResponse {
       }>;
     };
   }>;
-  error?: {
-    message?: string;
-  };
-}
-
-interface GeminiInlineDataPart {
-  inline_data: {
-    mime_type: string;
-    data: string;
-  };
-}
-
-interface GeminiFileDataPart {
-  file_data: {
-    mime_type: string;
-    file_uri: string;
-  };
-}
-
-interface GeminiTextPart {
-  text: string;
 }
 
 interface GeminiFileUploadResponse {
@@ -46,9 +25,6 @@ interface GeminiFileUploadResponse {
     mimeType?: string;
     mime_type?: string;
   };
-  error?: {
-    message?: string;
-  };
 }
 
 interface GeminiEndpoints {
@@ -56,32 +32,18 @@ interface GeminiEndpoints {
   uploadBaseUrl: string;
 }
 
-const INLINE_AUDIO_MAX_BYTES = 14 * 1024 * 1024;
-
-const transcriptionPrompt = [
-  "Transcribe this Spanish workshop audio exactly.",
-  "Return only the transcript text in Spanish.",
-  "Do not summarize, explain, translate, or add markdown.",
-  "Preserve piece names, special-piece names, colors, RAL codes, measurements, quantities, and pricing words as literally as possible.",
-  "Prefer digits when the audio is clear, for example: 9005, 7016, 800x500, 13.7m, 5 unidades.",
-  "Common workshop vocabulary includes: RAL, gofrado, mate, texturado, imprimacion, tubo, chapa, bastidor, armario, gondola, cajon, escalerillas, canalon, conjunto, pie, mueble.",
-  "If the speaker says a compound special-piece name, keep the full compound name together.",
-  "Primary language: ${language}."
-].join(" ");
+const INLINE_AUDIO_MAX_BYTES = 20 * 1024 * 1024;
 
 const trimTrailingSlashes = (value: string): string => value.replace(/\/+$/, "");
 
 export const resolveGeminiEndpoints = (baseUrl: string): GeminiEndpoints => {
   const trimmed = trimTrailingSlashes(baseUrl);
-  const normalized = trimmed.includes("/upload/")
-    ? trimmed.replace("/upload/", "/")
-    : trimmed;
+  const normalized = trimmed.includes("/upload/") ? trimmed.replace("/upload/", "/") : trimmed;
 
   if (normalized.endsWith("/v1beta") || normalized.endsWith("/v1")) {
-    const uploadBaseUrl = normalized.replace(/\/(v1beta|v1)$/, "/upload/$1");
     return {
       generateBaseUrl: normalized,
-      uploadBaseUrl
+      uploadBaseUrl: normalized.replace(/\/(v1beta|v1)$/, "/upload/$1")
     };
   }
 
@@ -106,14 +68,27 @@ export const normalizeGeminiMimeType = (mimeType: string): string => {
 
 export const extractGeminiText = (payload: GeminiGenerateContentResponse): string | null => {
   const parts = payload.candidates?.flatMap((candidate) => candidate.content?.parts ?? []) ?? [];
-  const text = parts
+  const transcript = parts
     .map((part) => part.text?.trim() ?? "")
     .filter(Boolean)
     .join("\n")
     .trim();
 
-  return text || null;
+  return transcript || null;
 };
+
+export const shouldUseGeminiFilesApi = (bufferSize: number): boolean => bufferSize > INLINE_AUDIO_MAX_BYTES;
+
+export const buildGeminiTranscriptionPrompt = (language: string): string =>
+  [
+    `Transcribe this audio literally in ${language}.`,
+    "Return only the spoken words.",
+    "Do not summarize.",
+    "Do not interpret.",
+    "Do not complete missing details.",
+    "Do not rewrite it as an order.",
+    "If something is unclear, keep the closest heard sound."
+  ].join(" ");
 
 const readGeminiErrorMessage = async (response: Response): Promise<string> => {
   try {
@@ -123,8 +98,6 @@ const readGeminiErrorMessage = async (response: Response): Promise<string> => {
     return "";
   }
 };
-
-export const shouldUseGeminiFilesApi = (bufferSize: number): boolean => bufferSize > INLINE_AUDIO_MAX_BYTES;
 
 export class GeminiVoiceTranscriber implements VoiceTranscriber {
   private readonly endpoints: GeminiEndpoints;
@@ -138,9 +111,10 @@ export class GeminiVoiceTranscriber implements VoiceTranscriber {
     const timeout = setTimeout(() => controller.abort(), this.options.timeoutMs);
 
     try {
+      const mimeType = normalizeGeminiMimeType(input.mimeType);
       const transcript = shouldUseGeminiFilesApi(input.buffer.byteLength)
-        ? await this.transcribeWithUploadedFile(input, controller.signal)
-        : await this.transcribeInline(input, controller.signal);
+        ? await this.transcribeWithUploadedFile(input, mimeType, controller.signal)
+        : await this.transcribeInline(input, mimeType, controller.signal);
 
       if (!transcript) {
         throw new DomainException("No se pudo transcribir el audio", 422);
@@ -162,44 +136,145 @@ export class GeminiVoiceTranscriber implements VoiceTranscriber {
     }
   }
 
-  private async transcribeInline(input: VoiceTranscriptionInput, signal: AbortSignal): Promise<string> {
-    const mimeType = normalizeGeminiMimeType(input.mimeType);
-    const payload: {
-      contents: Array<{
-        parts: [GeminiTextPart, GeminiInlineDataPart];
-      }>;
-    } = {
-      contents: [
-        {
-          parts: [
+  private async transcribeInline(
+    input: VoiceTranscriptionInput,
+    mimeType: string,
+    signal: AbortSignal
+  ): Promise<string> {
+    const response = await fetch(
+      `${this.endpoints.generateBaseUrl}/models/${encodeURIComponent(this.options.model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": this.options.apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
             {
-              text: transcriptionPrompt.replace("${language}", this.options.language?.trim() || "es")
-            },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: input.buffer.toString("base64")
-              }
+              parts: [
+                {
+                  inline_data: {
+                    mime_type: mimeType,
+                    data: input.buffer.toString("base64")
+                  }
+                },
+                {
+                  text: buildGeminiTranscriptionPrompt(this.options.language?.trim() || "Spanish")
+                }
+              ]
             }
-          ]
-        }
-      ]
-    };
+          ],
+          generation_config: {
+            temperature: 0,
+            top_p: 0.1,
+            top_k: 1,
+            response_mime_type: "text/plain"
+          }
+        }),
+        signal
+      }
+    );
 
-    return this.generateTranscript(payload, signal);
+    if (!response.ok) {
+      const upstreamMessage = await readGeminiErrorMessage(response);
+      throw new DomainException(
+        `Servicio de voz no disponible (${response.status})${upstreamMessage ? ` ${upstreamMessage}` : ""}`,
+        502
+      );
+    }
+
+    return extractGeminiText((await response.json()) as GeminiGenerateContentResponse) ?? "";
   }
 
   private async transcribeWithUploadedFile(
     input: VoiceTranscriptionInput,
+    mimeType: string,
     signal: AbortSignal
   ): Promise<string> {
-    const mimeType = normalizeGeminiMimeType(input.mimeType);
-    const uploadUrl = await this.startResumableUpload(
-      input.buffer.byteLength,
-      mimeType,
-      input.fileName,
-      signal
+    const fileUri = await this.uploadFile(input, mimeType, signal);
+
+    const response = await fetch(
+      `${this.endpoints.generateBaseUrl}/models/${encodeURIComponent(this.options.model)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": this.options.apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  file_data: {
+                    file_uri: fileUri,
+                    mime_type: mimeType
+                  }
+                },
+                {
+                  text: buildGeminiTranscriptionPrompt(this.options.language?.trim() || "Spanish")
+                }
+              ]
+            }
+          ],
+          generation_config: {
+            temperature: 0,
+            top_p: 0.1,
+            top_k: 1,
+            response_mime_type: "text/plain"
+          }
+        }),
+        signal
+      }
     );
+
+    if (!response.ok) {
+      const upstreamMessage = await readGeminiErrorMessage(response);
+      throw new DomainException(
+        `Servicio de voz no disponible (${response.status})${upstreamMessage ? ` ${upstreamMessage}` : ""}`,
+        502
+      );
+    }
+
+    return extractGeminiText((await response.json()) as GeminiGenerateContentResponse) ?? "";
+  }
+
+  private async uploadFile(
+    input: VoiceTranscriptionInput,
+    mimeType: string,
+    signal: AbortSignal
+  ): Promise<string> {
+    const startResponse = await fetch(`${this.endpoints.uploadBaseUrl}/files`, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": this.options.apiKey,
+        "X-Goog-Upload-Protocol": "resumable",
+        "X-Goog-Upload-Command": "start",
+        "X-Goog-Upload-Header-Content-Length": String(input.buffer.byteLength),
+        "X-Goog-Upload-Header-Content-Type": mimeType,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        file: {
+          display_name: input.fileName || "audio"
+        }
+      }),
+      signal
+    });
+
+    if (!startResponse.ok) {
+      const upstreamMessage = await readGeminiErrorMessage(startResponse);
+      throw new DomainException(
+        `Servicio de voz no disponible (${startResponse.status})${upstreamMessage ? ` ${upstreamMessage}` : ""}`,
+        502
+      );
+    }
+
+    const uploadUrl = startResponse.headers.get("x-goog-upload-url")?.trim();
+    if (!uploadUrl) {
+      throw new DomainException("Servicio de voz no disponible", 502);
+    }
 
     const uploadResponse = await fetch(uploadUrl, {
       method: "POST",
@@ -222,100 +297,10 @@ export class GeminiVoiceTranscriber implements VoiceTranscriber {
 
     const uploadPayload = (await uploadResponse.json()) as GeminiFileUploadResponse;
     const fileUri = uploadPayload.file?.uri?.trim();
-    const uploadedMimeType = uploadPayload.file?.mimeType ?? uploadPayload.file?.mime_type ?? mimeType;
-
     if (!fileUri) {
       throw new DomainException("No se pudo transcribir el audio", 422);
     }
 
-    const payload: {
-      contents: Array<{
-        parts: [GeminiTextPart, GeminiFileDataPart];
-      }>;
-    } = {
-      contents: [
-        {
-          parts: [
-            {
-              text: transcriptionPrompt.replace("${language}", this.options.language?.trim() || "es")
-            },
-            {
-              file_data: {
-                mime_type: uploadedMimeType,
-                file_uri: fileUri
-              }
-            }
-          ]
-        }
-      ]
-    };
-
-    return this.generateTranscript(payload, signal);
-  }
-
-  private async startResumableUpload(
-    contentLength: number,
-    mimeType: string,
-    fileName: string,
-    signal: AbortSignal
-  ): Promise<string> {
-    const response = await fetch(`${this.endpoints.uploadBaseUrl}/files`, {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": this.options.apiKey,
-        "X-Goog-Upload-Protocol": "resumable",
-        "X-Goog-Upload-Command": "start",
-        "X-Goog-Upload-Header-Content-Length": String(contentLength),
-        "X-Goog-Upload-Header-Content-Type": mimeType,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        file: {
-          display_name: fileName || "audio"
-        }
-      }),
-      signal
-    });
-
-    if (!response.ok) {
-      const upstreamMessage = await readGeminiErrorMessage(response);
-      throw new DomainException(
-        `Servicio de voz no disponible (${response.status})${upstreamMessage ? ` ${upstreamMessage}` : ""}`,
-        502
-      );
-    }
-
-    const uploadUrl = response.headers.get("x-goog-upload-url")?.trim();
-    if (!uploadUrl) {
-      throw new DomainException("Servicio de voz no disponible", 502);
-    }
-
-    return uploadUrl;
-  }
-
-  private async generateTranscript(payload: object, signal: AbortSignal): Promise<string> {
-    const response = await fetch(
-      `${this.endpoints.generateBaseUrl}/models/${encodeURIComponent(this.options.model)}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "x-goog-api-key": this.options.apiKey,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload),
-        signal
-      }
-    );
-
-    if (!response.ok) {
-      const upstreamMessage = await readGeminiErrorMessage(response);
-      throw new DomainException(
-        `Servicio de voz no disponible (${response.status})${upstreamMessage ? ` ${upstreamMessage}` : ""}`,
-        502
-      );
-    }
-
-    const responsePayload = (await response.json()) as GeminiGenerateContentResponse;
-    return extractGeminiText(responsePayload) ?? "";
+    return fileUri;
   }
 }

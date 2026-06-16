@@ -20,13 +20,6 @@ const VOICE_SILENCE_STOP_MS = 3000;
 const VOICE_MAX_RECORDING_MS = 30000;
 const VOICE_ACTIVITY_RMS_THRESHOLD = 0.055;
 
-interface CapturedAudioDebugState {
-  url: string;
-  mimeType: string;
-  bytes: number;
-  durationSeconds: number | null;
-}
-
 const UnitToken = ({ base, suffix }: { base: string; suffix?: string }) => (
   <span className="inline-flex items-start gap-[1px]">
     <span>{base}</span>
@@ -60,7 +53,6 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
   const statusRef = useRef<VoiceStatus>("idle");
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [transcriptDraft, setTranscriptDraft] = useState("");
-  const [capturedAudioDebug, setCapturedAudioDebug] = useState<CapturedAudioDebugState | null>(null);
   const [parsedPreviewState, setParsedPreviewState] = useState<{
     data: ParsedVoiceAlbaranData;
     transcript: string;
@@ -112,11 +104,8 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
       mediaRecorderRef.current?.stop();
       stopAudioStream();
       void cleanupAudioGraph();
-      if (capturedAudioDebug?.url) {
-        URL.revokeObjectURL(capturedAudioDebug.url);
-      }
     },
-    [capturedAudioDebug]
+    []
   );
 
   const handleRecognitionError = (message: string) => {
@@ -240,20 +229,6 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
           onError?.("No se pudo capturar ningun audio.");
           return;
         }
-
-        const debugUrl = URL.createObjectURL(audioBlob);
-        setCapturedAudioDebug((current) => {
-          if (current?.url) {
-            URL.revokeObjectURL(current.url);
-          }
-
-          return {
-            url: debugUrl,
-            mimeType: audioBlob.type || recorder.mimeType || "audio/webm",
-            bytes: audioBlob.size,
-            durationSeconds: null
-          };
-        });
 
         setStatus("processing");
         void parseVoiceAlbaranAudio(audioBlob)
@@ -387,13 +362,6 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
                       event.stopPropagation();
                       setTranscriptDraft("");
                       setParsedPreviewState(null);
-                      setCapturedAudioDebug((current) => {
-                        if (current?.url) {
-                          URL.revokeObjectURL(current.url);
-                        }
-
-                        return null;
-                      });
                     }}
                     title="Limpiar borrador"
                     type="button"
@@ -433,37 +401,6 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
               </div>
             </div>
 
-            {capturedAudioDebug ? (
-              <div className="mt-3 border border-[var(--epx-accent)]/14 bg-[color:rgb(255_255_255_/_0.05)] p-3">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-white/62">
-                  <span>Debug audio</span>
-                  <span>{capturedAudioDebug.mimeType}</span>
-                  <span>{Math.round(capturedAudioDebug.bytes / 1024)} KB</span>
-                  <span>
-                    {capturedAudioDebug.durationSeconds == null
-                      ? "duracion..."
-                      : `${capturedAudioDebug.durationSeconds.toFixed(1)} s`}
-                  </span>
-                </div>
-                <audio
-                  className="mt-2 w-full"
-                  controls
-                  onLoadedMetadata={(event) => {
-                    const duration = event.currentTarget.duration;
-                    setCapturedAudioDebug((current) =>
-                      current
-                        ? {
-                            ...current,
-                            durationSeconds: Number.isFinite(duration) ? duration : null
-                          }
-                        : current
-                    );
-                  }}
-                  preload="metadata"
-                  src={capturedAudioDebug.url}
-                />
-              </div>
-            ) : null}
           </div>
 
           <div className="min-w-0 overscroll-contain border border-[var(--epx-accent)]/18 bg-[color:rgb(38_29_23_/_0.56)] p-3 sm:p-4">

@@ -36,6 +36,6 @@ describe("GeminiVoiceTranscriber helpers", () => {
 
   it("switches to Files API for larger audio clips", () => {
     expect(shouldUseGeminiFilesApi(2 * 1024 * 1024)).toBe(false);
-    expect(shouldUseGeminiFilesApi(15 * 1024 * 1024)).toBe(true);
+    expect(shouldUseGeminiFilesApi(21 * 1024 * 1024)).toBe(true);
   });
 });
