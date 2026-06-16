@@ -115,6 +115,45 @@ describe("voiceAlbaran helpers", () => {
     });
   });
 
+  it("does not reuse a long special piece from a generic one-word description", () => {
+    expect(
+      mapParsedVoiceItemToFormState(
+        {
+          description: "bastidor",
+          color: "RAL 9005",
+          customUnitPrice: null,
+          pricingMode: "DIMENSIONS",
+          texture: "NORMAL",
+          linearMeters: 7,
+          squareMeters: null,
+          hasThickness: false,
+          hasPrimer: false,
+          saveAsSpecialPiece: false,
+          quantity: 5
+        },
+        {
+          id: "1",
+          name: "Ditrametal",
+          email: null,
+          phone: null,
+          address: null,
+          notes: null,
+          pricePerLinearMeter: 1,
+          pricePerSquareMeter: 1,
+          minimumRate: 1,
+          grosorPrecio: null,
+          specialPieces: [{ name: "BASTIDOR LATERAL 9005+7024 3000X1500", price: 26.72 }]
+        }
+      )
+    ).toMatchObject({
+      description: "bastidor",
+      pricingMode: "DIMENSIONS",
+      customUnitPrice: "",
+      saveAsSpecialPiece: false,
+      linearMeters: "7"
+    });
+  });
+
   it("finds customers first by exact match and then by prefix", () => {
     const customers = [
       {

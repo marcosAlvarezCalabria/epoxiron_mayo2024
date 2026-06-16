@@ -563,7 +563,7 @@ export const DeliveryNotesPage = () => {
     setForm((current) => ({
       customerId: matchedCustomer?.id ?? current.customerId,
       date: data.date || current.date,
-      items: nextItems.length > 0 ? nextItems : current.items,
+      items: nextItems.length > 0 ? [...current.items, ...nextItems] : current.items,
       notes: data.notes ?? current.notes
     }));
     setCustomerSearch(matchedCustomer ? "" : data.customerName ?? "");

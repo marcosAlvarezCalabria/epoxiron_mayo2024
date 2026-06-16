@@ -65,11 +65,7 @@ export class CalculatePriceUseCase {
     const specialPiece = customer.specialPieces.find(
       (entry) => {
         const normalizedEntryName = normalizeSpecialPieceName(entry.name);
-        return (
-          normalizedEntryName === normalizedDescription ||
-          normalizedEntryName.includes(normalizedDescription) ||
-          normalizedDescription.includes(normalizedEntryName)
-        );
+        return normalizedEntryName === normalizedDescription;
       }
     );
 

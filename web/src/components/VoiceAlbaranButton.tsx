@@ -17,6 +17,15 @@ interface VoiceAlbaranButtonProps {
 
 type VoiceStatus = "idle" | "listening" | "processing";
 const VOICE_SILENCE_STOP_MS = 3000;
+const VOICE_MAX_RECORDING_MS = 30000;
+const VOICE_ACTIVITY_RMS_THRESHOLD = 0.055;
+
+interface CapturedAudioDebugState {
+  url: string;
+  mimeType: string;
+  bytes: number;
+  durationSeconds: number | null;
+}
 
 const UnitToken = ({ base, suffix }: { base: string; suffix?: string }) => (
   <span className="inline-flex items-start gap-[1px]">
@@ -45,11 +54,13 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const silenceFrameRef = useRef<number | null>(null);
+  const recordingTimeoutRef = useRef<number | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const lastSoundAtRef = useRef<number>(0);
   const statusRef = useRef<VoiceStatus>("idle");
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [transcriptDraft, setTranscriptDraft] = useState("");
+  const [capturedAudioDebug, setCapturedAudioDebug] = useState<CapturedAudioDebugState | null>(null);
   const [parsedPreviewState, setParsedPreviewState] = useState<{
     data: ParsedVoiceAlbaranData;
     transcript: string;
@@ -70,6 +81,11 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
     if (silenceFrameRef.current !== null) {
       window.cancelAnimationFrame(silenceFrameRef.current);
       silenceFrameRef.current = null;
+    }
+
+    if (recordingTimeoutRef.current !== null) {
+      window.clearTimeout(recordingTimeoutRef.current);
+      recordingTimeoutRef.current = null;
     }
   };
 
@@ -96,8 +112,11 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
       mediaRecorderRef.current?.stop();
       stopAudioStream();
       void cleanupAudioGraph();
+      if (capturedAudioDebug?.url) {
+        URL.revokeObjectURL(capturedAudioDebug.url);
+      }
     },
-    []
+    [capturedAudioDebug]
   );
 
   const handleRecognitionError = (message: string) => {
@@ -142,7 +161,7 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
       const rms = Math.sqrt(sum / data.length);
       const now = Date.now();
 
-      if (rms > 0.035) {
+      if (rms > VOICE_ACTIVITY_RMS_THRESHOLD) {
         lastSoundAtRef.current = now;
       } else if (now - lastSoundAtRef.current >= VOICE_SILENCE_STOP_MS) {
         stopListening();
@@ -153,6 +172,11 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
     };
 
     lastSoundAtRef.current = Date.now();
+    recordingTimeoutRef.current = window.setTimeout(() => {
+      if (statusRef.current === "listening") {
+        stopListening();
+      }
+    }, VOICE_MAX_RECORDING_MS);
     silenceFrameRef.current = window.requestAnimationFrame(tick);
   };
 
@@ -216,6 +240,20 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
           onError?.("No se pudo capturar ningun audio.");
           return;
         }
+
+        const debugUrl = URL.createObjectURL(audioBlob);
+        setCapturedAudioDebug((current) => {
+          if (current?.url) {
+            URL.revokeObjectURL(current.url);
+          }
+
+          return {
+            url: debugUrl,
+            mimeType: audioBlob.type || recorder.mimeType || "audio/webm",
+            bytes: audioBlob.size,
+            durationSeconds: null
+          };
+        });
 
         setStatus("processing");
         void parseVoiceAlbaranAudio(audioBlob)
@@ -344,9 +382,18 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
                   <button
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--epx-accent)]/14 bg-white/6 text-white disabled:cursor-not-allowed disabled:opacity-35"
                     disabled={!visibleTranscript || isProcessing}
-                    onClick={() => {
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
                       setTranscriptDraft("");
                       setParsedPreviewState(null);
+                      setCapturedAudioDebug((current) => {
+                        if (current?.url) {
+                          URL.revokeObjectURL(current.url);
+                        }
+
+                        return null;
+                      });
                     }}
                     title="Limpiar borrador"
                     type="button"
@@ -385,6 +432,38 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
                 </button>
               </div>
             </div>
+
+            {capturedAudioDebug ? (
+              <div className="mt-3 border border-[var(--epx-accent)]/14 bg-[color:rgb(255_255_255_/_0.05)] p-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-medium text-white/62">
+                  <span>Debug audio</span>
+                  <span>{capturedAudioDebug.mimeType}</span>
+                  <span>{Math.round(capturedAudioDebug.bytes / 1024)} KB</span>
+                  <span>
+                    {capturedAudioDebug.durationSeconds == null
+                      ? "duracion..."
+                      : `${capturedAudioDebug.durationSeconds.toFixed(1)} s`}
+                  </span>
+                </div>
+                <audio
+                  className="mt-2 w-full"
+                  controls
+                  onLoadedMetadata={(event) => {
+                    const duration = event.currentTarget.duration;
+                    setCapturedAudioDebug((current) =>
+                      current
+                        ? {
+                            ...current,
+                            durationSeconds: Number.isFinite(duration) ? duration : null
+                          }
+                        : current
+                    );
+                  }}
+                  preload="metadata"
+                  src={capturedAudioDebug.url}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="min-w-0 overscroll-contain border border-[var(--epx-accent)]/18 bg-[color:rgb(38_29_23_/_0.56)] p-3 sm:p-4">
@@ -399,67 +478,63 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
                     className="px-3 py-3"
                     key={`${item.description ?? "pieza"}-${index}`}
                   >
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/82">
-                      <span className="font-semibold text-white">
-                        {item.description ?? `Pieza ${index + 1}`}
-                      </span>
-                      <span className="text-white/28">|</span>
-                      <span className="inline-flex items-center gap-1.5">
-                        {item.pricingMode === "UNIT" ? (
-                          "Unidad"
-                        ) : (
-                          <>
-                            <UnitToken base="m" suffix="l" />
-                            <span className="text-white/28">/</span>
-                            <UnitToken base="m" suffix="2" />
-                          </>
-                        )}
-                      </span>
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold text-white/88 sm:text-[11px]">
+                      <span className="truncate">{item.description ?? `Pieza ${index + 1}`}</span>
                       {item.color ? (
                         <>
-                          <span className="text-white/28">|</span>
-                          <span>{item.color}</span>
+                          <span className="text-white/28">·</span>
+                          <span className="truncate">{item.color}</span>
                         </>
                       ) : null}
                       {item.texture ? (
                         <>
-                          <span className="text-white/28">|</span>
+                          <span className="text-white/28">·</span>
                           <span>{item.texture}</span>
                         </>
                       ) : null}
                       {item.quantity != null ? (
                         <>
-                          <span className="text-white/28">|</span>
+                          <span className="text-white/28">·</span>
                           <span>x{item.quantity}</span>
                         </>
                       ) : null}
-                      {item.linearMeters != null ? (
+                      {item.pricingMode === "UNIT" ? (
                         <>
-                          <span className="text-white/28">|</span>
+                          <span className="text-white/28">·</span>
                           <span className="inline-flex items-center gap-1">
-                            <span>{item.linearMeters}</span>
+                            <span>U</span>
+                            <span>{item.customUnitPrice ?? 0}</span>
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-white/28">·</span>
+                          <span className="inline-flex items-center gap-1">
                             <UnitToken base="m" suffix="l" />
+                            <span>{item.linearMeters ?? 0}</span>
                           </span>
-                        </>
-                      ) : null}
-                      {item.squareMeters != null && item.squareMeters > 0 ? (
-                        <>
-                          <span className="text-white/28">|</span>
+                          <span className="text-white/28">·</span>
                           <span className="inline-flex items-center gap-1">
-                            <span>{item.squareMeters}</span>
                             <UnitToken base="m" suffix="2" />
+                            <span>{item.squareMeters ?? 0}</span>
                           </span>
                         </>
-                      ) : null}
-                      {item.customUnitPrice != null ? (
+                      )}
+                      {item.hasThickness ? (
                         <>
-                          <span className="text-white/28">|</span>
-                          <span>{item.customUnitPrice} EUR/u</span>
+                          <span className="text-white/28">·</span>
+                          <span>G</span>
+                        </>
+                      ) : null}
+                      {item.hasPrimer ? (
+                        <>
+                          <span className="text-white/28">·</span>
+                          <span>I</span>
                         </>
                       ) : null}
                       {item.saveAsSpecialPiece ? (
                         <>
-                          <span className="text-white/28">|</span>
+                          <span className="text-white/28">·</span>
                           <span
                             aria-label="Pieza especial"
                             className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-[color:rgb(255_149_0_/_0.18)] text-[10px] text-[#ffd08a]"

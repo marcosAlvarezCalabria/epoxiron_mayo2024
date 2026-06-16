@@ -373,11 +373,7 @@ export const mapParsedVoiceItemToFormState = (
           return false;
         }
 
-        return (
-          normalizedPieceName === normalizedDescription ||
-          normalizedPieceName.includes(normalizedDescription) ||
-          normalizedDescription.includes(normalizedPieceName)
-        );
+        return normalizedPieceName === normalizedDescription;
       }) ?? null;
 
     const usesExistingSpecialPiece = matchedSpecialPiece !== null;
