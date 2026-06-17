@@ -8,6 +8,19 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const getViewerTitle = (fileName: string | null) => fileName?.trim() || "PDF de albaranes";
+const isIosSafari = () => {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent;
+  const isIosDevice = /iP(hone|ad|od)/.test(userAgent);
+  const isWebkit = /WebKit/i.test(userAgent);
+  const isCriOS = /CriOS/i.test(userAgent);
+  const isFxiOS = /FxiOS/i.test(userAgent);
+
+  return isIosDevice && isWebkit && !isCriOS && !isFxiOS;
+};
 
 export const DeliveryNotesLibraryViewerPage = () => {
   const navigate = useNavigate();
@@ -15,6 +28,7 @@ export const DeliveryNotesLibraryViewerPage = () => {
   const pdfUrl = searchParams.get("url");
   const fileName = searchParams.get("fileName");
   const title = useMemo(() => getViewerTitle(fileName), [fileName]);
+  const useEmbeddedViewer = useMemo(() => !isIosSafari(), []);
 
   if (!pdfUrl) {
     navigate("/delivery-notes-library", { replace: true });
@@ -63,13 +77,24 @@ export const DeliveryNotesLibraryViewerPage = () => {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-[var(--epx-surface-raised)] bg-white">
-        <iframe
-          className="h-[78vh] w-full"
-          src={pdfUrl}
-          title={title}
-        />
-      </div>
+      {useEmbeddedViewer ? (
+        <div className="overflow-hidden rounded-2xl border border-[var(--epx-surface-raised)] bg-white">
+          <iframe
+            className="h-[78vh] w-full"
+            src={pdfUrl}
+            title={title}
+          />
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-5">
+          <p className="text-sm font-semibold text-white">
+            En iPhone Safari abrimos el PDF fuera del visor embebido para no bloquear la navegacion.
+          </p>
+          <p className="mt-2 text-sm text-[var(--epx-text-muted)]">
+            Usa "Abrir fuera" para ver el documento y vuelve a esta pantalla con el boton de atras del navegador o cerrando la pestaña abierta.
+          </p>
+        </div>
+      )}
     </section>
   );
 };
