@@ -1,6 +1,7 @@
 import { ArrowDownTrayIcon, DocumentTextIcon, LinkIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { getDailyDeliveryNotesReportUploads } from "@/application/use-cases";
 import { ApiErrorState } from "@/components/ApiErrorState";
 import type { DailyDeliveryNotesReportUpload } from "@/domain/entities";
@@ -62,6 +63,13 @@ export const DeliveryNotesLibraryPage = () => {
     } catch {
       setCopiedUploadId(null);
     }
+  };
+
+  const buildViewerHref = (upload: DailyDeliveryNotesReportUpload) => {
+    const params = new URLSearchParams();
+    params.set("url", upload.webViewLink ?? upload.fileId);
+    params.set("fileName", upload.fileName);
+    return `/delivery-notes-library/view?${params.toString()}`;
   };
 
   return (
@@ -190,15 +198,13 @@ export const DeliveryNotesLibraryPage = () => {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <a
+                  <Link
                     className="inline-flex items-center gap-2 rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-2 text-sm font-semibold text-white"
-                    href={upload.webViewLink ?? "#"}
-                    rel="noreferrer"
-                    target="_blank"
+                    to={buildViewerHref(upload)}
                   >
                     <DocumentTextIcon className="h-4 w-4" />
                     Ver
-                  </a>
+                  </Link>
                   <a
                     className="inline-flex items-center gap-2 rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-2 text-sm font-semibold text-white"
                     download
