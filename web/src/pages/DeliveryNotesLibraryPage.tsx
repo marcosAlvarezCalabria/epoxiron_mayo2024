@@ -22,11 +22,29 @@ const buildMonthStart = () => {
 };
 
 const buildToday = () => new Date().toISOString().slice(0, 10);
+const isIosSafari = () => {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent;
+  const isTouchMac =
+    /Macintosh/i.test(userAgent) &&
+    typeof navigator.maxTouchPoints === "number" &&
+    navigator.maxTouchPoints > 1;
+  const isIosDevice = /iP(hone|ad|od)/.test(userAgent) || isTouchMac;
+  const isWebkit = /WebKit/i.test(userAgent);
+  const isCriOS = /CriOS/i.test(userAgent);
+  const isFxiOS = /FxiOS/i.test(userAgent);
+
+  return isIosDevice && isWebkit && !isCriOS && !isFxiOS;
+};
 
 export const DeliveryNotesLibraryPage = () => {
   const [dateFrom, setDateFrom] = useState(buildMonthStart);
   const [dateTo, setDateTo] = useState(buildToday);
   const [copiedUploadId, setCopiedUploadId] = useState<string | null>(null);
+  const useDirectExternalView = useMemo(() => isIosSafari(), []);
 
   const uploadsQuery = useQuery({
     queryKey: ["delivery-note-report-uploads", dateFrom, dateTo],
@@ -71,6 +89,8 @@ export const DeliveryNotesLibraryPage = () => {
     params.set("fileName", upload.fileName);
     return `/delivery-notes-library/view?${params.toString()}`;
   };
+
+  const buildDirectHref = (upload: DailyDeliveryNotesReportUpload) => upload.webViewLink ?? upload.fileId;
 
   return (
     <section className="space-y-6">
@@ -198,13 +218,25 @@ export const DeliveryNotesLibraryPage = () => {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Link
-                    className="inline-flex items-center gap-2 rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-2 text-sm font-semibold text-white"
-                    to={buildViewerHref(upload)}
-                  >
-                    <DocumentTextIcon className="h-4 w-4" />
-                    Ver
-                  </Link>
+                  {useDirectExternalView ? (
+                    <a
+                      className="inline-flex items-center gap-2 rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-2 text-sm font-semibold text-white"
+                      href={buildDirectHref(upload)}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <DocumentTextIcon className="h-4 w-4" />
+                      Ver
+                    </a>
+                  ) : (
+                    <Link
+                      className="inline-flex items-center gap-2 rounded-xl border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.16)] px-4 py-2 text-sm font-semibold text-white"
+                      to={buildViewerHref(upload)}
+                    >
+                      <DocumentTextIcon className="h-4 w-4" />
+                      Ver
+                    </Link>
+                  )}
                   <a
                     className="inline-flex items-center gap-2 rounded-xl border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] px-4 py-2 text-sm font-semibold text-white"
                     download
