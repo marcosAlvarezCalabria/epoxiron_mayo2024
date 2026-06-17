@@ -10,6 +10,7 @@ import type {
 } from "../src/domain/entities/DeliveryNote.js";
 import { CalculatePriceUseCase } from "../src/application/use-cases/deliveryNotes.js";
 import {
+  BackfillDailyDeliveryNotesReportsUseCase,
   ChangeDeliveryNoteStatusUseCase,
   CreateDeliveryNoteUseCase,
   DeleteDeliveryNoteUseCase,
@@ -192,6 +193,29 @@ class InMemoryDeliveryNoteRepository {
       }
       return true;
     }).length;
+  }
+
+  public async findDistinctDatesInRange(from: Date, to: Date) {
+    const start = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
+    const end = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+    const uniqueDates = new Map<number, Date>();
+
+    this.notes.forEach((note) => {
+      const normalizedDate = new Date(
+        note.date.getFullYear(),
+        note.date.getMonth(),
+        note.date.getDate()
+      );
+      const timestamp = normalizedDate.getTime();
+
+      if (timestamp < start || timestamp > end || uniqueDates.has(timestamp)) {
+        return;
+      }
+
+      uniqueDates.set(timestamp, normalizedDate);
+    });
+
+    return [...uniqueDates.values()].sort((left, right) => left.getTime() - right.getTime());
   }
 
   public async findById(id: string) {
@@ -792,5 +816,85 @@ describe("delivery note use cases", () => {
       message: "La subida del informe diario no esta configurada",
       statusCode: 503
     });
+  });
+
+  it("builds a dry-run summary for the unique reportable dates", async () => {
+    const sender = {
+      execute: vi.fn()
+    };
+    const useCase = new BackfillDailyDeliveryNotesReportsUseCase(
+      deliveryNoteRepository,
+      sender
+    );
+
+    const result = await useCase.execute({
+      from: new Date("2026-01-01T00:00:00.000Z"),
+      to: new Date("2026-01-03T00:00:00.000Z"),
+      dryRun: true
+    });
+
+    expect(sender.execute).not.toHaveBeenCalled();
+    expect(result.processedDates).toBe(2);
+    expect(result.uploadedDates).toBe(0);
+    expect(result.failedDates).toBe(0);
+    expect(result.totalNotes).toBe(3);
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        status: "dry-run",
+        notesCount: 2,
+        fileId: null
+      }),
+      expect.objectContaining({
+        status: "dry-run",
+        notesCount: 1,
+        fileId: null
+      })
+    ]);
+  });
+
+  it("backfills reports and continues after a failed day", async () => {
+    const sender = {
+      execute: vi
+        .fn()
+        .mockResolvedValueOnce({
+          date: new Date("2026-01-01T00:00:00.000Z"),
+          fileId: "2026-01/albaranes-2026-01-01.pdf",
+          fileName: "albaranes-2026-01-01.pdf",
+          folderName: "2026-01",
+          notesCount: 2,
+          webViewLink: "https://archivos.example.com/2026-01/albaranes-2026-01-01.pdf"
+        })
+        .mockRejectedValueOnce(new Error("fallo r2"))
+    };
+    const useCase = new BackfillDailyDeliveryNotesReportsUseCase(
+      deliveryNoteRepository,
+      sender
+    );
+
+    const result = await useCase.execute({
+      from: new Date("2026-01-01T00:00:00.000Z"),
+      to: new Date("2026-01-03T00:00:00.000Z"),
+      dryRun: false
+    });
+
+    expect(sender.execute).toHaveBeenCalledTimes(2);
+    expect(result.processedDates).toBe(2);
+    expect(result.uploadedDates).toBe(1);
+    expect(result.failedDates).toBe(1);
+    expect(result.items[0]).toEqual(
+      expect.objectContaining({
+        status: "uploaded",
+        fileId: "2026-01/albaranes-2026-01-01.pdf",
+        notesCount: 2
+      })
+    );
+    expect(result.items[1]).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        fileId: null,
+        errorMessage: "fallo r2",
+        notesCount: 1
+      })
+    );
   });
 });

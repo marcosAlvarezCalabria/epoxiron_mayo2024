@@ -427,3 +427,106 @@ export class SendDailyDeliveryNotesReportUseCase {
     };
   }
 }
+
+export interface BackfillDailyDeliveryNotesReportsResultItem {
+  date: Date;
+  notesCount: number;
+  status: "dry-run" | "uploaded" | "failed";
+  fileId: string | null;
+  fileName: string | null;
+  folderName: string | null;
+  webViewLink: string | null;
+  errorMessage: string | null;
+}
+
+export interface BackfillDailyDeliveryNotesReportsResult {
+  from: Date;
+  to: Date;
+  dryRun: boolean;
+  processedDates: number;
+  uploadedDates: number;
+  failedDates: number;
+  totalNotes: number;
+  items: BackfillDailyDeliveryNotesReportsResultItem[];
+}
+
+type DailyDeliveryNotesReportSender = Pick<SendDailyDeliveryNotesReportUseCase, "execute">;
+
+export class BackfillDailyDeliveryNotesReportsUseCase {
+  public constructor(
+    private readonly repository: DeliveryNoteRepository,
+    private readonly reportSender: DailyDeliveryNotesReportSender
+  ) {}
+
+  public async execute(input: {
+    from: Date;
+    to: Date;
+    dryRun: boolean;
+  }): Promise<BackfillDailyDeliveryNotesReportsResult> {
+    const from = new Date(input.from.getFullYear(), input.from.getMonth(), input.from.getDate());
+    const to = new Date(input.to.getFullYear(), input.to.getMonth(), input.to.getDate());
+
+    if (from.getTime() > to.getTime()) {
+      throw new DomainException("La fecha inicial no puede ser posterior a la final", 400);
+    }
+
+    const dates = await this.repository.findDistinctDatesInRange(from, to);
+    const items: BackfillDailyDeliveryNotesReportsResultItem[] = [];
+
+    for (const date of dates) {
+      const notes = await this.repository.findAll({ date });
+      const notesCount = notes.length;
+
+      if (input.dryRun) {
+        items.push({
+          date,
+          notesCount,
+          status: "dry-run",
+          fileId: null,
+          fileName: null,
+          folderName: null,
+          webViewLink: null,
+          errorMessage: null
+        });
+        continue;
+      }
+
+      try {
+        const upload = await this.reportSender.execute({ date });
+        items.push({
+          date,
+          notesCount: upload.notesCount,
+          status: "uploaded",
+          fileId: upload.fileId,
+          fileName: upload.fileName,
+          folderName: upload.folderName,
+          webViewLink: upload.webViewLink,
+          errorMessage: null
+        });
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+        items.push({
+          date,
+          notesCount,
+          status: "failed",
+          fileId: null,
+          fileName: null,
+          folderName: null,
+          webViewLink: null,
+          errorMessage
+        });
+      }
+    }
+
+    return {
+      from,
+      to,
+      dryRun: input.dryRun,
+      processedDates: items.length,
+      uploadedDates: items.filter((item) => item.status === "uploaded").length,
+      failedDates: items.filter((item) => item.status === "failed").length,
+      totalNotes: items.reduce((sum, item) => sum + item.notesCount, 0),
+      items
+    };
+  }
+}

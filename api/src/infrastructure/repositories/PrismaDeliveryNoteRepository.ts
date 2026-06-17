@@ -34,6 +34,12 @@ const buildWhere = (filters: DeliveryNoteFilters) => {
   };
 };
 
+const startOfDay = (value: Date) =>
+  new Date(value.getFullYear(), value.getMonth(), value.getDate());
+
+const addDays = (value: Date, amount: number) =>
+  new Date(value.getFullYear(), value.getMonth(), value.getDate() + amount);
+
 const resolveTexture = (value: unknown): DeliveryNoteTexture => {
   if (value === "MATE" || value === "TEXTURADO" || value === "GOFRADO") {
     return value;
@@ -130,6 +136,36 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
     });
 
     return notes.map(toDomainNote);
+  }
+
+  public async findDistinctDatesInRange(from: Date, to: Date) {
+    const notes = await prisma.deliveryNote.findMany({
+      where: {
+        date: {
+          gte: startOfDay(from),
+          lt: addDays(startOfDay(to), 1)
+        }
+      },
+      select: {
+        date: true
+      },
+      orderBy: {
+        date: "asc"
+      }
+    });
+
+    const uniqueDates = new Map<string, Date>();
+
+    notes.forEach((note) => {
+      const normalizedDate = startOfDay(note.date);
+      const key = normalizedDate.toISOString();
+
+      if (!uniqueDates.has(key)) {
+        uniqueDates.set(key, normalizedDate);
+      }
+    });
+
+    return [...uniqueDates.values()];
   }
 
   public async count(filters: DeliveryNoteFilters) {

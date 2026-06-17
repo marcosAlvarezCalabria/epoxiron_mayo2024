@@ -7,6 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "reports:backfill": "tsx scripts/backfillDailyReports.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts"
