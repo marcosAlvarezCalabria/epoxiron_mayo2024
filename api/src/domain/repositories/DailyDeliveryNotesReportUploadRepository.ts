@@ -9,6 +9,7 @@ export interface DailyDeliveryNotesReportUploadRepository {
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
   }): Promise<DailyDeliveryNotesReportUpload>;
   updateByDate(input: {
     reportDate: Date;
@@ -17,5 +18,7 @@ export interface DailyDeliveryNotesReportUploadRepository {
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
   }): Promise<DailyDeliveryNotesReportUpload>;
+  deleteByDate(reportDate: Date): Promise<void>;
 }

@@ -243,6 +243,7 @@ class FakeDailyDeliveryNotesReportGenerator {
 
 class FakeDailyDeliveryNotesReportUploader {
   public exists = vi.fn(async () => true);
+  public delete = vi.fn(async () => undefined);
   public upload = vi.fn(
     async (): Promise<{
       fileId: string;
@@ -268,6 +269,7 @@ class InMemoryDailyDeliveryNotesReportUploadRepository {
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
   }) => {
     const created: DailyDeliveryNotesReportUpload = {
       id: crypto.randomUUID(),
@@ -281,6 +283,7 @@ class InMemoryDailyDeliveryNotesReportUploadRepository {
       folderName: input.folderName,
       notesCount: input.notesCount,
       webViewLink: input.webViewLink,
+      lastSourceUpdatedAt: input.lastSourceUpdatedAt,
       createdAt: new Date()
     };
 
@@ -306,6 +309,7 @@ class InMemoryDailyDeliveryNotesReportUploadRepository {
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
   }) => {
     const normalizedDate = new Date(
       input.reportDate.getFullYear(),
@@ -325,7 +329,8 @@ class InMemoryDailyDeliveryNotesReportUploadRepository {
       fileName: input.fileName,
       folderName: input.folderName,
       notesCount: input.notesCount,
-      webViewLink: input.webViewLink
+      webViewLink: input.webViewLink,
+      lastSourceUpdatedAt: input.lastSourceUpdatedAt
     };
 
     this.uploads = this.uploads.map((upload) =>
@@ -333,6 +338,18 @@ class InMemoryDailyDeliveryNotesReportUploadRepository {
     );
 
     return updated;
+  });
+
+  public deleteByDate = vi.fn(async (reportDate: Date) => {
+    const normalizedDate = new Date(
+      reportDate.getFullYear(),
+      reportDate.getMonth(),
+      reportDate.getDate()
+    );
+
+    this.uploads = this.uploads.filter(
+      (upload) => upload.reportDate.getTime() !== normalizedDate.getTime()
+    );
   });
 }
 
@@ -691,6 +708,36 @@ describe("delivery note use cases", () => {
     expect(emailNotifier.sendDailyReportNotification).toHaveBeenCalledOnce();
   });
 
+  it("regenerates the daily upload when source delivery notes changed", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      reportGenerator,
+      uploader,
+      reportUploadRepository,
+      emailNotifier
+    );
+
+    await useCase.execute({
+      date: new Date("2026-01-01T00:00:00.000Z")
+    });
+
+    deliveryNoteRepository.notes = deliveryNoteRepository.notes.map((note) =>
+      note.id === "note-reviewed"
+        ? { ...note, updatedAt: new Date("2026-01-01T15:00:00.000Z") }
+        : note
+    );
+
+    await useCase.execute({
+      date: new Date("2026-01-01T16:00:00.000Z")
+    });
+
+    expect(uploader.upload).toHaveBeenCalledTimes(2);
+    expect(reportUploadRepository.updateByDate).toHaveBeenCalledTimes(1);
+  });
+
   it("regenerates the daily upload when the stored file no longer exists", async () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
     const uploader = new FakeDailyDeliveryNotesReportUploader();
@@ -718,6 +765,49 @@ describe("delivery note use cases", () => {
     expect(reportUploadRepository.create).toHaveBeenCalledTimes(1);
     expect(reportUploadRepository.updateByDate).toHaveBeenCalledTimes(1);
     expect(result.fileId).toBe("2026-01/albaranes-2026-01-01.pdf");
+  });
+
+  it("deletes the stored report reference when the day no longer has delivery notes", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      reportGenerator,
+      uploader,
+      reportUploadRepository,
+      emailNotifier
+    );
+
+    await useCase.execute({
+      date: new Date("2026-01-01T00:00:00.000Z")
+    });
+
+    deliveryNoteRepository.notes = deliveryNoteRepository.notes.filter(
+      (note) =>
+        !(
+          note.date.getFullYear() === 2026 &&
+          note.date.getMonth() === 0 &&
+          note.date.getDate() === 1
+        )
+    );
+
+    await expect(
+      useCase.execute({
+        date: new Date("2026-01-01T12:30:00.000Z")
+      })
+    ).rejects.toMatchObject({
+      message: "No hay albaranes para la fecha seleccionada",
+      statusCode: 404
+    });
+
+    expect(uploader.delete).toHaveBeenCalledWith({
+      fileId: "2026-01/albaranes-2026-01-01.pdf"
+    });
+    expect(reportUploadRepository.deleteByDate).toHaveBeenCalledTimes(1);
+    await expect(
+      reportUploadRepository.findByDate(new Date("2026-01-01T00:00:00.000Z"))
+    ).resolves.toBeNull();
   });
 
   it("logs email failures without failing the uploaded report", async () => {

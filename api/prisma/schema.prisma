@@ -67,14 +67,15 @@ model DeliveryNoteItem {
 }
 
 model DailyDeliveryNotesReportUpload {
-  id          String   @id @default(uuid())
-  reportDate  DateTime @unique
-  fileId      String
-  fileName    String
-  folderName  String
-  notesCount  Int
-  webViewLink String?
-  createdAt   DateTime @default(now())
+  id                  String   @id @default(uuid())
+  reportDate          DateTime @unique
+  fileId              String
+  fileName            String
+  folderName          String
+  notesCount          Int
+  webViewLink         String?
+  lastSourceUpdatedAt DateTime
+  createdAt           DateTime @default(now())
 }
 
 enum DeliveryNoteStatus {

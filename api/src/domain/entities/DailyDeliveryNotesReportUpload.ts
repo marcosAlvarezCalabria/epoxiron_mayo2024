@@ -6,5 +6,6 @@ export interface DailyDeliveryNotesReportUpload {
   folderName: string;
   notesCount: number;
   webViewLink: string | null;
+  lastSourceUpdatedAt: Date;
   createdAt: Date;
 }

@@ -13,6 +13,7 @@ const toDomainUpload = (upload: {
   folderName: string;
   notesCount: number;
   webViewLink: string | null;
+  lastSourceUpdatedAt: Date;
   createdAt: Date;
 }): DailyDeliveryNotesReportUpload => ({
   ...upload
@@ -31,6 +32,7 @@ type DailyDeliveryNotesReportUploadDelegate = {
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
     createdAt: Date;
   } | null>;
   create(args: {
@@ -41,6 +43,7 @@ type DailyDeliveryNotesReportUploadDelegate = {
       folderName: string;
       notesCount: number;
       webViewLink: string | null;
+      lastSourceUpdatedAt: Date;
     };
   }): Promise<{
     id: string;
@@ -50,6 +53,7 @@ type DailyDeliveryNotesReportUploadDelegate = {
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
     createdAt: Date;
   }>;
   update(args: {
@@ -62,6 +66,7 @@ type DailyDeliveryNotesReportUploadDelegate = {
       folderName: string;
       notesCount: number;
       webViewLink: string | null;
+      lastSourceUpdatedAt: Date;
     };
   }): Promise<{
     id: string;
@@ -71,8 +76,14 @@ type DailyDeliveryNotesReportUploadDelegate = {
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
     createdAt: Date;
   }>;
+  delete(args: {
+    where: {
+      reportDate: Date;
+    };
+  }): Promise<void>;
 };
 
 const dailyDeliveryNotesReportUploadDelegate = (
@@ -101,6 +112,7 @@ export class PrismaDailyDeliveryNotesReportUploadRepository
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
   }) {
     const upload = await dailyDeliveryNotesReportUploadDelegate.create({
       data: {
@@ -119,6 +131,7 @@ export class PrismaDailyDeliveryNotesReportUploadRepository
     folderName: string;
     notesCount: number;
     webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
   }) {
     const upload = await dailyDeliveryNotesReportUploadDelegate.update({
       where: {
@@ -129,10 +142,19 @@ export class PrismaDailyDeliveryNotesReportUploadRepository
         fileName: input.fileName,
         folderName: input.folderName,
         notesCount: input.notesCount,
-        webViewLink: input.webViewLink
+        webViewLink: input.webViewLink,
+        lastSourceUpdatedAt: input.lastSourceUpdatedAt
       }
     });
 
     return toDomainUpload(upload);
+  }
+
+  public async deleteByDate(reportDate: Date) {
+    await dailyDeliveryNotesReportUploadDelegate.delete({
+      where: {
+        reportDate: normalizeReportDate(reportDate)
+      }
+    });
   }
 }

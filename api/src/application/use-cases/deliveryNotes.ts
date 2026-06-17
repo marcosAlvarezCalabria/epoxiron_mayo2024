@@ -179,6 +179,15 @@ const buildDeliveryNoteNumber = async (
 
 const formatReportDate = (date: Date) => date.toISOString().slice(0, 10);
 
+const resolveLatestUpdatedAt = (notes: DeliveryNote[]) =>
+  notes.reduce((latest, note) => {
+    if (!latest || note.updatedAt.getTime() > latest.getTime()) {
+      return note.updatedAt;
+    }
+
+    return latest;
+  }, null as Date | null);
+
 export class CreateDeliveryNoteUseCase {
   public constructor(
     private readonly customerRepository: CustomerRepository,
@@ -345,8 +354,37 @@ export class SendDailyDeliveryNotesReportUseCase {
     const date = input.date ?? new Date();
     const existingUpload = await this.uploadRepository.findByDate(date);
 
+    const notes = await this.repository.findAll({ date });
+
+    if (notes.length === 0) {
+      if (existingUpload) {
+        if (this.uploader) {
+          try {
+            await this.uploader.delete({ fileId: existingUpload.fileId });
+          } catch (_error: unknown) {
+            // El registro local sigue siendo la fuente de verdad; si el borrado remoto falla,
+            // eliminamos igualmente el registro para no reutilizar un PDF obsoleto.
+          }
+        }
+
+        await this.uploadRepository.deleteByDate(date);
+      }
+
+      throw new DomainException("No hay albaranes para la fecha seleccionada", 404);
+    }
+
+    const latestSourceUpdatedAt = resolveLatestUpdatedAt(notes);
+
+    if (!latestSourceUpdatedAt) {
+      throw new DomainException("No se pudo calcular el estado del informe diario", 500);
+    }
+
     if (existingUpload) {
-      if (!this.uploader || await this.uploader.exists({ fileId: existingUpload.fileId })) {
+      const sourceUnchanged =
+        existingUpload.lastSourceUpdatedAt.getTime() === latestSourceUpdatedAt.getTime();
+      const fileStillExists = !this.uploader || await this.uploader.exists({ fileId: existingUpload.fileId });
+
+      if (sourceUnchanged && fileStillExists) {
         return {
           date: existingUpload.reportDate,
           fileId: existingUpload.fileId,
@@ -360,12 +398,6 @@ export class SendDailyDeliveryNotesReportUseCase {
 
     if (!this.reportGenerator || !this.uploader) {
       throw new DomainException("La subida del informe diario no esta configurada", 503);
-    }
-
-    const notes = await this.repository.findAll({ date });
-
-    if (notes.length === 0) {
-      throw new DomainException("No hay albaranes para la fecha seleccionada", 404);
     }
 
     const uniqueCustomerIds = [...new Set(notes.map((note) => note.customerId))];
@@ -395,7 +427,8 @@ export class SendDailyDeliveryNotesReportUseCase {
           fileName: upload.fileName,
           folderName: upload.folderName,
           notesCount: notes.length,
-          webViewLink: upload.webViewLink
+          webViewLink: upload.webViewLink,
+          lastSourceUpdatedAt: latestSourceUpdatedAt
         })
       : await this.uploadRepository.create({
           reportDate: date,
@@ -403,7 +436,8 @@ export class SendDailyDeliveryNotesReportUseCase {
           fileName: upload.fileName,
           folderName: upload.folderName,
           notesCount: notes.length,
-          webViewLink: upload.webViewLink
+          webViewLink: upload.webViewLink,
+          lastSourceUpdatedAt: latestSourceUpdatedAt
         });
 
     try {

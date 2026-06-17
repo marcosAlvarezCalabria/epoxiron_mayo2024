@@ -105,6 +105,34 @@ describe("R2DriveUploader", () => {
     expect(calls[0]?.init?.method).toBe("HEAD");
   });
 
+  it("deletes an existing object from R2", async () => {
+    const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
+    const fetchMock: typeof fetch = async (input, init) => {
+      calls.push({ url: String(input), init });
+      return new Response(null, { status: 204 });
+    };
+    const uploader = new R2DriveUploader(
+      {
+        accountId: "account-id",
+        accessKeyId: "access-key",
+        secretAccessKey: "secret-key",
+        bucketName: "epoxiron-albaranes",
+        publicBaseUrl: "https://archivos.wwwmarcos-alvarez.com/"
+      },
+      fetchMock
+    );
+
+    await uploader.delete({
+      fileId: "2026-06/albaranes-2026-06-17.pdf"
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(
+      "https://account-id.r2.cloudflarestorage.com/epoxiron-albaranes/2026-06/albaranes-2026-06-17.pdf"
+    );
+    expect(calls[0]?.init?.method).toBe("DELETE");
+  });
+
   it("wraps storage errors as a domain exception", async () => {
     const uploader = new R2DriveUploader(
       {

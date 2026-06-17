@@ -95,7 +95,7 @@ const buildSignedR2Request = (input: {
   bucketName: string;
   date: Date;
   key: string;
-  method: "HEAD" | "PUT";
+  method: "DELETE" | "HEAD" | "PUT";
   payloadHash: string;
   secretAccessKey: string;
   contentType?: string;
@@ -143,6 +143,25 @@ const buildSignedR2Request = (input: {
     url
   };
 };
+
+const buildSignedDeleteRequest = (input: {
+  accountId: string;
+  accessKeyId: string;
+  bucketName: string;
+  date: Date;
+  key: string;
+  secretAccessKey: string;
+}): SignedR2Request =>
+  buildSignedR2Request({
+    accountId: input.accountId,
+    accessKeyId: input.accessKeyId,
+    bucketName: input.bucketName,
+    date: input.date,
+    key: input.key,
+    method: "DELETE",
+    payloadHash: HASHED_EMPTY_STRING,
+    secretAccessKey: input.secretAccessKey
+  });
 
 const buildSignedUploadRequest = (input: {
   accountId: string;
@@ -230,6 +249,37 @@ export class R2DriveUploader implements DailyDeliveryNotesReportUploader {
     }
 
     return true;
+  }
+
+  public async delete(input: { fileId: string }): Promise<void> {
+    const request = buildSignedDeleteRequest({
+      accountId: this.config.accountId,
+      accessKeyId: this.config.accessKeyId,
+      bucketName: this.config.bucketName,
+      date: new Date(),
+      key: input.fileId,
+      secretAccessKey: this.config.secretAccessKey
+    });
+
+    let response: Response;
+
+    try {
+      response = await this.fetchImplementation(request.url, {
+        method: "DELETE",
+        headers: request.headers
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new DomainException(`R2 borrado fallo: ${message}`, 502);
+    }
+
+    if (response.status === 404 || response.ok) {
+      return;
+    }
+
+    const body = await response.text().catch(() => "");
+    const details = body.trim() ? ` ${body.trim()}` : "";
+    throw new DomainException(`R2 borrado fallo: ${response.status}${details}`, 502);
   }
 
   public async upload(input: {
