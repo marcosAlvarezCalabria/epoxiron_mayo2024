@@ -40,7 +40,7 @@ export class NodemailerEmailNotifier implements IEmailNotifier {
         `Fecha: ${payload.date}\n` +
         `Albaranes incluidos: ${payload.notesCount}\n` +
         `Archivo: ${payload.fileName}\n\n` +
-        `Ver en Google Drive: ${payload.webViewLink}\n\n` +
+        `Ver archivo: ${payload.webViewLink}\n\n` +
         "Epoxi, sistema automatico de Epoxiron"
     });
 

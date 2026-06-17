@@ -357,7 +357,7 @@ export class SendDailyDeliveryNotesReportUseCase {
     }
 
     if (!this.reportGenerator || !this.uploader) {
-      throw new DomainException("La subida a Google Drive no esta configurada", 503);
+      throw new DomainException("La subida del informe diario no esta configurada", 503);
     }
 
     const notes = await this.repository.findAll({ date });

@@ -54,9 +54,12 @@ const envSchema = z
       .refine((emails) => emails.length > 0, {
         message: "ALLOWED_EMAILS debe incluir al menos un email"
       }),
-    GOOGLE_DRIVE_ENABLED: optionalBooleanString,
-    RCLONE_REMOTE: z.string().min(1).optional(),
-    RCLONE_CONFIG_PATH: z.string().min(1).optional(),
+    REPORT_UPLOADS_ENABLED: optionalBooleanString,
+    R2_ACCOUNT_ID: z.string().min(1).optional(),
+    R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+    R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    R2_BUCKET_NAME: z.string().min(1).optional(),
+    R2_PUBLIC_BASE_URL: z.string().url().optional(),
     DAILY_REPORT_AUTOMATION_ENABLED: optionalBooleanString,
     DAILY_REPORT_AUTOMATION_HOUR: z.coerce.number().int().min(0).max(23).default(18),
     DAILY_REPORT_AUTOMATION_MINUTE: z.coerce.number().int().min(0).max(59).default(0),
@@ -123,25 +126,31 @@ const envSchema = z
       });
     }
 
-    if (value.GOOGLE_DRIVE_ENABLED) {
-      const googleKeys = ["RCLONE_REMOTE", "RCLONE_CONFIG_PATH"] as const;
+    if (value.REPORT_UPLOADS_ENABLED) {
+      const r2Keys = [
+        "R2_ACCOUNT_ID",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET_NAME",
+        "R2_PUBLIC_BASE_URL"
+      ] as const;
 
-      googleKeys.forEach((key) => {
+      r2Keys.forEach((key) => {
         if (value[key] === undefined) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
-            message: `${key} es obligatorio cuando se configura Google Drive con rclone`,
+            message: `${key} es obligatorio cuando se configura la subida de reportes a R2`,
             path: [key]
           });
         }
       });
     }
 
-    if (value.DAILY_REPORT_AUTOMATION_ENABLED && !value.GOOGLE_DRIVE_ENABLED) {
+    if (value.DAILY_REPORT_AUTOMATION_ENABLED && !value.REPORT_UPLOADS_ENABLED) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "GOOGLE_DRIVE_ENABLED debe ser true cuando se activa la automatizacion diaria",
-        path: ["GOOGLE_DRIVE_ENABLED"]
+        message: "REPORT_UPLOADS_ENABLED debe ser true cuando se activa la automatizacion diaria",
+        path: ["REPORT_UPLOADS_ENABLED"]
       });
     }
 

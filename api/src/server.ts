@@ -37,7 +37,7 @@ import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIs
 import { NodemailerEmailNotifier } from "./infrastructure/services/NodemailerEmailNotifier.js";
 import { OllamaVoiceTranscriber } from "./infrastructure/services/OllamaVoiceTranscriber.js";
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
-import { RcloneDriveUploader } from "./infrastructure/services/RcloneDriveUploader.js";
+import { R2DriveUploader } from "./infrastructure/services/R2DriveUploader.js";
 import { OpenAiVoiceTranscriber } from "./infrastructure/services/OpenAiVoiceTranscriber.js";
 import { createVoiceAlbaranParser } from "./infrastructure/services/VoiceAlbaranParserFactory.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
@@ -111,11 +111,14 @@ const updateDeliveryNoteUseCase = new UpdateDeliveryNoteUseCase(
 const deleteDeliveryNoteUseCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
 const changeDeliveryNoteStatusUseCase = new ChangeDeliveryNoteStatusUseCase(deliveryNoteRepository);
 const getDashboardSummaryUseCase = new GetDashboardSummaryUseCase(deliveryNoteRepository);
-const reportGenerator = env.GOOGLE_DRIVE_ENABLED ? new PdfKitDailyDeliveryNotesReportGenerator() : null;
-const reportUploader = env.GOOGLE_DRIVE_ENABLED
-  ? new RcloneDriveUploader({
-      rcloneRemote: env.RCLONE_REMOTE!,
-      rcloneConfigPath: env.RCLONE_CONFIG_PATH!
+const reportGenerator = env.REPORT_UPLOADS_ENABLED ? new PdfKitDailyDeliveryNotesReportGenerator() : null;
+const reportUploader = env.REPORT_UPLOADS_ENABLED
+  ? new R2DriveUploader({
+      accountId: env.R2_ACCOUNT_ID!,
+      accessKeyId: env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY!,
+      bucketName: env.R2_BUCKET_NAME!,
+      publicBaseUrl: env.R2_PUBLIC_BASE_URL!
     })
   : null;
 const sendDailyDeliveryNotesReportUseCase = new SendDailyDeliveryNotesReportUseCase(

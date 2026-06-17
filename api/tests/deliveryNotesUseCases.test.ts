@@ -225,10 +225,10 @@ class FakeDailyDeliveryNotesReportUploader {
       folderName: string;
       webViewLink: string | null;
     }> => ({
-      fileId: "drive-file-1",
+      fileId: "2026-01/albaranes-2026-01-01.pdf",
       fileName: "albaranes-2026-01-01.pdf",
       folderName: "2026-01",
-      webViewLink: "https://drive.google.com/file/d/drive-file-1/view"
+      webViewLink: "https://archivos.wwwmarcos-alvarez.com/2026-01/albaranes-2026-01-01.pdf"
     })
   );
 }
@@ -558,7 +558,7 @@ describe("delivery note use cases", () => {
     expect(result.stats.totalAmount).toBe(210);
   });
 
-  it("generates the daily report PDF and uploads it to drive", async () => {
+  it("generates the daily report PDF and uploads it to storage", async () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
     const uploader = new FakeDailyDeliveryNotesReportUploader();
     const useCase = new SendDailyDeliveryNotesReportUseCase(
@@ -594,17 +594,17 @@ describe("delivery note use cases", () => {
       })
     );
     expect(result.notesCount).toBe(2);
-    expect(result.fileId).toBe("drive-file-1");
+    expect(result.fileId).toBe("2026-01/albaranes-2026-01-01.pdf");
     expect(reportUploadRepository.create).toHaveBeenCalledOnce();
     expect(emailNotifier.sendDailyReportNotification).toHaveBeenCalledWith({
       date: "2026-01-01",
       notesCount: 2,
       fileName: "albaranes-2026-01-01.pdf",
-      webViewLink: "https://drive.google.com/file/d/drive-file-1/view"
+      webViewLink: "https://archivos.wwwmarcos-alvarez.com/2026-01/albaranes-2026-01-01.pdf"
     });
   });
 
-  it("reuses the stored daily upload and avoids duplicate drive writes", async () => {
+  it("reuses the stored daily upload and avoids duplicate storage writes", async () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
     const uploader = new FakeDailyDeliveryNotesReportUploader();
     const useCase = new SendDailyDeliveryNotesReportUseCase(
@@ -650,12 +650,12 @@ describe("delivery note use cases", () => {
       date: new Date("2026-01-01T00:00:00.000Z")
     });
 
-    expect(result.fileId).toBe("drive-file-1");
+    expect(result.fileId).toBe("2026-01/albaranes-2026-01-01.pdf");
     expect(consoleErrorSpy).toHaveBeenCalledWith("[EmailNotifier]", expect.any(Error));
     consoleErrorSpy.mockRestore();
   });
 
-  it("uses the stored file id as fallback when drive does not return a web link", async () => {
+  it("uses the stored file id as fallback when storage does not return a web link", async () => {
     const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
     const uploader = new FakeDailyDeliveryNotesReportUploader();
     uploader.upload = vi.fn(async () => ({
@@ -708,7 +708,7 @@ describe("delivery note use cases", () => {
     expect(uploader.upload).not.toHaveBeenCalled();
   });
 
-  it("fails uploading the daily report when drive is not configured", async () => {
+  it("fails uploading the daily report when report uploads are not configured", async () => {
     const useCase = new SendDailyDeliveryNotesReportUseCase(
       customerRepository,
       deliveryNoteRepository,
@@ -723,7 +723,7 @@ describe("delivery note use cases", () => {
         date: new Date("2026-01-01T00:00:00.000Z")
       })
     ).rejects.toMatchObject({
-      message: "La subida a Google Drive no esta configurada",
+      message: "La subida del informe diario no esta configurada",
       statusCode: 503
     });
   });

@@ -194,17 +194,19 @@ JWT_SECRET=<generado con openssl rand -hex 32>
 JWT_EXPIRES_IN=7d
 ALLOWED_EMAILS=calalva82@gmail.com,epoxiron@gmail.com
 HERMES_SHARED_SECRET=<generado con openssl rand -hex 32>
-GOOGLE_DRIVE_ENABLED=false
+REPORT_UPLOADS_ENABLED=false
+R2_ACCOUNT_ID=<cloudflare account id>
+R2_ACCESS_KEY_ID=<r2 access key id>
+R2_SECRET_ACCESS_KEY=<r2 secret access key>
+R2_BUCKET_NAME=epoxiron-albaranes
+R2_PUBLIC_BASE_URL=https://archivos.wwwmarcos-alvarez.com
 ```
 
-### 5. Google Drive desactivado temporalmente
+### 5. Subida del PDF diario
 
-La subida del PDF diario a Google Drive sigue desactivada con `GOOGLE_DRIVE_ENABLED=false` hasta decidir la integracion final.
+La subida del PDF diario puede activarse con `REPORT_UPLOADS_ENABLED=true` y credenciales de Cloudflare R2.
 
-Pendiente:
-
-- retomar una estrategia con `rclone`
-- o configurar correctamente la Service Account de Google
+El backend sube el PDF directamente a R2 con un cliente S3-compatible, sin depender de `rclone`.
 
 ### 6. Epoxi y bypass de autenticacion
 
@@ -259,7 +261,7 @@ VITE_GOOGLE_CLIENT_ID=20604165419-dps72fkkha457807c56d39cqlj5g2j4v.apps.googleus
 - web protegida con login Google
 - API protegida con JWT
 - Epoxi funciona con `X-Hermes-Secret`
-- Google Drive sigue desactivado temporalmente
+- La subida del PDF diario depende de Cloudflare R2 cuando `REPORT_UPLOADS_ENABLED=true`
 
 ## Notas tecnicas
 

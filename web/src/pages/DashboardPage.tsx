@@ -95,7 +95,7 @@ export const DashboardPage = () => {
           <div>
             <h3 className="text-base font-semibold text-white">PDF diario de albaranes</h3>
             <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
-              Genera el PDF del dia y subelo a Google Drive.
+              Genera el PDF del dia y guardalo en el almacenamiento de archivos.
             </p>
           </div>
 
@@ -114,7 +114,7 @@ export const DashboardPage = () => {
 
         {reportMutation.data ? (
           <p className="mt-3 text-sm text-[var(--epx-success)]">
-            PDF subido a Google Drive en la carpeta {reportMutation.data.result.folderName} con{" "}
+            PDF creado en la carpeta {reportMutation.data.result.folderName} con{" "}
             {reportMutation.data.result.notesCount} albaranes.
           </p>
         ) : null}
@@ -125,7 +125,7 @@ export const DashboardPage = () => {
             rel="noreferrer"
             target="_blank"
           >
-            Abrir archivo en Drive
+            Ver PDF creado
           </a>
         ) : null}
         {reportError ? <p className="mt-3 text-sm text-red-300">{reportError}</p> : null}

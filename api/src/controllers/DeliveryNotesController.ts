@@ -105,7 +105,7 @@ export class DeliveryNotesController {
   public sendDailyReport = async (request: Request, response: Response) => {
     const result = await this.sendDailyDeliveryNotesReportUseCase.execute(request.body);
     response.json({
-      message: "Archivo subido a Google Drive",
+      message: "Archivo subido correctamente",
       result: {
         date: result.date.toISOString(),
         fileId: result.fileId,

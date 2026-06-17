@@ -14,7 +14,7 @@ const baseEnv = {
   JWT_SECRET: "test-jwt-secret",
   JWT_EXPIRES_IN: "7d",
   ALLOWED_EMAILS: "allowed@example.com",
-  GOOGLE_DRIVE_ENABLED: "false"
+  REPORT_UPLOADS_ENABLED: "false"
 } as const;
 
 const buildRequest = (headers: Record<string, string | undefined>): Request =>
