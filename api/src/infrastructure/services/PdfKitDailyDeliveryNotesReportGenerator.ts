@@ -9,10 +9,10 @@ import type {
 type PdfDocumentInstance = InstanceType<typeof PDFDocument>;
 
 const PAGE_MARGIN = 40;
+const PAGE_HEIGHT = 842;
+const CONTENT_WIDTH = 515;
 const SECTION_PADDING = 18;
 const SECTION_GAP = 18;
-const CONTENT_WIDTH = 515;
-const PAGE_HEIGHT = 842;
 const COMPANY_NAME = "Epoxiron S.L.";
 const TABLE_COLUMN_WIDTHS = {
   quantity: 64,
@@ -20,12 +20,18 @@ const TABLE_COLUMN_WIDTHS = {
   total: 96
 } as const;
 const TABLE_CELL_HORIZONTAL_PADDING = 8;
+const TABLE_HEADER_HEIGHT = 22;
+const TABLE_INFO_HEIGHT = 20;
+const TABLE_FOOTER_HEIGHT = 22;
+const METADATA_HEIGHT = 54;
 const TEXTURE_LABELS: Record<DeliveryNoteTexture, string> = {
   NORMAL: "Normal",
   MATE: "Mate",
   TEXTURADO: "Texturado",
   GOFRADO: "Gofrado"
 };
+
+type NoteLayout = ReturnType<typeof buildNoteLayout>;
 
 const formatDocumentDate = (value: Date) =>
   new Intl.DateTimeFormat("es-ES", {
@@ -142,10 +148,6 @@ const buildNoteLayout = (
     24;
   const descriptionTextWidth = descriptionWidth - TABLE_CELL_HORIZONTAL_PADDING * 2;
 
-  const companyLabelHeight = measureTextHeight(document, "EMPRESA", leftWidth, 10);
-  const companyNameHeight = measureTextHeight(document, toPdfUppercase(COMPANY_NAME), leftWidth, 14);
-  const companyBlockHeight = companyLabelHeight + 4 + companyNameHeight;
-
   const customerLines = [
     customer.name,
     customer.address ? customer.address : null,
@@ -153,6 +155,9 @@ const buildNoteLayout = (
     !customer.phone && customer.email ? customer.email : null
   ].filter((value): value is string => Boolean(value));
 
+  const companyLabelHeight = measureTextHeight(document, "EMPRESA", leftWidth, 10);
+  const companyNameHeight = measureTextHeight(document, toPdfUppercase(COMPANY_NAME), leftWidth, 14);
+  const companyBlockHeight = companyLabelHeight + 4 + companyNameHeight;
   const customerLabelHeight = measureTextHeight(document, "CLIENTE", rightWidth, 10, "right");
   const customerTextHeight = customerLines.reduce((total, line, index) => {
     const fontSize = index === 0 ? 13 : 11;
@@ -160,31 +165,16 @@ const buildNoteLayout = (
   }, 0);
   const headerHeight = Math.max(companyBlockHeight, customerLabelHeight + 4 + customerTextHeight);
 
-  const tableHeaderHeight = 22;
-  const tableInfoHeight = 20;
-  const tableFooterHeight = 22;
   const rowHeights = note.items.map((item) =>
     Math.max(
       24,
       measureTextHeight(document, buildDocumentItemDescription(item), descriptionTextWidth, 11) + 12
     )
   );
-  const rowsHeight = rowHeights.reduce((sum, value) => sum + value, 0);
 
   const notesHeight = note.notes
-    ? measureTextHeight(document, toPdfUppercase(note.notes), contentWidth - 24, 11) + 16
+    ? measureTextHeight(document, toPdfUppercase(note.notes), contentWidth - TABLE_CELL_HORIZONTAL_PADDING * 2, 11) + 16
     : 0;
-
-  const metadataHeight = 54;
-  const tableHeight = tableHeaderHeight + tableInfoHeight + rowsHeight + tableFooterHeight;
-  const totalHeight =
-    SECTION_PADDING * 2 +
-    headerHeight +
-    16 +
-    metadataHeight +
-    16 +
-    tableHeight +
-    (note.notes ? SECTION_GAP + notesHeight : 0);
 
   return {
     contentWidth,
@@ -196,126 +186,99 @@ const buildNoteLayout = (
     metaColumnWidth,
     notesHeight,
     rightWidth,
-    rowHeights,
-    tableFooterHeight,
-    tableHeaderHeight,
-    tableHeight,
-    tableInfoHeight,
-    totalHeight
+    rowHeights
   };
 };
 
-const renderNote = (
-  document: PdfDocumentInstance,
-  note: DeliveryNote,
-  customer: DeliveryNoteReportCustomerDetails
-) => {
-  const {
-    contentWidth,
-    customerLines,
-    descriptionTextWidth,
-    descriptionWidth,
-    headerHeight,
-    leftWidth,
-    metaColumnWidth,
-    notesHeight,
-    rightWidth,
-    rowHeights,
-    tableFooterHeight,
-    tableHeaderHeight,
-    tableHeight,
-    tableInfoHeight,
-    totalHeight
-  } = buildNoteLayout(document, note, customer);
-
-  const sectionX = PAGE_MARGIN;
-  const sectionY = PAGE_MARGIN;
-  const sectionWidth = CONTENT_WIDTH;
-  const sectionBottom = Math.min(sectionY + totalHeight, PAGE_HEIGHT - PAGE_MARGIN);
-
+const drawPageFrame = (document: PdfDocumentInstance) => {
   document
     .save()
     .lineWidth(1)
     .strokeColor("#D4D4D4")
-    .rect(sectionX, sectionY, sectionWidth, sectionBottom - sectionY)
+    .rect(PAGE_MARGIN, PAGE_MARGIN, CONTENT_WIDTH, PAGE_HEIGHT - PAGE_MARGIN * 2)
     .stroke()
     .restore();
+};
 
-  const contentX = sectionX + SECTION_PADDING;
-  let cursorY = sectionY + SECTION_PADDING;
+const drawHeader = (
+  document: PdfDocumentInstance,
+  layout: NoteLayout,
+  customer: DeliveryNoteReportCustomerDetails
+) => {
+  const contentX = PAGE_MARGIN + SECTION_PADDING;
+  let customerY = PAGE_MARGIN + SECTION_PADDING + 14;
 
   drawText(document, {
     x: contentX,
-    y: cursorY,
-    width: leftWidth,
+    y: PAGE_MARGIN + SECTION_PADDING,
+    width: layout.leftWidth,
     text: "EMPRESA",
     fontSize: 10,
     color: "#737373"
   });
   drawText(document, {
     x: contentX,
-    y: cursorY + 14,
-    width: leftWidth,
+    y: PAGE_MARGIN + SECTION_PADDING + 14,
+    width: layout.leftWidth,
     text: toPdfUppercase(COMPANY_NAME),
     fontSize: 14
   });
 
   drawText(document, {
-    x: contentX + leftWidth + 24,
-    y: cursorY,
-    width: rightWidth,
+    x: contentX + layout.leftWidth + 24,
+    y: PAGE_MARGIN + SECTION_PADDING,
+    width: layout.rightWidth,
     text: "CLIENTE",
     fontSize: 10,
     color: "#737373",
     align: "right"
   });
 
-  let customerY = cursorY + 14;
-  customerLines.forEach((line, index) => {
+  layout.customerLines.forEach((line, index) => {
     const fontSize = index === 0 ? 13 : 11;
     const text = toPdfUppercase(line);
 
     drawText(document, {
-      x: contentX + leftWidth + 24,
+      x: contentX + layout.leftWidth + 24,
       y: customerY,
-      width: rightWidth,
+      width: layout.rightWidth,
       text,
       fontSize,
       color: index === 0 ? "#111111" : "#404040",
       align: "right"
     });
-    customerY += measureTextHeight(document, text, rightWidth, fontSize, "right") + (index === 0 ? 4 : 2);
+    customerY += measureTextHeight(document, text, layout.rightWidth, fontSize, "right") + (index === 0 ? 4 : 2);
   });
 
-  cursorY += headerHeight + 12;
-  drawRule(document, contentX, cursorY, contentWidth);
+  let cursorY = PAGE_MARGIN + SECTION_PADDING + layout.headerHeight + 12;
+  drawRule(document, contentX, cursorY, layout.contentWidth);
   cursorY += 14;
 
   const topMetaY = cursorY;
   const bottomMetaY = cursorY + 28;
 
   [
-    { label: "ALBARAN", value: toPdfUppercase(note.number), x: contentX, y: topMetaY, width: metaColumnWidth },
+    { label: "ALBARAN", value: "", x: contentX, y: topMetaY, width: layout.metaColumnWidth },
     {
       label: "FECHA",
-      value: formatDocumentDate(note.date),
-      x: contentX + metaColumnWidth + 18,
+      value: "",
+      x: contentX + layout.metaColumnWidth + 18,
       y: topMetaY,
-      width: metaColumnWidth
+      width: layout.metaColumnWidth
     },
     {
       label: "CLIENTE",
       value: toPdfUppercase(customer.name),
       x: contentX,
       y: bottomMetaY,
-      width: metaColumnWidth
+      width: layout.metaColumnWidth
     },
     {
       label: "TELEFONO",
       value: customerField(customer.phone),
-      x: contentX + metaColumnWidth + 18,
+      x: contentX + layout.metaColumnWidth + 18,
       y: bottomMetaY,
-      width: metaColumnWidth
+      width: layout.metaColumnWidth
     }
   ].forEach((cell) => {
     drawText(document, {
@@ -326,37 +289,43 @@ const renderNote = (
       fontSize: 9,
       color: "#737373"
     });
-    drawText(document, {
-      x: cell.x,
-      y: cell.y + 11,
-      width: cell.width,
-      text: cell.value,
-      fontSize: 11
-    });
+    if (cell.value) {
+      drawText(document, {
+        x: cell.x,
+        y: cell.y + 11,
+        width: cell.width,
+        text: cell.value,
+        fontSize: 11
+      });
+    }
   });
 
-  cursorY += 54;
-  drawRule(document, contentX, cursorY, contentWidth);
-  cursorY += 16;
+  return cursorY + METADATA_HEIGHT + 16;
+};
 
-  const tableX = contentX;
-  const quantityX = tableX + descriptionWidth;
+const drawTableHeader = (
+  document: PdfDocumentInstance,
+  note: DeliveryNote,
+  layout: NoteLayout,
+  tableY: number,
+  continued: boolean
+) => {
+  const tableX = PAGE_MARGIN + SECTION_PADDING;
+  const quantityX = tableX + layout.descriptionWidth;
   const priceX = quantityX + TABLE_COLUMN_WIDTHS.quantity;
   const totalX = priceX + TABLE_COLUMN_WIDTHS.price;
 
-  document.save().lineWidth(1).strokeColor("#D4D4D4").rect(tableX, cursorY, contentWidth, tableHeight).stroke().restore();
-
   drawText(document, {
     x: tableX + TABLE_CELL_HORIZONTAL_PADDING,
-    y: cursorY + 6,
-    width: descriptionTextWidth,
+    y: tableY + 6,
+    width: layout.descriptionTextWidth,
     text: "DESCRIPCION",
     fontSize: 10,
     color: "#737373"
   });
   drawText(document, {
     x: quantityX,
-    y: cursorY + 6,
+    y: tableY + 6,
     width: TABLE_COLUMN_WIDTHS.quantity - TABLE_CELL_HORIZONTAL_PADDING,
     text: "UNID.",
     fontSize: 10,
@@ -365,7 +334,7 @@ const renderNote = (
   });
   drawText(document, {
     x: priceX,
-    y: cursorY + 6,
+    y: tableY + 6,
     width: TABLE_COLUMN_WIDTHS.price - TABLE_CELL_HORIZONTAL_PADDING,
     text: "PRECIO",
     fontSize: 10,
@@ -374,7 +343,7 @@ const renderNote = (
   });
   drawText(document, {
     x: totalX,
-    y: cursorY + 6,
+    y: tableY + 6,
     width: TABLE_COLUMN_WIDTHS.total - TABLE_CELL_HORIZONTAL_PADDING,
     text: "IMPORTE",
     fontSize: 10,
@@ -382,31 +351,128 @@ const renderNote = (
     align: "right"
   });
 
-  const tableInfoY = cursorY + tableHeaderHeight;
-  drawRule(document, tableX, tableInfoY, contentWidth);
+  const tableInfoY = tableY + TABLE_HEADER_HEIGHT;
+  drawRule(document, tableX, tableInfoY, layout.contentWidth);
   drawText(document, {
     x: tableX + TABLE_CELL_HORIZONTAL_PADDING,
     y: tableInfoY + 5,
-    width: contentWidth - TABLE_CELL_HORIZONTAL_PADDING * 2,
-    text: `ALBARAN ${toPdfUppercase(note.number)} FECHA ${formatDocumentDate(note.date)}`,
+    width: layout.contentWidth - TABLE_CELL_HORIZONTAL_PADDING * 2,
+    text: continued
+      ? `ALBARAN ${toPdfUppercase(note.number)} CONTINUACION`
+      : `ALBARAN ${toPdfUppercase(note.number)} FECHA ${formatDocumentDate(note.date)}`,
     fontSize: 11,
     color: "#404040"
   });
 
-  let rowY = tableInfoY + tableInfoHeight;
-  note.items.forEach((item, index) => {
-    const rowHeight = rowHeights[index];
+  return {
+    quantityX,
+    priceX,
+    rowStartY: tableInfoY + TABLE_INFO_HEIGHT,
+    tableX,
+    totalX
+  };
+};
+
+const drawTableFooter = (
+  document: PdfDocumentInstance,
+  layout: NoteLayout,
+  rowY: number,
+  footerText: string,
+  totalText?: string
+) => {
+  const tableX = PAGE_MARGIN + SECTION_PADDING;
+  const quantityX = tableX + layout.descriptionWidth;
+  const priceX = quantityX + TABLE_COLUMN_WIDTHS.quantity;
+  const totalX = priceX + TABLE_COLUMN_WIDTHS.price;
+
+  drawRule(document, tableX, rowY, layout.contentWidth);
+  drawText(document, {
+    x: tableX + TABLE_CELL_HORIZONTAL_PADDING,
+    y: rowY + 6,
+    width: layout.contentWidth / 2,
+    text: footerText,
+    fontSize: 11,
+    color: "#404040"
+  });
+
+  if (totalText) {
+    drawText(document, {
+      x: totalX,
+      y: rowY + 6,
+      width: TABLE_COLUMN_WIDTHS.total - TABLE_CELL_HORIZONTAL_PADDING,
+      text: totalText,
+      fontSize: 11,
+      color: "#404040",
+      align: "right"
+    });
+  }
+};
+
+const drawTableBorder = (
+  document: PdfDocumentInstance,
+  layout: NoteLayout,
+  startY: number,
+  endY: number
+) => {
+  document
+    .save()
+    .lineWidth(1)
+    .strokeColor("#D4D4D4")
+    .rect(PAGE_MARGIN + SECTION_PADDING, startY, layout.contentWidth, endY - startY)
+    .stroke()
+    .restore();
+};
+
+const renderRowsPage = (
+  document: PdfDocumentInstance,
+  note: DeliveryNote,
+  customer: DeliveryNoteReportCustomerDetails,
+  layout: NoteLayout,
+  startIndex: number,
+  isFirstPage: boolean
+) => {
+  if (!isFirstPage) {
+    document.addPage();
+  }
+
+  drawPageFrame(document);
+
+  const tableTopY = isFirstPage
+    ? drawHeader(document, layout, customer)
+    : PAGE_MARGIN + SECTION_PADDING;
+  const { quantityX, priceX, rowStartY, tableX, totalX } = drawTableHeader(
+    document,
+    note,
+    layout,
+    tableTopY,
+    !isFirstPage
+  );
+
+  const bottomLimit = PAGE_HEIGHT - PAGE_MARGIN - SECTION_PADDING;
+  let rowY = rowStartY;
+  let index = startIndex;
+
+  while (index < note.items.length) {
+    const rowHeight = layout.rowHeights[index] ?? 24;
+    const isLastRow = index === note.items.length - 1;
+    const reserveHeight = TABLE_FOOTER_HEIGHT + (isLastRow && note.notes ? SECTION_GAP + layout.notesHeight : 0);
+
+    if (rowY + rowHeight + reserveHeight > bottomLimit) {
+      break;
+    }
+
+    if (index > startIndex) {
+      drawRule(document, tableX, rowY, layout.contentWidth);
+    }
+
+    const item = note.items[index];
     const rowDescription = buildDocumentItemDescription(item);
     const rowTop = rowY + 6;
-
-    if (index > 0) {
-      drawRule(document, tableX, rowY, contentWidth);
-    }
 
     drawText(document, {
       x: tableX + TABLE_CELL_HORIZONTAL_PADDING,
       y: rowTop,
-      width: descriptionTextWidth,
+      width: layout.descriptionTextWidth,
       text: rowDescription,
       fontSize: 11
     });
@@ -436,40 +502,58 @@ const renderNote = (
     });
 
     rowY += rowHeight;
-  });
+    index += 1;
+  }
 
-  drawRule(document, tableX, rowY, contentWidth);
-  drawText(document, {
-    x: tableX + TABLE_CELL_HORIZONTAL_PADDING,
-    y: rowY + 6,
-    width: contentWidth / 2,
-    text: "SUMA Y SIGUE",
-    fontSize: 11,
-    color: "#404040"
-  });
-  drawText(document, {
-    x: totalX,
-    y: rowY + 6,
-    width: TABLE_COLUMN_WIDTHS.total - TABLE_CELL_HORIZONTAL_PADDING,
-    text: formatDocumentNumber(note.totalAmount),
-    fontSize: 11,
-    color: "#404040",
-    align: "right"
-  });
+  const hasMoreRows = index < note.items.length;
+  drawTableFooter(
+    document,
+    layout,
+    rowY,
+    hasMoreRows ? "CONTINUA EN LA SIGUIENTE PAGINA" : "SUMA Y SIGUE",
+    hasMoreRows ? undefined : formatDocumentNumber(note.totalAmount)
+  );
 
-  cursorY = rowY + tableFooterHeight;
+  const tableBottomY = rowY + TABLE_FOOTER_HEIGHT;
+  drawTableBorder(document, layout, tableTopY, tableBottomY);
 
-  if (note.notes && notesHeight > 0) {
-    cursorY += SECTION_GAP;
-    document.save().lineWidth(1).strokeColor("#D4D4D4").rect(contentX, cursorY, contentWidth, notesHeight).stroke().restore();
+  let nextY = tableBottomY;
+
+  if (!hasMoreRows && note.notes && layout.notesHeight > 0) {
+    nextY += SECTION_GAP;
+    document
+      .save()
+      .lineWidth(1)
+      .strokeColor("#D4D4D4")
+      .rect(PAGE_MARGIN + SECTION_PADDING, nextY, layout.contentWidth, layout.notesHeight)
+      .stroke()
+      .restore();
     drawText(document, {
-      x: contentX + TABLE_CELL_HORIZONTAL_PADDING,
-      y: cursorY + 8,
-      width: contentWidth - TABLE_CELL_HORIZONTAL_PADDING * 2,
+      x: PAGE_MARGIN + SECTION_PADDING + TABLE_CELL_HORIZONTAL_PADDING,
+      y: nextY + 8,
+      width: layout.contentWidth - TABLE_CELL_HORIZONTAL_PADDING * 2,
       text: toPdfUppercase(note.notes),
       fontSize: 11,
       color: "#404040"
     });
+  }
+
+  return index;
+};
+
+const renderNote = (
+  document: PdfDocumentInstance,
+  note: DeliveryNote,
+  customer: DeliveryNoteReportCustomerDetails,
+  isFirstDocumentPage: boolean
+) => {
+  const layout = buildNoteLayout(document, note, customer);
+  let renderedRows = 0;
+  let isFirstPage = isFirstDocumentPage;
+
+  while (renderedRows < note.items.length) {
+    renderedRows = renderRowsPage(document, note, customer, layout, renderedRows, isFirstPage);
+    isFirstPage = false;
   }
 };
 
@@ -480,22 +564,23 @@ export class PdfKitDailyDeliveryNotesReportGenerator implements DailyDeliveryNot
     customersById: Record<string, DeliveryNoteReportCustomerDetails>;
   }): Promise<ReportAttachment> {
     const document = new PDFDocument({
-      autoFirstPage: true,
+      autoFirstPage: false,
       margin: PAGE_MARGIN,
       size: "A4"
     });
 
     input.notes.forEach((note, index) => {
-      if (index > 0) {
-        document.addPage();
-      }
-
-      renderNote(document, note, input.customersById[note.customerId] ?? {
-        name: note.customerName,
-        email: null,
-        phone: null,
-        address: null
-      });
+      renderNote(
+        document,
+        note,
+        input.customersById[note.customerId] ?? {
+          name: note.customerName,
+          email: null,
+          phone: null,
+          address: null
+        },
+        index === 0
+      );
     });
 
     const content = await collectBuffer(document);

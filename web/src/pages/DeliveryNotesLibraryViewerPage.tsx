@@ -14,7 +14,11 @@ const isIosSafari = () => {
   }
 
   const userAgent = navigator.userAgent;
-  const isIosDevice = /iP(hone|ad|od)/.test(userAgent);
+  const isTouchMac =
+    /Macintosh/i.test(userAgent) &&
+    typeof navigator.maxTouchPoints === "number" &&
+    navigator.maxTouchPoints > 1;
+  const isIosDevice = /iP(hone|ad|od)/.test(userAgent) || isTouchMac;
   const isWebkit = /WebKit/i.test(userAgent);
   const isCriOS = /CriOS/i.test(userAgent);
   const isFxiOS = /FxiOS/i.test(userAgent);
