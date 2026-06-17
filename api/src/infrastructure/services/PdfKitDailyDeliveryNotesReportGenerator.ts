@@ -431,9 +431,7 @@ const renderRowsPage = (
   startIndex: number,
   isFirstPage: boolean
 ) => {
-  if (!isFirstPage) {
-    document.addPage();
-  }
+  document.addPage();
 
   drawPageFrame(document);
 
