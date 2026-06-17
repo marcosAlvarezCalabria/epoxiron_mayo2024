@@ -25,6 +25,7 @@ Estructura obligatoria:
 }
 
 Reglas:
+- Devuelve customerName, description, color y notes en MAYUSCULAS cuando sean texto. No uses minusculas salvo dentro de numeros o formatos tecnicos inevitables.
 - Si el cliente no se menciona claramente, usa null.
 - Si la fecha no se menciona, usa la fecha de hoy.
 - Si un campo no se entiende, usa null.

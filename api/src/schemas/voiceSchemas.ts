@@ -4,6 +4,7 @@ import type { ParsedVoiceAlbaran } from "../domain/ports/VoiceAlbaranParser.js";
 
 const parsedVoiceTextureSchema = z.enum(["NORMAL", "MATE", "TEXTURADO", "GOFRADO"]);
 const parsedVoicePricingModeSchema = z.enum(["DIMENSIONS", "UNIT"]);
+const uppercaseSpanish = (value: string): string => value.toLocaleUpperCase("es-ES").trim();
 
 export const parseVoiceAlbaranRequestSchema = z.object({
   transcript: z.string().trim().min(1)
@@ -97,6 +98,15 @@ const normalizeVoiceColor = (value: string | null): string | null => {
   return trimmed;
 };
 
+const normalizeVoiceText = (value: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? uppercaseSpanish(trimmed) : null;
+};
+
 const llmItemSchema = z.object({
   description: z.string().trim().min(1),
   color: z.string().trim().min(1).nullable(),
@@ -175,7 +185,7 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
         item.pricingMode === "UNIT" && item.customUnitPrice && item.customUnitPrice > 0
           ? item.customUnitPrice
           : null,
-      description: item.description,
+      description: uppercaseSpanish(item.description),
       hasPrimer: item.hasPrimer || item.primer,
       hasThickness: item.hasThickness || (item.thickness != null && item.thickness > 0),
       linearMeters: item.linearMeters && item.linearMeters > 0 ? item.linearMeters : null,
@@ -209,9 +219,9 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
   }
 
   return parsedVoiceAlbaranResponseSchema.parse({
-    customerName: parsed.customerName,
+    customerName: normalizeVoiceText(parsed.customerName),
     date: date.toISOString().slice(0, 10),
     items,
-    notes: parsed.notes
+    notes: normalizeVoiceText(parsed.notes)
   });
 };

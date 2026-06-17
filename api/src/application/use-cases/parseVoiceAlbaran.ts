@@ -11,6 +11,7 @@ const normalizeText = (value: string): string =>
     .trim();
 
 const compactText = (value: string): string => normalizeText(value).replace(/\s+/g, "");
+const uppercaseSpanish = (value: string): string => value.toLocaleUpperCase("es-ES").trim();
 
 const scoreCustomerMatch = (customerName: string, spokenName: string): number => {
   const normalizedCustomer = normalizeText(customerName);
@@ -51,7 +52,7 @@ const resolveCustomerName = (customers: Customer[], spokenName: string | null): 
     }))
     .sort((left, right) => right.score - left.score)[0];
 
-  return bestMatch && bestMatch.score >= 0.6 ? bestMatch.customer.name : spokenName;
+  return bestMatch && bestMatch.score >= 0.6 ? bestMatch.customer.name : uppercaseSpanish(spokenName);
 };
 
 export class ParseVoiceAlbaranUseCase {

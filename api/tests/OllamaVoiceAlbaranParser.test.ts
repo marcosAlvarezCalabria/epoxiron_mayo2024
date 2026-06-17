@@ -54,12 +54,12 @@ describe("OllamaVoiceAlbaranParser", () => {
     );
 
     await expect(parser.parseTranscript("puerta negra mate")).resolves.toEqual({
-      customerName: "Cliente Dos",
+      customerName: "CLIENTE DOS",
       date: "2026-06-11",
       notes: null,
       items: [
         {
-          description: "puerta",
+          description: "PUERTA",
           color: "RAL 9005",
           pricingMode: "DIMENSIONS",
           customUnitPrice: null,

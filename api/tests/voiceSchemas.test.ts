@@ -23,20 +23,21 @@ describe("normalizeParsedVoiceAlbaran", () => {
     });
 
     expect(result).toEqual({
-      customerName: "Cliente Uno",
+      customerName: "CLIENTE UNO",
       date: "2026-06-11",
-      notes: "repasar",
+      notes: "REPASAR",
       items: [
         {
-          description: "barandilla",
+          description: "BARANDILLA",
           color: "RAL 7016",
           pricingMode: "DIMENSIONS",
           customUnitPrice: null,
           texture: "GOFRADO",
           linearMeters: 12.5,
           squareMeters: null,
-          thickness: 1,
-          primer: true,
+          hasThickness: true,
+          hasPrimer: true,
+          saveAsSpecialPiece: false,
           quantity: 2
         }
       ]
@@ -63,12 +64,15 @@ describe("normalizeParsedVoiceAlbaran", () => {
     });
 
     expect(result.items[0]).toMatchObject({
+      description: "PERFIL",
       customUnitPrice: null,
       pricingMode: "DIMENSIONS",
       texture: "NORMAL",
       linearMeters: null,
       squareMeters: null,
-      primer: false,
+      hasPrimer: false,
+      hasThickness: false,
+      saveAsSpecialPiece: false,
       quantity: 1
     });
   });

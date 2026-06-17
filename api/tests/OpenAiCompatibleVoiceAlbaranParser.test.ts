@@ -56,18 +56,21 @@ describe("OpenAiCompatibleVoiceAlbaranParser", () => {
     );
 
     await expect(parser.parseTranscript("tres marcos blancos")).resolves.toEqual({
-      customerName: "Cliente Tres",
+      customerName: "CLIENTE TRES",
       date: "2026-06-11",
       notes: null,
       items: [
         {
-          description: "marco",
+          description: "MARCO",
           color: "RAL 9010",
+          pricingMode: "DIMENSIONS",
+          customUnitPrice: null,
           texture: "NORMAL",
           linearMeters: 4,
           squareMeters: null,
-          thickness: null,
-          primer: false,
+          hasThickness: false,
+          hasPrimer: false,
+          saveAsSpecialPiece: false,
           quantity: 3
         }
       ]
