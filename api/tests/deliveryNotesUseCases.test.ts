@@ -218,6 +218,7 @@ class FakeDailyDeliveryNotesReportGenerator {
 }
 
 class FakeDailyDeliveryNotesReportUploader {
+  public exists = vi.fn(async () => true);
   public upload = vi.fn(
     async (): Promise<{
       fileId: string;
@@ -273,6 +274,42 @@ class InMemoryDailyDeliveryNotesReportUploadRepository {
       ) ?? null
     );
   }
+
+  public updateByDate = vi.fn(async (input: {
+    reportDate: Date;
+    fileId: string;
+    fileName: string;
+    folderName: string;
+    notesCount: number;
+    webViewLink: string | null;
+  }) => {
+    const normalizedDate = new Date(
+      input.reportDate.getFullYear(),
+      input.reportDate.getMonth(),
+      input.reportDate.getDate()
+    );
+    const current = await this.findByDate(normalizedDate);
+
+    if (!current) {
+      throw new Error("daily report upload not found");
+    }
+
+    const updated: DailyDeliveryNotesReportUpload = {
+      ...current,
+      reportDate: normalizedDate,
+      fileId: input.fileId,
+      fileName: input.fileName,
+      folderName: input.folderName,
+      notesCount: input.notesCount,
+      webViewLink: input.webViewLink
+    };
+
+    this.uploads = this.uploads.map((upload) =>
+      upload.id === current.id ? updated : upload
+    );
+
+    return updated;
+  });
 }
 
 class FakeEmailNotifier implements IEmailNotifier {
@@ -628,6 +665,35 @@ describe("delivery note use cases", () => {
     expect(reportUploadRepository.create).toHaveBeenCalledOnce();
     expect(secondResult).toEqual(firstResult);
     expect(emailNotifier.sendDailyReportNotification).toHaveBeenCalledOnce();
+  });
+
+  it("regenerates the daily upload when the stored file no longer exists", async () => {
+    const reportGenerator = new FakeDailyDeliveryNotesReportGenerator();
+    const uploader = new FakeDailyDeliveryNotesReportUploader();
+    uploader.exists
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    const useCase = new SendDailyDeliveryNotesReportUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      reportGenerator,
+      uploader,
+      reportUploadRepository,
+      emailNotifier
+    );
+
+    await useCase.execute({
+      date: new Date("2026-01-01T00:00:00.000Z")
+    });
+    const result = await useCase.execute({
+      date: new Date("2026-01-01T12:30:00.000Z")
+    });
+
+    expect(uploader.exists).toHaveBeenCalledTimes(1);
+    expect(uploader.upload).toHaveBeenCalledTimes(2);
+    expect(reportUploadRepository.create).toHaveBeenCalledTimes(1);
+    expect(reportUploadRepository.updateByDate).toHaveBeenCalledTimes(1);
+    expect(result.fileId).toBe("2026-01/albaranes-2026-01-01.pdf");
   });
 
   it("logs email failures without failing the uploaded report", async () => {

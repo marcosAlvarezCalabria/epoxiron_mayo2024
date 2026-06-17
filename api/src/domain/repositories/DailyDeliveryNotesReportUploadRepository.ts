@@ -10,4 +10,12 @@ export interface DailyDeliveryNotesReportUploadRepository {
     notesCount: number;
     webViewLink: string | null;
   }): Promise<DailyDeliveryNotesReportUpload>;
+  updateByDate(input: {
+    reportDate: Date;
+    fileId: string;
+    fileName: string;
+    folderName: string;
+    notesCount: number;
+    webViewLink: string | null;
+  }): Promise<DailyDeliveryNotesReportUpload>;
 }

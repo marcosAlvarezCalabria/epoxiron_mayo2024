@@ -8,6 +8,7 @@ export interface DailyDeliveryNotesReportUploadResult {
 }
 
 export interface DailyDeliveryNotesReportUploader {
+  exists(input: { fileId: string }): Promise<boolean>;
   upload(input: {
     attachment: ReportAttachment;
     date: Date;

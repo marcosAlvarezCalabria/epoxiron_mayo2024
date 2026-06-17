@@ -14,10 +14,13 @@ interface R2DriveUploaderConfig {
   publicBaseUrl: string;
 }
 
-interface SignedUploadRequest {
-  body: Buffer;
+interface SignedR2Request {
   headers: Record<string, string>;
   url: string;
+}
+
+interface SignedUploadRequest extends SignedR2Request {
+  body: Buffer;
 }
 
 type FetchLike = typeof fetch;
@@ -86,6 +89,61 @@ const buildAuthorizationHeader = (input: {
   return `AWS4-HMAC-SHA256 Credential=${input.accessKeyId}/${credentialScope}, SignedHeaders=${input.signedHeaders}, Signature=${signature}`;
 };
 
+const buildSignedR2Request = (input: {
+  accountId: string;
+  accessKeyId: string;
+  bucketName: string;
+  date: Date;
+  key: string;
+  method: "HEAD" | "PUT";
+  payloadHash: string;
+  secretAccessKey: string;
+  contentType?: string;
+}): SignedR2Request => {
+  const host = `${input.accountId}.r2.cloudflarestorage.com`;
+  const pathname = encodeR2Path(input.bucketName, input.key);
+  const url = `https://${host}${pathname}`;
+  const amzDate = buildAmzDate(input.date);
+  const dateStamp = buildDateStamp(input.date);
+  const headerEntries: Array<[string, string]> = [];
+  if (input.contentType) {
+    headerEntries.push(["content-type", input.contentType]);
+  }
+  headerEntries.push(["host", host]);
+  headerEntries.push(["x-amz-content-sha256", input.payloadHash]);
+  headerEntries.push(["x-amz-date", amzDate]);
+  const canonicalHeaders = headerEntries
+    .map(([key, value]) => `${key}:${value}\n`)
+    .join("");
+  const signedHeaders = headerEntries.map(([key]) => key).join(";");
+  const canonicalRequest = [
+    input.method,
+    pathname,
+    "",
+    canonicalHeaders,
+    signedHeaders,
+    input.payloadHash
+  ].join("\n");
+
+  return {
+    headers: {
+      ...(input.contentType ? { "content-type": input.contentType } : {}),
+      authorization: buildAuthorizationHeader({
+        accessKeyId: input.accessKeyId,
+        canonicalRequest,
+        amzDate,
+        dateStamp,
+        secretAccessKey: input.secretAccessKey,
+        signedHeaders
+      }),
+      host,
+      "x-amz-content-sha256": input.payloadHash || HASHED_EMPTY_STRING,
+      "x-amz-date": amzDate
+    },
+    url
+  };
+};
+
 const buildSignedUploadRequest = (input: {
   accountId: string;
   accessKeyId: string;
@@ -95,52 +153,84 @@ const buildSignedUploadRequest = (input: {
   key: string;
   secretAccessKey: string;
 }): SignedUploadRequest => {
-  const host = `${input.accountId}.r2.cloudflarestorage.com`;
-  const pathname = encodeR2Path(input.bucketName, input.key);
-  const url = `https://${host}${pathname}`;
-  const amzDate = buildAmzDate(input.date);
-  const dateStamp = buildDateStamp(input.date);
-  const payloadHash = hashHex(input.attachment.content);
-  const canonicalHeaders =
-    `content-type:${input.attachment.contentType}\n` +
-    `host:${host}\n` +
-    `x-amz-content-sha256:${payloadHash}\n` +
-    `x-amz-date:${amzDate}\n`;
-  const signedHeaders = "content-type;host;x-amz-content-sha256;x-amz-date";
-  const canonicalRequest = [
-    "PUT",
-    pathname,
-    "",
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash
-  ].join("\n");
+  const request = buildSignedR2Request({
+    accountId: input.accountId,
+    accessKeyId: input.accessKeyId,
+    bucketName: input.bucketName,
+    date: input.date,
+    key: input.key,
+    method: "PUT",
+    payloadHash: hashHex(input.attachment.content),
+    secretAccessKey: input.secretAccessKey,
+    contentType: input.attachment.contentType
+  });
 
   return {
     body: input.attachment.content,
-    headers: {
-      authorization: buildAuthorizationHeader({
-        accessKeyId: input.accessKeyId,
-        canonicalRequest,
-        amzDate,
-        dateStamp,
-        secretAccessKey: input.secretAccessKey,
-        signedHeaders
-      }),
-      "content-type": input.attachment.contentType,
-      host,
-      "x-amz-content-sha256": payloadHash || HASHED_EMPTY_STRING,
-      "x-amz-date": amzDate
-    },
-    url
+    headers: request.headers,
+    url: request.url
   };
 };
+
+const buildSignedHeadRequest = (input: {
+  accountId: string;
+  accessKeyId: string;
+  bucketName: string;
+  date: Date;
+  key: string;
+  secretAccessKey: string;
+}): SignedR2Request =>
+  buildSignedR2Request({
+    accountId: input.accountId,
+    accessKeyId: input.accessKeyId,
+    bucketName: input.bucketName,
+    date: input.date,
+    key: input.key,
+    method: "HEAD",
+    payloadHash: HASHED_EMPTY_STRING,
+    secretAccessKey: input.secretAccessKey
+  });
 
 export class R2DriveUploader implements DailyDeliveryNotesReportUploader {
   public constructor(
     private readonly config: R2DriveUploaderConfig,
     private readonly fetchImplementation: FetchLike = fetch
   ) {}
+
+  public async exists(input: { fileId: string }): Promise<boolean> {
+    const request = buildSignedHeadRequest({
+      accountId: this.config.accountId,
+      accessKeyId: this.config.accessKeyId,
+      bucketName: this.config.bucketName,
+      date: new Date(),
+      key: input.fileId,
+      secretAccessKey: this.config.secretAccessKey
+    });
+
+    let response: Response;
+
+    try {
+      response = await this.fetchImplementation(request.url, {
+        method: "HEAD",
+        headers: request.headers
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new DomainException(`R2 comprobacion fallo: ${message}`, 502);
+    }
+
+    if (response.status === 404) {
+      return false;
+    }
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      const details = body.trim() ? ` ${body.trim()}` : "";
+      throw new DomainException(`R2 comprobacion fallo: ${response.status}${details}`, 502);
+    }
+
+    return true;
+  }
 
   public async upload(input: {
     attachment: ReportAttachment;

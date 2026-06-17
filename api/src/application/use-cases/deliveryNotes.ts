@@ -346,14 +346,16 @@ export class SendDailyDeliveryNotesReportUseCase {
     const existingUpload = await this.uploadRepository.findByDate(date);
 
     if (existingUpload) {
-      return {
-        date: existingUpload.reportDate,
-        fileId: existingUpload.fileId,
-        fileName: existingUpload.fileName,
-        folderName: existingUpload.folderName,
-        notesCount: existingUpload.notesCount,
-        webViewLink: existingUpload.webViewLink
-      };
+      if (!this.uploader || await this.uploader.exists({ fileId: existingUpload.fileId })) {
+        return {
+          date: existingUpload.reportDate,
+          fileId: existingUpload.fileId,
+          fileName: existingUpload.fileName,
+          folderName: existingUpload.folderName,
+          notesCount: existingUpload.notesCount,
+          webViewLink: existingUpload.webViewLink
+        };
+      }
     }
 
     if (!this.reportGenerator || !this.uploader) {
@@ -386,14 +388,23 @@ export class SendDailyDeliveryNotesReportUseCase {
 
     const attachment = await this.reportGenerator.generate({ date, notes, customersById });
     const upload = await this.uploader.upload({ attachment, date });
-    const savedUpload = await this.uploadRepository.create({
-      reportDate: date,
-      fileId: upload.fileId,
-      fileName: upload.fileName,
-      folderName: upload.folderName,
-      notesCount: notes.length,
-      webViewLink: upload.webViewLink
-    });
+    const savedUpload = existingUpload
+      ? await this.uploadRepository.updateByDate({
+          reportDate: date,
+          fileId: upload.fileId,
+          fileName: upload.fileName,
+          folderName: upload.folderName,
+          notesCount: notes.length,
+          webViewLink: upload.webViewLink
+        })
+      : await this.uploadRepository.create({
+          reportDate: date,
+          fileId: upload.fileId,
+          fileName: upload.fileName,
+          folderName: upload.folderName,
+          notesCount: notes.length,
+          webViewLink: upload.webViewLink
+        });
 
     try {
       await this.emailNotifier.sendDailyReportNotification({
