@@ -11,26 +11,41 @@ import { prisma } from "../prisma/client.js";
 
 const buildWhere = (filters: DeliveryNoteFilters) => {
   const referenceDate = filters.date ?? new Date();
-  const start = new Date(
+  const exactStart = new Date(
     referenceDate.getFullYear(),
     referenceDate.getMonth(),
     referenceDate.getDate()
   );
-  const end = new Date(
+  const exactEnd = new Date(
     referenceDate.getFullYear(),
     referenceDate.getMonth(),
     referenceDate.getDate() + 1
   );
+  const rangeStart = filters.dateFrom
+    ? new Date(filters.dateFrom.getFullYear(), filters.dateFrom.getMonth(), filters.dateFrom.getDate())
+    : undefined;
+  const rangeEnd = filters.dateTo
+    ? new Date(filters.dateTo.getFullYear(), filters.dateTo.getMonth(), filters.dateTo.getDate() + 1)
+    : undefined;
+
+  let date: { gte?: Date; lt?: Date } | undefined;
+
+  if (filters.today || filters.date) {
+    date = {
+      gte: exactStart,
+      lt: exactEnd
+    };
+  } else if (rangeStart || rangeEnd) {
+    date = {
+      gte: rangeStart,
+      lt: rangeEnd
+    };
+  }
 
   return {
     status: filters.status,
     customerId: filters.customerId,
-    date: filters.today || filters.date
-      ? {
-          gte: start,
-          lt: end
-        }
-      : undefined
+    date
   };
 };
 

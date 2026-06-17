@@ -4,6 +4,7 @@ import type {
   CustomerInput,
   DashboardSummary,
   DailyDeliveryNotesReportResponse,
+  DailyDeliveryNotesReportUploadsListResponse,
   DeliveryNote,
   DeliveryNotesListResponse,
   DeliveryNoteInput,
@@ -42,6 +43,8 @@ export const deleteCustomer = async (id: string) =>
 
 export const getDeliveryNotes = async (filters?: {
   date?: string;
+  dateFrom?: string;
+  dateTo?: string;
   status?: DeliveryNoteStatus | "ALL";
   customerId?: string;
   today?: boolean;
@@ -61,6 +64,12 @@ export const getDeliveryNotes = async (filters?: {
   if (filters?.date) {
     params.set("date", filters.date);
   }
+  if (filters?.dateFrom) {
+    params.set("dateFrom", filters.dateFrom);
+  }
+  if (filters?.dateTo) {
+    params.set("dateTo", filters.dateTo);
+  }
   if (typeof filters?.limit === "number") {
     params.set("limit", filters.limit.toString());
   }
@@ -70,6 +79,32 @@ export const getDeliveryNotes = async (filters?: {
   const query = params.toString();
   return apiClient<DeliveryNotesListResponse>(
     `/api/delivery-notes${query ? `?${query}` : ""}`
+  );
+};
+
+export const getDailyDeliveryNotesReportUploads = async (filters?: {
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  offset?: number;
+}) => {
+  const params = new URLSearchParams();
+  if (filters?.dateFrom) {
+    params.set("dateFrom", filters.dateFrom);
+  }
+  if (filters?.dateTo) {
+    params.set("dateTo", filters.dateTo);
+  }
+  if (typeof filters?.limit === "number") {
+    params.set("limit", filters.limit.toString());
+  }
+  if (typeof filters?.offset === "number") {
+    params.set("offset", filters.offset.toString());
+  }
+
+  const query = params.toString();
+  return apiClient<DailyDeliveryNotesReportUploadsListResponse>(
+    `/api/delivery-notes/report-uploads${query ? `?${query}` : ""}`
   );
 };
 

@@ -5,6 +5,28 @@ import { prisma } from "../prisma/client.js";
 const normalizeReportDate = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
+const addDays = (date: Date, days: number) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+
+const buildWhere = (filters: {
+  dateFrom?: Date;
+  dateTo?: Date;
+}) => {
+  const start = filters.dateFrom ? normalizeReportDate(filters.dateFrom) : undefined;
+  const endExclusive = filters.dateTo ? addDays(normalizeReportDate(filters.dateTo), 1) : undefined;
+
+  if (!start && !endExclusive) {
+    return {};
+  }
+
+  return {
+    reportDate: {
+      gte: start,
+      lt: endExclusive
+    }
+  };
+};
+
 const toDomainUpload = (upload: {
   id: string;
   reportDate: Date;
@@ -13,10 +35,11 @@ const toDomainUpload = (upload: {
   folderName: string;
   notesCount: number;
   webViewLink: string | null;
-  lastSourceUpdatedAt: Date;
+  lastSourceUpdatedAt?: Date;
   createdAt: Date;
 }): DailyDeliveryNotesReportUpload => ({
-  ...upload
+  ...upload,
+  lastSourceUpdatedAt: upload.lastSourceUpdatedAt ?? upload.createdAt
 });
 
 type DailyDeliveryNotesReportUploadDelegate = {
@@ -35,6 +58,37 @@ type DailyDeliveryNotesReportUploadDelegate = {
     lastSourceUpdatedAt: Date;
     createdAt: Date;
   } | null>;
+  findMany(args: {
+    where: {
+      reportDate?: {
+        gte?: Date;
+        lt?: Date;
+      };
+    };
+    orderBy: {
+      reportDate: "asc" | "desc";
+    };
+    take?: number;
+    skip?: number;
+  }): Promise<Array<{
+    id: string;
+    reportDate: Date;
+    fileId: string;
+    fileName: string;
+    folderName: string;
+    notesCount: number;
+    webViewLink: string | null;
+    lastSourceUpdatedAt: Date;
+    createdAt: Date;
+  }>>;
+  count(args: {
+    where: {
+      reportDate?: {
+        gte?: Date;
+        lt?: Date;
+      };
+    };
+  }): Promise<number>;
   create(args: {
     data: {
       reportDate: Date;
@@ -95,6 +149,33 @@ const dailyDeliveryNotesReportUploadDelegate = (
 export class PrismaDailyDeliveryNotesReportUploadRepository
   implements DailyDeliveryNotesReportUploadRepository
 {
+  public async findAll(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    limit?: number;
+    offset?: number;
+  }) {
+    const uploads = await dailyDeliveryNotesReportUploadDelegate.findMany({
+      where: buildWhere(filters),
+      orderBy: {
+        reportDate: "desc"
+      },
+      take: filters.limit,
+      skip: filters.offset
+    });
+
+    return uploads.map(toDomainUpload);
+  }
+
+  public async count(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+  }) {
+    return dailyDeliveryNotesReportUploadDelegate.count({
+      where: buildWhere(filters)
+    });
+  }
+
   public async findByDate(reportDate: Date) {
     const upload = await dailyDeliveryNotesReportUploadDelegate.findUnique({
       where: {

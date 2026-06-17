@@ -14,6 +14,7 @@ import {
   ChangeDeliveryNoteStatusUseCase,
   CreateDeliveryNoteUseCase,
   DeleteDeliveryNoteUseCase,
+  GetDailyDeliveryNotesReportUploadsUseCase,
   GetDashboardSummaryUseCase,
   GetDeliveryNoteUseCase,
   GetDeliveryNotesUseCase,
@@ -164,6 +165,26 @@ class InMemoryDeliveryNoteRepository {
           return false;
         }
       }
+      if (filters.dateFrom) {
+        const start = new Date(
+          filters.dateFrom.getFullYear(),
+          filters.dateFrom.getMonth(),
+          filters.dateFrom.getDate()
+        );
+        if (note.date.getTime() < start.getTime()) {
+          return false;
+        }
+      }
+      if (filters.dateTo) {
+        const end = new Date(
+          filters.dateTo.getFullYear(),
+          filters.dateTo.getMonth(),
+          filters.dateTo.getDate() + 1
+        );
+        if (note.date.getTime() >= end.getTime()) {
+          return false;
+        }
+      }
       return true;
     });
 
@@ -188,6 +209,26 @@ class InMemoryDeliveryNoteRepository {
           note.date.getDate() === referenceDate.getDate();
 
         if (!sameDay) {
+          return false;
+        }
+      }
+      if (filters.dateFrom) {
+        const start = new Date(
+          filters.dateFrom.getFullYear(),
+          filters.dateFrom.getMonth(),
+          filters.dateFrom.getDate()
+        );
+        if (note.date.getTime() < start.getTime()) {
+          return false;
+        }
+      }
+      if (filters.dateTo) {
+        const end = new Date(
+          filters.dateTo.getFullYear(),
+          filters.dateTo.getMonth(),
+          filters.dateTo.getDate() + 1
+        );
+        if (note.date.getTime() >= end.getTime()) {
           return false;
         }
       }
@@ -261,6 +302,53 @@ class FakeDailyDeliveryNotesReportUploader {
 
 class InMemoryDailyDeliveryNotesReportUploadRepository {
   public uploads: DailyDeliveryNotesReportUpload[] = [];
+
+  public async findAll(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    limit?: number;
+    offset?: number;
+  }) {
+    const filtered = this.uploads
+      .filter((upload) => {
+        if (filters.dateFrom) {
+          const start = new Date(
+            filters.dateFrom.getFullYear(),
+            filters.dateFrom.getMonth(),
+            filters.dateFrom.getDate()
+          );
+          if (upload.reportDate.getTime() < start.getTime()) {
+            return false;
+          }
+        }
+
+        if (filters.dateTo) {
+          const end = new Date(
+            filters.dateTo.getFullYear(),
+            filters.dateTo.getMonth(),
+            filters.dateTo.getDate() + 1
+          );
+          if (upload.reportDate.getTime() >= end.getTime()) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((left, right) => right.reportDate.getTime() - left.reportDate.getTime());
+
+    const offset = filters.offset ?? 0;
+    const end = typeof filters.limit === "number" ? offset + filters.limit : undefined;
+    return filtered.slice(offset, end);
+  }
+
+  public async count(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+  }) {
+    const uploads = await this.findAll(filters);
+    return uploads.length;
+  }
 
   public create = vi.fn(async (input: {
     reportDate: Date;
@@ -615,6 +703,52 @@ describe("delivery note use cases", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("note-pending");
+  });
+
+  it("filters delivery notes by date range", async () => {
+    const useCase = new GetDeliveryNotesUseCase(deliveryNoteRepository);
+
+    const result = await useCase.execute({
+      dateFrom: new Date("2026-01-01T00:00:00.000Z"),
+      dateTo: new Date("2026-01-01T00:00:00.000Z")
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result.map((note) => note.id)).toEqual(["note-draft", "note-reviewed"]);
+  });
+
+  it("lists uploaded daily reports from the historical library", async () => {
+    await reportUploadRepository.create({
+      reportDate: new Date("2026-01-01T00:00:00.000Z"),
+      fileId: "2026-01/albaranes-2026-01-01.pdf",
+      fileName: "albaranes-2026-01-01.pdf",
+      folderName: "2026-01",
+      notesCount: 2,
+      webViewLink: "https://archivos.example.com/2026-01/albaranes-2026-01-01.pdf",
+      lastSourceUpdatedAt: new Date("2026-01-01T12:00:00.000Z")
+    });
+    await reportUploadRepository.create({
+      reportDate: new Date("2026-01-02T00:00:00.000Z"),
+      fileId: "2026-01/albaranes-2026-01-02.pdf",
+      fileName: "albaranes-2026-01-02.pdf",
+      folderName: "2026-01",
+      notesCount: 1,
+      webViewLink: "https://archivos.example.com/2026-01/albaranes-2026-01-02.pdf",
+      lastSourceUpdatedAt: new Date("2026-01-02T12:00:00.000Z")
+    });
+    const useCase = new GetDailyDeliveryNotesReportUploadsUseCase(reportUploadRepository);
+
+    const result = await useCase.execute({
+      dateFrom: new Date("2026-01-01T00:00:00.000Z"),
+      dateTo: new Date("2026-01-31T00:00:00.000Z")
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.fileName).toBe("albaranes-2026-01-02.pdf");
+    expect(await useCase.count({
+      dateFrom: new Date("2026-01-01T00:00:00.000Z"),
+      dateTo: new Date("2026-01-31T00:00:00.000Z")
+    })).toBe(2);
   });
 
   it("builds the dashboard summary with totals and counters", async () => {

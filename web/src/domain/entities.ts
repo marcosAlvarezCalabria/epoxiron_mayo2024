@@ -77,6 +77,18 @@ export interface DeliveryNote {
   items: DeliveryNoteItem[];
 }
 
+export interface DailyDeliveryNotesReportUpload {
+  id: string;
+  reportDate: string;
+  fileId: string;
+  fileName: string;
+  folderName: string;
+  notesCount: number;
+  webViewLink: string | null;
+  lastSourceUpdatedAt: string;
+  createdAt: string;
+}
+
 export interface DeliveryNoteInput {
   customerId: string;
   notes?: string | null;
@@ -117,6 +129,16 @@ export interface DailyDeliveryNotesReportResponse {
 
 export interface DeliveryNotesListResponse {
   deliveryNotes: DeliveryNote[];
+  pagination: {
+    total: number;
+    limit: number | null;
+    offset: number;
+    hasMore: boolean;
+  };
+}
+
+export interface DailyDeliveryNotesReportUploadsListResponse {
+  uploads: DailyDeliveryNotesReportUpload[];
   pagination: {
     total: number;
     limit: number | null;

@@ -4,6 +4,7 @@ import type {
   ChangeDeliveryNoteStatusUseCase,
   CreateDeliveryNoteUseCase,
   DeleteDeliveryNoteUseCase,
+  GetDailyDeliveryNotesReportUploadsUseCase,
   GetDashboardSummaryUseCase,
   GetDeliveryNoteUseCase,
   GetDeliveryNotesUseCase,
@@ -29,6 +30,7 @@ export class DeliveryNotesController {
     private readonly changeDeliveryNoteStatusUseCase: ChangeDeliveryNoteStatusUseCase,
     private readonly calculatePriceUseCase: CalculatePriceUseCase,
     private readonly getCustomerUseCase: GetCustomerUseCase,
+    private readonly getDailyDeliveryNotesReportUploadsUseCase: GetDailyDeliveryNotesReportUploadsUseCase,
     private readonly getDashboardSummaryUseCase: GetDashboardSummaryUseCase,
     private readonly sendDailyDeliveryNotesReportUseCase: SendDailyDeliveryNotesReportUseCase
   ) {}
@@ -36,6 +38,8 @@ export class DeliveryNotesController {
   public list = async (request: Request, response: Response) => {
     const filters = {
       date: getDateQuery(request.query.date),
+      dateFrom: getDateQuery(request.query.dateFrom),
+      dateTo: getDateQuery(request.query.dateTo),
       status: getStatusQuery(request.query.status),
       customerId: typeof request.query.customerId === "string" ? request.query.customerId : undefined,
       today: request.query.today === "true",
@@ -45,6 +49,8 @@ export class DeliveryNotesController {
     const deliveryNotes = await this.getDeliveryNotesUseCase.execute(filters);
     const total = await this.getDeliveryNotesUseCase.count({
       date: filters.date,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
       status: filters.status,
       customerId: filters.customerId,
       today: filters.today
@@ -58,6 +64,43 @@ export class DeliveryNotesController {
         hasMore:
           typeof filters.limit === "number"
             ? (filters.offset ?? 0) + deliveryNotes.length < total
+            : false
+      }
+    });
+  };
+
+  public listReportUploads = async (request: Request, response: Response) => {
+    const filters = {
+      dateFrom: getDateQuery(request.query.dateFrom),
+      dateTo: getDateQuery(request.query.dateTo),
+      limit: getPositiveIntegerQuery(request.query.limit),
+      offset: getNonNegativeIntegerQuery(request.query.offset)
+    };
+    const uploads = await this.getDailyDeliveryNotesReportUploadsUseCase.execute(filters);
+    const total = await this.getDailyDeliveryNotesReportUploadsUseCase.count({
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo
+    });
+
+    response.json({
+      uploads: uploads.map((upload) => ({
+        id: upload.id,
+        reportDate: upload.reportDate.toISOString(),
+        fileId: upload.fileId,
+        fileName: upload.fileName,
+        folderName: upload.folderName,
+        notesCount: upload.notesCount,
+        webViewLink: upload.webViewLink,
+        lastSourceUpdatedAt: upload.lastSourceUpdatedAt.toISOString(),
+        createdAt: upload.createdAt.toISOString()
+      })),
+      pagination: {
+        total,
+        limit: filters.limit ?? null,
+        offset: filters.offset ?? 0,
+        hasMore:
+          typeof filters.limit === "number"
+            ? (filters.offset ?? 0) + uploads.length < total
             : false
       }
     });

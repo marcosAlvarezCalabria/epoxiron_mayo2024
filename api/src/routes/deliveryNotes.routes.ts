@@ -12,6 +12,7 @@ export const buildDeliveryNotesRouter = (controller: DeliveryNotesController) =>
   const router = Router();
 
   router.get("/", asyncHandler(controller.list));
+  router.get("/report-uploads", asyncHandler(controller.listReportUploads));
   router.post("/calculate-price", async (request, _response, next) => {
     try {
       request.body = calculatePriceSchema.parse(request.body);

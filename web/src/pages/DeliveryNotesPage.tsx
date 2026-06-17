@@ -146,6 +146,13 @@ const formatArticleTexture = (texture?: DeliveryNoteItemDraft["texture"]) =>
   texture && texture !== "NORMAL" ? formatDeliveryNoteTexture(texture) : null;
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
 const formatDocumentDate = (value: string) => new Date(value).toLocaleDateString("es-ES");
+const buildIsoDate = (value: Date) => value.toISOString().slice(0, 10);
+const getCurrentWeekStart = () => {
+  const today = new Date();
+  const weekday = today.getDay();
+  const diffToMonday = weekday === 0 ? 6 : weekday - 1;
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate() - diffToMonday);
+};
 const UnitToken = ({ base, suffix }: { base: string; suffix?: string }) => (
   <span className="inline-flex items-start gap-[1px]">
     <span>{base}</span>
@@ -213,6 +220,7 @@ export const DeliveryNotesPage = () => {
   const [statusFilter, setStatusFilter] = useState<DeliveryNoteStatus | "ALL">("ALL");
   const [customerFilter, setCustomerFilter] = useState("");
   const [todayOnly, setTodayOnly] = useState(false);
+  const [weekOnly, setWeekOnly] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
@@ -226,6 +234,8 @@ export const DeliveryNotesPage = () => {
   const formDateInputRef = useRef<HTMLInputElement | null>(null);
   const composerContentRef = useRef<HTMLDivElement | null>(null);
   const previewsRequestIdRef = useRef(0);
+  const currentWeekStart = useMemo(() => buildIsoDate(getCurrentWeekStart()), []);
+  const todayDate = useMemo(() => buildIsoDate(new Date()), []);
 
   const handleComposerWheelCapture = (event: WheelEvent<HTMLDivElement>) => {
     const container = composerContentRef.current;
@@ -256,11 +266,13 @@ export const DeliveryNotesPage = () => {
   });
 
   const deliveryNotesQuery = useQuery({
-    queryKey: ["delivery-notes", statusFilter, customerFilter, todayOnly, dateFilter],
+    queryKey: ["delivery-notes", statusFilter, customerFilter, todayOnly, weekOnly, dateFilter],
     queryFn: () =>
       getDeliveryNotes({
         customerId: customerFilter || undefined,
         date: dateFilter || undefined,
+        dateFrom: !dateFilter && !todayOnly && weekOnly ? currentWeekStart : undefined,
+        dateTo: !dateFilter && !todayOnly && weekOnly ? todayDate : undefined,
         status: statusFilter,
         today: todayOnly
       })
@@ -726,6 +738,22 @@ export const DeliveryNotesPage = () => {
               <div className="flex flex-wrap gap-2">
                 <button
                   className={`px-3 py-2 text-sm font-semibold ${
+                    weekOnly && !todayOnly && !dateFilter
+                      ? "bg-[var(--epx-accent)] text-[#131313]"
+                      : "border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] text-[var(--epx-text-muted)]"
+                  }`}
+                  onClick={() => {
+                    setWeekOnly(true);
+                    setTodayOnly(false);
+                    setDateFilter("");
+                  }}
+                  type="button"
+                >
+                  Esta semana
+                </button>
+
+                <button
+                  className={`px-3 py-2 text-sm font-semibold ${
                     todayOnly
                       ? "bg-[var(--epx-accent)] text-[#131313]"
                       : "border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] text-[var(--epx-text-muted)]"
@@ -735,6 +763,7 @@ export const DeliveryNotesPage = () => {
                       const next = !current;
                       if (next) {
                         setDateFilter("");
+                        setWeekOnly(false);
                       }
                       return next;
                     })
@@ -758,6 +787,7 @@ export const DeliveryNotesPage = () => {
                     setDateFilter(event.target.value);
                     if (event.target.value) {
                       setTodayOnly(false);
+                      setWeekOnly(false);
                     }
                   }}
                   ref={dateFilterInputRef}

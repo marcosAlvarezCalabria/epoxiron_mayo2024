@@ -16,6 +16,7 @@ import {
   ChangeDeliveryNoteStatusUseCase,
   CreateDeliveryNoteUseCase,
   DeleteDeliveryNoteUseCase,
+  GetDailyDeliveryNotesReportUploadsUseCase,
   GetDashboardSummaryUseCase,
   GetDeliveryNoteUseCase,
   GetDeliveryNotesUseCase,
@@ -98,6 +99,9 @@ const deleteCustomerUseCase = new DeleteCustomerUseCase(customerRepository);
 
 const getDeliveryNotesUseCase = new GetDeliveryNotesUseCase(deliveryNoteRepository);
 const getDeliveryNoteUseCase = new GetDeliveryNoteUseCase(deliveryNoteRepository);
+const getDailyDeliveryNotesReportUploadsUseCase = new GetDailyDeliveryNotesReportUploadsUseCase(
+  dailyReportUploadRepository
+);
 const createDeliveryNoteUseCase = new CreateDeliveryNoteUseCase(
   customerRepository,
   deliveryNoteRepository,
@@ -165,6 +169,7 @@ const deliveryNotesController = new DeliveryNotesController(
   changeDeliveryNoteStatusUseCase,
   calculatePriceUseCase,
   getCustomerUseCase,
+  getDailyDeliveryNotesReportUploadsUseCase,
   getDashboardSummaryUseCase,
   sendDailyDeliveryNotesReportUseCase
 );

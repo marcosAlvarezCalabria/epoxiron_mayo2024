@@ -292,6 +292,26 @@ export class GetDeliveryNotesUseCase {
   }
 }
 
+export class GetDailyDeliveryNotesReportUploadsUseCase {
+  public constructor(private readonly repository: DailyDeliveryNotesReportUploadRepository) {}
+
+  public async execute(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.repository.findAll(filters);
+  }
+
+  public async count(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+  }) {
+    return this.repository.count(filters);
+  }
+}
+
 export class GetDeliveryNoteUseCase {
   public constructor(private readonly repository: DeliveryNoteRepository) {}
 

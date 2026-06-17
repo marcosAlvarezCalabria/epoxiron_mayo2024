@@ -56,6 +56,8 @@ export interface DeliveryNoteInput {
 
 export interface DeliveryNoteFilters {
   date?: Date;
+  dateFrom?: Date;
+  dateTo?: Date;
   status?: DeliveryNoteStatus;
   customerId?: string;
   today?: boolean;
