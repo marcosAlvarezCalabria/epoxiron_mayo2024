@@ -242,7 +242,7 @@ export class R2DriveUploader implements DailyDeliveryNotesReportUploader {
       accessKeyId: this.config.accessKeyId,
       attachment: input.attachment,
       bucketName: this.config.bucketName,
-      date: input.date,
+      date: new Date(),
       key,
       secretAccessKey: this.config.secretAccessKey
     });
