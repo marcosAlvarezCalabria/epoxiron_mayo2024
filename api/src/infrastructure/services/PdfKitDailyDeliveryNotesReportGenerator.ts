@@ -202,6 +202,7 @@ const drawPageFrame = (document: PdfDocumentInstance) => {
 
 const drawHeader = (
   document: PdfDocumentInstance,
+  note: DeliveryNote,
   layout: NoteLayout,
   customer: DeliveryNoteReportCustomerDetails
 ) => {
@@ -258,10 +259,16 @@ const drawHeader = (
   const bottomMetaY = cursorY + 28;
 
   [
-    { label: "ALBARAN", value: "", x: contentX, y: topMetaY, width: layout.metaColumnWidth },
+    {
+      label: "ALBARAN",
+      value: toPdfUppercase(note.number),
+      x: contentX,
+      y: topMetaY,
+      width: layout.metaColumnWidth
+    },
     {
       label: "FECHA",
-      value: "",
+      value: formatDocumentDate(note.date),
       x: contentX + layout.metaColumnWidth + 18,
       y: topMetaY,
       width: layout.metaColumnWidth
@@ -436,7 +443,7 @@ const renderRowsPage = (
   drawPageFrame(document);
 
   const tableTopY = isFirstPage
-    ? drawHeader(document, layout, customer)
+    ? drawHeader(document, note, layout, customer)
     : PAGE_MARGIN + SECTION_PADDING;
   const { quantityX, priceX, rowStartY, tableX, totalX } = drawTableHeader(
     document,
@@ -542,12 +549,11 @@ const renderRowsPage = (
 const renderNote = (
   document: PdfDocumentInstance,
   note: DeliveryNote,
-  customer: DeliveryNoteReportCustomerDetails,
-  isFirstDocumentPage: boolean
+  customer: DeliveryNoteReportCustomerDetails
 ) => {
   const layout = buildNoteLayout(document, note, customer);
   let renderedRows = 0;
-  let isFirstPage = isFirstDocumentPage;
+  let isFirstPage = true;
 
   while (renderedRows < note.items.length) {
     renderedRows = renderRowsPage(document, note, customer, layout, renderedRows, isFirstPage);
@@ -576,8 +582,7 @@ export class PdfKitDailyDeliveryNotesReportGenerator implements DailyDeliveryNot
           email: null,
           phone: null,
           address: null
-        },
-        index === 0
+        }
       );
     });
 
