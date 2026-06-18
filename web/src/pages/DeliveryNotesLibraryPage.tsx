@@ -22,6 +22,17 @@ const buildMonthStart = () => {
 };
 
 const buildToday = () => new Date().toISOString().slice(0, 10);
+const buildVersionedPdfHref = (upload: DailyDeliveryNotesReportUpload) => {
+  const baseUrl = upload.webViewLink ?? upload.fileId;
+  const version = upload.lastSourceUpdatedAt || upload.createdAt;
+
+  if (!version) {
+    return baseUrl;
+  }
+
+  const separator = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${separator}v=${encodeURIComponent(version)}`;
+};
 const isIosSafari = () => {
   if (typeof navigator === "undefined") {
     return false;
@@ -85,12 +96,12 @@ export const DeliveryNotesLibraryPage = () => {
 
   const buildViewerHref = (upload: DailyDeliveryNotesReportUpload) => {
     const params = new URLSearchParams();
-    params.set("url", upload.webViewLink ?? upload.fileId);
+    params.set("url", buildVersionedPdfHref(upload));
     params.set("fileName", upload.fileName);
     return `/delivery-notes-library/view?${params.toString()}`;
   };
 
-  const buildDirectHref = (upload: DailyDeliveryNotesReportUpload) => upload.webViewLink ?? upload.fileId;
+  const buildDirectHref = (upload: DailyDeliveryNotesReportUpload) => buildVersionedPdfHref(upload);
 
   return (
     <section className="space-y-6">
