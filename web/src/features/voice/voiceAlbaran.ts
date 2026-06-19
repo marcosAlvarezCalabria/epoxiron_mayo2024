@@ -8,6 +8,7 @@ import {
 export interface ParsedVoiceAlbaranItem {
   description: string;
   color: string | null;
+  specialPieceIntent: boolean;
   customUnitPrice: number | null;
   pricingMode: DeliveryNotePricingMode;
   texture: DeliveryNoteTexture;
@@ -87,6 +88,104 @@ const normalizeLooseText = (value: string): string =>
     .trim();
 
 const compactLooseText = (value: string): string => normalizeLooseText(value).replace(/\s+/g, "");
+
+const normalizeSpecialPieceSearchText = (value: string): string =>
+  normalizeLooseText(value)
+    .replace(/(\d)\s*(?:x|\*|por)\s*(\d)/g, "$1 $2")
+    .replace(/[+/_-]+/g, " ")
+    .replace(
+      /\b(?:mas|con|de|del|la|el|los|las|un|una|especial|pieza|listado|catalogo|catálogo)\b/g,
+      " "
+    )
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getSpecialPieceSearchTokens = (value: string): string[] =>
+  normalizeSpecialPieceSearchText(value)
+    .split(" ")
+    .filter(Boolean);
+
+const scoreSpecialPieceMatch = (candidateName: string, spokenDescription: string): number => {
+  const exactCandidate = normalizeSpecialPieceName(candidateName);
+  const exactSpoken = normalizeSpecialPieceName(spokenDescription);
+
+  if (!exactCandidate || !exactSpoken) {
+    return 0;
+  }
+
+  if (exactCandidate === exactSpoken) {
+    return 1;
+  }
+
+  const candidateTokens = getSpecialPieceSearchTokens(candidateName);
+  const spokenTokens = getSpecialPieceSearchTokens(spokenDescription);
+  if (candidateTokens.length === 0 || spokenTokens.length === 0) {
+    return 0;
+  }
+
+  const sharedTokens = spokenTokens.filter((spokenToken) =>
+    candidateTokens.some(
+      (candidateToken) =>
+        candidateToken === spokenToken ||
+        candidateToken.startsWith(spokenToken) ||
+        spokenToken.startsWith(candidateToken)
+    )
+  ).length;
+
+  const candidateCompact = candidateTokens.join("");
+  const spokenCompact = spokenTokens.join("");
+  const dimensionsCompact = spokenCompact.replace(/por/g, "");
+  let score = sharedTokens / Math.max(spokenTokens.length, candidateTokens.length);
+
+  if (
+    candidateCompact.includes(spokenCompact) ||
+    spokenCompact.includes(candidateCompact) ||
+    candidateCompact.includes(dimensionsCompact) ||
+    dimensionsCompact.includes(candidateCompact)
+  ) {
+    score = Math.max(score, 0.94);
+  }
+
+  const spokenNumericTokens = spokenTokens.filter((token) => /\d/.test(token));
+  if (spokenNumericTokens.length > 0) {
+    const matchedNumericTokens = spokenNumericTokens.filter((spokenToken) =>
+      candidateTokens.some((candidateToken) => candidateToken === spokenToken)
+    ).length;
+    score += (matchedNumericTokens / spokenNumericTokens.length) * 0.12;
+  }
+
+  return Math.min(score, 1);
+};
+
+const findMatchingCustomerSpecialPiece = (
+  customer: Customer | null | undefined,
+  item: ParsedVoiceAlbaranItem
+) => {
+  if (!customer) {
+    return null;
+  }
+
+  const normalizedDescription = normalizeSpecialPieceName(item.description);
+  const exactMatch =
+    customer.specialPieces.find((piece) => {
+      const normalizedPieceName = normalizeSpecialPieceName(piece.name);
+      return normalizedDescription && normalizedPieceName && normalizedPieceName === normalizedDescription;
+    }) ?? null;
+
+  if (exactMatch || !item.specialPieceIntent) {
+    return exactMatch;
+  }
+
+  const bestMatch = customer.specialPieces
+    .map((piece) => ({
+      piece,
+      score: scoreSpecialPieceMatch(piece.name, item.description)
+    }))
+    .sort((left, right) => right.score - left.score)[0];
+
+  return bestMatch && bestMatch.score >= 0.78 ? bestMatch.piece : null;
+};
 
 const stripFillerWords = (value: string): string =>
   normalizeLooseText(value)
@@ -355,16 +454,7 @@ export const mapParsedVoiceItemToFormState = (
   customer?: Customer | null
 ): DeliveryNoteItemFormState => ({
   ...(() => {
-    const normalizedDescription = normalizeSpecialPieceName(item.description);
-    const matchedSpecialPiece =
-      customer?.specialPieces.find((piece) => {
-        const normalizedPieceName = normalizeSpecialPieceName(piece.name);
-        if (!normalizedDescription || !normalizedPieceName) {
-          return false;
-        }
-
-        return normalizedPieceName === normalizedDescription;
-      }) ?? null;
+    const matchedSpecialPiece = findMatchingCustomerSpecialPiece(customer, item);
 
     const usesExistingSpecialPiece = matchedSpecialPiece !== null;
     const inferred = inferEmbeddedColorAndTexture(usesExistingSpecialPiece ? matchedSpecialPiece.name : item.description);
@@ -422,13 +512,24 @@ export const buildVoiceFeedbackMessage = (
   customer: Customer | null
 ): string | null => {
   const missingColorCount = data.items.filter((item) => !item.color?.trim()).length;
+  const unresolvedSpecialPieceCount = customer
+    ? data.items.filter((item) => item.specialPieceIntent && !findMatchingCustomerSpecialPiece(customer, item)).length
+    : 0;
 
   if (data.customerName && !customer) {
+    if (data.items.some((item) => item.specialPieceIntent)) {
+      return "Cliente no encontrado y hay piezas especiales por resolver. Seleccionalo manualmente antes de guardar.";
+    }
+
     if (missingColorCount > 0) {
       return `Cliente no encontrado y ${missingColorCount} pieza(s) sin color. Revisa los datos antes de guardar.`;
     }
 
     return "Cliente no encontrado. Seleccionalo manualmente antes de guardar.";
+  }
+
+  if (unresolvedSpecialPieceCount > 0) {
+    return `${unresolvedSpecialPieceCount} pieza(s) marcada(s) como especial no coincide(n) con el listado del cliente. Revisalas antes de guardar.`;
   }
 
   if (missingColorCount > 0) {

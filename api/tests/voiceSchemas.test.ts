@@ -12,6 +12,7 @@ describe("normalizeParsedVoiceAlbaran", () => {
         {
           description: "barandilla",
           color: "RAL 7016",
+          specialPieceIntent: true,
           texture: "gofrado",
           linearMeters: "12,5",
           squareMeters: null,
@@ -30,6 +31,7 @@ describe("normalizeParsedVoiceAlbaran", () => {
         {
           description: "BARANDILLA",
           color: "RAL 7016",
+          specialPieceIntent: true,
           pricingMode: "DIMENSIONS",
           customUnitPrice: null,
           texture: "GOFRADO",
@@ -53,6 +55,7 @@ describe("normalizeParsedVoiceAlbaran", () => {
         {
           description: "perfil",
           color: null,
+          specialPieceIntent: null,
           texture: null,
           linearMeters: -1,
           squareMeters: "",
@@ -67,6 +70,7 @@ describe("normalizeParsedVoiceAlbaran", () => {
       description: "PERFIL",
       customUnitPrice: null,
       pricingMode: "DIMENSIONS",
+      specialPieceIntent: false,
       texture: "NORMAL",
       linearMeters: null,
       squareMeters: null,

@@ -11,6 +11,7 @@ Estructura obligatoria:
     {
       "description": "string",
       "color": "string o null",
+      "specialPieceIntent": "boolean",
       "pricingMode": "dimensions | unit",
       "customUnitPrice": "number o null",
       "texture": "mate | texturado | gofrado | normal | null",
@@ -49,6 +50,7 @@ Reglas:
 - Si el usuario dice "grosor", "con grosor", "grosor incluido" o equivalente, usa hasThickness = true. Si no, false.
 - Si el usuario dice "imprimacion", "imprimacion incluida", "con imprimacion" o equivalente, usa hasPrimer = true. Si no, false.
 - Si el usuario dice "guardar como especial", "pieza especial", "guardala como especial" o equivalente, usa saveAsSpecialPiece = true. Si no, false.
+- Si el usuario dice "especial", "pieza especial", "del listado especial" o equivalente para referirse a una pieza ya existente del cliente, usa specialPieceIntent = true. Si no, false.
 - quantity es 1 si no se menciona.
 - No devuelvas texto adicional fuera del JSON.`;
 

@@ -33,6 +33,7 @@ describe("OpenAiCompatibleVoiceAlbaranParser", () => {
                     {
                       description: "marco",
                       color: "RAL 9010",
+                      specialPieceIntent: false,
                       texture: "normal",
                       linearMeters: 4,
                       squareMeters: null,
@@ -63,6 +64,7 @@ describe("OpenAiCompatibleVoiceAlbaranParser", () => {
         {
           description: "MARCO",
           color: "RAL 9010",
+          specialPieceIntent: false,
           pricingMode: "DIMENSIONS",
           customUnitPrice: null,
           texture: "NORMAL",

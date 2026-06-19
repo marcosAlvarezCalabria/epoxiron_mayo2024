@@ -4,6 +4,7 @@ export type ParsedVoicePricingMode = "DIMENSIONS" | "UNIT";
 export interface ParsedVoiceAlbaranItem {
   description: string;
   color: string | null;
+  specialPieceIntent: boolean;
   customUnitPrice: number | null;
   pricingMode: ParsedVoicePricingMode;
   texture: ParsedVoiceTexture;

@@ -110,6 +110,7 @@ const normalizeVoiceText = (value: string | null): string | null => {
 const llmItemSchema = z.object({
   description: z.string().trim().min(1),
   color: z.string().trim().min(1).nullable(),
+  specialPieceIntent: llmBooleanSchema.optional().default(false),
   pricingMode: z
     .string()
     .trim()
@@ -155,6 +156,7 @@ const parsedVoiceAlbaranResponseSchema = z.object({
     z.object({
       description: z.string().trim().min(1),
       color: z.string().trim().min(1).nullable(),
+      specialPieceIntent: z.boolean(),
       pricingMode: parsedVoicePricingModeSchema,
       customUnitPrice: z.number().positive().nullable(),
       texture: parsedVoiceTextureSchema,
@@ -191,6 +193,7 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
       linearMeters: item.linearMeters && item.linearMeters > 0 ? item.linearMeters : null,
       quantity: item.quantity,
       saveAsSpecialPiece: item.saveAsSpecialPiece,
+      specialPieceIntent: item.specialPieceIntent,
       squareMeters: item.squareMeters && item.squareMeters > 0 ? item.squareMeters : null,
       texture: item.texture
     }))
@@ -204,6 +207,7 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
       pricingMode: item.effectivePricingMode,
       quantity: item.quantity,
       saveAsSpecialPiece: item.saveAsSpecialPiece,
+      specialPieceIntent: item.specialPieceIntent,
       squareMeters: item.squareMeters,
       texture: item.texture
     }))

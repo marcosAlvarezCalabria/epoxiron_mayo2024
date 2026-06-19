@@ -7,6 +7,7 @@ describe("voiceAlbaran helpers", () => {
       mapParsedVoiceItemToFormState({
         description: "barandilla",
         color: null,
+        specialPieceIntent: false,
         customUnitPrice: null,
         pricingMode: "DIMENSIONS",
         texture: "GOFRADO",
@@ -38,6 +39,7 @@ describe("voiceAlbaran helpers", () => {
         {
           description: "pata reforzada",
           color: "RAL 9006",
+          specialPieceIntent: false,
           customUnitPrice: null,
           pricingMode: "DIMENSIONS",
           texture: "NORMAL",
@@ -83,6 +85,7 @@ describe("voiceAlbaran helpers", () => {
         {
           description: "gondola cado cajon mas chapa",
           color: "RAL 9005",
+          specialPieceIntent: false,
           customUnitPrice: null,
           pricingMode: "DIMENSIONS",
           texture: "NORMAL",
@@ -121,6 +124,7 @@ describe("voiceAlbaran helpers", () => {
         {
           description: "bastidor",
           color: "RAL 9005",
+          specialPieceIntent: false,
           customUnitPrice: null,
           pricingMode: "DIMENSIONS",
           texture: "NORMAL",
@@ -160,6 +164,7 @@ describe("voiceAlbaran helpers", () => {
         {
           description: "barra z 9016 text",
           color: null,
+          specialPieceIntent: true,
           customUnitPrice: null,
           pricingMode: "DIMENSIONS",
           texture: "NORMAL",
@@ -190,6 +195,46 @@ describe("voiceAlbaran helpers", () => {
       texture: "TEXTURADO",
       pricingMode: "UNIT",
       customUnitPrice: "0,7"
+    });
+  });
+
+  it("matches against the customer's special-piece list when the transcript marks the item as special", () => {
+    expect(
+      mapParsedVoiceItemToFormState(
+        {
+          description: "bastidor lateral 9005 7024 3000 por 1500",
+          color: null,
+          specialPieceIntent: true,
+          customUnitPrice: null,
+          pricingMode: "DIMENSIONS",
+          texture: "NORMAL",
+          linearMeters: null,
+          squareMeters: null,
+          hasThickness: false,
+          hasPrimer: false,
+          saveAsSpecialPiece: false,
+          quantity: 3
+        },
+        {
+          id: "1",
+          name: "Ditrametal",
+          email: null,
+          phone: null,
+          address: null,
+          notes: null,
+          pricePerLinearMeter: 1,
+          pricePerSquareMeter: 1,
+          minimumRate: 1,
+          grosorPrecio: null,
+          specialPieces: [{ name: "BASTIDOR LATERAL 9005+7024 3000X1500", price: 26.72 }]
+        }
+      )
+    ).toMatchObject({
+      description: "BASTIDOR LATERAL 9005+7024 3000X1500",
+      color: "RAL 9005+7024",
+      pricingMode: "UNIT",
+      customUnitPrice: "26,72",
+      saveAsSpecialPiece: true
     });
   });
 
@@ -239,6 +284,7 @@ describe("voiceAlbaran helpers", () => {
             {
               description: "pieza",
               color: null,
+              specialPieceIntent: false,
               customUnitPrice: null,
               pricingMode: "DIMENSIONS",
               texture: "NORMAL",
@@ -254,5 +300,46 @@ describe("voiceAlbaran helpers", () => {
         null
       )
     ).toContain("Cliente no encontrado");
+  });
+
+  it("warns when a spoken special piece does not match the customer's special-piece list", () => {
+    expect(
+      buildVoiceFeedbackMessage(
+        {
+          customerName: "Ditrametal",
+          date: "2026-06-19",
+          notes: null,
+          items: [
+            {
+              description: "pieza especial rara",
+              color: "RAL 9005",
+              specialPieceIntent: true,
+              customUnitPrice: null,
+              pricingMode: "DIMENSIONS",
+              texture: "NORMAL",
+              linearMeters: null,
+              squareMeters: null,
+              hasThickness: false,
+              hasPrimer: false,
+              saveAsSpecialPiece: false,
+              quantity: 1
+            }
+          ]
+        },
+        {
+          id: "1",
+          name: "Ditrametal",
+          email: null,
+          phone: null,
+          address: null,
+          notes: null,
+          pricePerLinearMeter: 1,
+          pricePerSquareMeter: 1,
+          minimumRate: 1,
+          grosorPrecio: null,
+          specialPieces: [{ name: "BARRA Z 9016 TEXT", price: 0.7 }]
+        }
+      )
+    ).toContain("marcada(s) como especial");
   });
 });

@@ -30,10 +30,11 @@ describe("OllamaVoiceAlbaranParser", () => {
               date: "2026-06-11",
               notes: null,
               items: [
-                {
-                  description: "puerta",
-                  color: "RAL 9005",
-                  texture: "mate",
+                    {
+                      description: "puerta",
+                      color: "RAL 9005",
+                      specialPieceIntent: false,
+                      texture: "mate",
                   linearMeters: null,
                   squareMeters: 8,
                   thickness: null,
@@ -61,13 +62,15 @@ describe("OllamaVoiceAlbaranParser", () => {
         {
           description: "PUERTA",
           color: "RAL 9005",
+          specialPieceIntent: false,
           pricingMode: "DIMENSIONS",
           customUnitPrice: null,
           texture: "MATE",
           linearMeters: null,
           squareMeters: 8,
-          thickness: null,
-          primer: false,
+          hasThickness: false,
+          hasPrimer: false,
+          saveAsSpecialPiece: false,
           quantity: 1
         }
       ]
