@@ -16,9 +16,13 @@ const formatDate = (value: string) =>
     year: "numeric"
   });
 
-const buildMonthStart = () => {
+const buildCurrentWeekStart = () => {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const weekday = now.getDay();
+  const diffToMonday = weekday === 0 ? 6 : weekday - 1;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - diffToMonday)
+    .toISOString()
+    .slice(0, 10);
 };
 
 const buildToday = () => new Date().toISOString().slice(0, 10);
@@ -52,7 +56,7 @@ const isIosSafari = () => {
 };
 
 export const DeliveryNotesLibraryPage = () => {
-  const [dateFrom, setDateFrom] = useState(buildMonthStart);
+  const [dateFrom, setDateFrom] = useState(buildCurrentWeekStart);
   const [dateTo, setDateTo] = useState(buildToday);
   const [copiedUploadId, setCopiedUploadId] = useState<string | null>(null);
   const useDirectExternalView = useMemo(() => isIosSafari(), []);
@@ -112,8 +116,8 @@ export const DeliveryNotesLibraryPage = () => {
             Storage de albaranes
           </h2>
           <p className="mt-2 max-w-3xl text-sm text-[var(--epx-text-muted)]">
-            Historial de PDFs diarios ya generados en Cloudflare R2 para consultar,
-            abrir y descargar los albaranes almacenados.
+            Arranca mostrando la semana en curso hasta hoy. Puedes cambiar el rango para
+            consultar, abrir y descargar cualquier PDF histÃ³rico almacenado en Cloudflare R2.
           </p>
         </div>
 
