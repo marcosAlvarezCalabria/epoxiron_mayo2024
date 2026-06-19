@@ -1,4 +1,5 @@
 import type { Customer, DeliveryNoteItemDraft } from "@/domain/entities";
+import { normalizeSpecialPieceName } from "@/lib/deliveryNoteItemDescription";
 
 export interface PricePreviewState {
   totalPrice: number;
@@ -29,7 +30,7 @@ export const estimateDeliveryNoteItemPrice = (
   const quantity = item.quantity;
   const pricingMode = item.pricingMode ?? "DIMENSIONS";
   const specialPiece = customer.specialPieces.find(
-    (entry) => entry.name.toLowerCase() === item.description.toLowerCase()
+    (entry) => normalizeSpecialPieceName(entry.name) === normalizeSpecialPieceName(item.description)
   );
 
   let totalPrice = 0;

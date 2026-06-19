@@ -14,6 +14,10 @@ import type {
   DeliveryNoteTexture
 } from "@/domain/entities";
 import {
+  inferEmbeddedColorAndTexture,
+  normalizeSpecialPieceName
+} from "@/lib/deliveryNoteItemDescription";
+import {
   parseMeters,
   parseMetersSquared
 } from "@/lib/measurements";
@@ -169,7 +173,7 @@ export const ItemFormSheet = ({
   const handleSave = () => {
     const nextErrors: DeliveryNoteItemFieldErrors = {};
     const matchedSpecialPiece = customer?.specialPieces.find(
-      (piece) => piece.name.trim().toLowerCase() === item.description.trim().toLowerCase()
+      (piece) => normalizeSpecialPieceName(piece.name) === normalizeSpecialPieceName(item.description)
     );
 
     if (!item.description.trim()) {
@@ -311,10 +315,13 @@ export const ItemFormSheet = ({
                           }`}
                         key={template}
                         onClick={() => {
+                          const inferred = inferEmbeddedColorAndTexture(template);
                           setItem((current) => ({
                             ...current,
+                            color: inferred.color ?? current.color,
                             description: template,
-                            pricingMode: "UNIT"
+                            pricingMode: "UNIT",
+                            texture: inferred.texture ?? current.texture
                           }));
                           setOpenTemplatePicker(false);
                         }}

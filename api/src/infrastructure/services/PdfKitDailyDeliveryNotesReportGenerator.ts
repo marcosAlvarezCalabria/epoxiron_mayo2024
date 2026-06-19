@@ -1,10 +1,11 @@
 import PDFDocument from "pdfkit";
-import type { DeliveryNote, DeliveryNoteTexture } from "../../domain/entities/DeliveryNote.js";
+import type { DeliveryNote } from "../../domain/entities/DeliveryNote.js";
 import type {
   DailyDeliveryNotesReportGenerator,
   DeliveryNoteReportCustomerDetails,
   ReportAttachment
 } from "../../domain/services/DailyDeliveryNotesReportGenerator.js";
+import { buildDeliveryNoteItemDescription as buildBaseDeliveryNoteItemDescription } from "../../domain/services/deliveryNoteItemDescription.js";
 
 type PdfDocumentInstance = InstanceType<typeof PDFDocument>;
 
@@ -24,13 +25,6 @@ const TABLE_HEADER_HEIGHT = 22;
 const TABLE_INFO_HEIGHT = 20;
 const TABLE_FOOTER_HEIGHT = 22;
 const METADATA_HEIGHT = 54;
-const TEXTURE_LABELS: Record<DeliveryNoteTexture, string> = {
-  NORMAL: "Normal",
-  MATE: "Mate",
-  TEXTURADO: "Texturado",
-  GOFRADO: "Gofrado"
-};
-
 type NoteLayout = ReturnType<typeof buildNoteLayout>;
 
 const formatDocumentDate = (value: Date) =>
@@ -43,41 +37,8 @@ const formatDocumentDate = (value: Date) =>
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
 const toPdfUppercase = (value: string) => value.trim().toLocaleUpperCase("es-ES");
 
-const formatArticleTexture = (texture?: DeliveryNoteTexture) =>
-  texture && texture !== "NORMAL" ? (TEXTURE_LABELS[texture] ?? texture) : null;
-
-const formatMeters = (value: number | null | undefined) => formatDocumentNumber(value ?? 0);
-
-const buildDocumentItemDescription = (item: DeliveryNote["items"][number]) => {
-  const segments = [item.description, item.color];
-  const texture = formatArticleTexture(item.texture);
-
-  if (texture) {
-    segments.push(texture);
-  }
-
-  if (item.pricingMode === "UNIT") {
-    segments.push("UNIDAD");
-  } else {
-    if ((item.linearMeters ?? 0) > 0) {
-      segments.push(`${formatMeters(item.linearMeters)}MLIN`);
-    }
-
-    if ((item.squareMeters ?? 0) > 0) {
-      segments.push(`${formatMeters(item.squareMeters)}M2`);
-    }
-  }
-
-  if (item.thickness != null) {
-    segments.push("G");
-  }
-
-  if (item.primer) {
-    segments.push("I");
-  }
-
-  return toPdfUppercase(segments.filter(Boolean).join(" · "));
-};
+const buildDocumentItemDescription = (item: DeliveryNote["items"][number]) =>
+  toPdfUppercase(buildBaseDeliveryNoteItemDescription(item));
 
 const customerField = (value: string | null | undefined) =>
   value?.trim() ? toPdfUppercase(value) : "—";

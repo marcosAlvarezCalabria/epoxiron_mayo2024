@@ -154,6 +154,45 @@ describe("voiceAlbaran helpers", () => {
     });
   });
 
+  it("hydrates color and texture from a matched special piece when they are embedded in its name", () => {
+    expect(
+      mapParsedVoiceItemToFormState(
+        {
+          description: "barra z 9016 text",
+          color: null,
+          customUnitPrice: null,
+          pricingMode: "DIMENSIONS",
+          texture: "NORMAL",
+          linearMeters: null,
+          squareMeters: null,
+          hasThickness: false,
+          hasPrimer: false,
+          saveAsSpecialPiece: false,
+          quantity: 2
+        },
+        {
+          id: "1",
+          name: "Ditrametal",
+          email: null,
+          phone: null,
+          address: null,
+          notes: null,
+          pricePerLinearMeter: 1,
+          pricePerSquareMeter: 1,
+          minimumRate: 1,
+          grosorPrecio: null,
+          specialPieces: [{ name: "BARRA Z 9016 TEXT", price: 0.7 }]
+        }
+      )
+    ).toMatchObject({
+      description: "BARRA Z 9016 TEXT",
+      color: "RAL 9016",
+      texture: "TEXTURADO",
+      pricingMode: "UNIT",
+      customUnitPrice: "0,7"
+    });
+  });
+
   it("finds customers first by exact match and then by prefix", () => {
     const customers = [
       {

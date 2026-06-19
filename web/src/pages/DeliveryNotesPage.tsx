@@ -29,7 +29,6 @@ import {
   ItemFormSheet,
   type DeliveryNoteItemFormState
 } from "@/components/delivery-notes/ItemFormSheet";
-import { formatDeliveryNoteTexture } from "@/constants/deliveryNoteTextures";
 import type {
   Customer,
   DeliveryNote,
@@ -44,6 +43,7 @@ import {
   type ParsedVoiceAlbaranData
 } from "@/features/voice/voiceAlbaran";
 import { ApiError } from "@/infrastructure/api/apiClient";
+import { buildDeliveryNoteItemDescription } from "@/lib/deliveryNoteItemDescription";
 import {
   formatMeters,
   formatMetersSummary,
@@ -142,8 +142,6 @@ const normalizePayload = (form: DeliveryNoteFormState, status: DeliveryNoteStatu
 });
 
 const formatCurrency = (value: number) => `${value.toFixed(2)} €`;
-const formatArticleTexture = (texture?: DeliveryNoteItemDraft["texture"]) =>
-  texture && texture !== "NORMAL" ? formatDeliveryNoteTexture(texture) : null;
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
 const formatDocumentDate = (value: string) => new Date(value).toLocaleDateString("es-ES");
 const buildIsoDate = (value: Date) => value.toISOString().slice(0, 10);
@@ -174,34 +172,7 @@ const companyReference = {
 } as const;
 
 const buildDocumentItemDescription = (item: DeliveryNote["items"][number]) => {
-  const segments = [item.description, item.color];
-  const texture = formatArticleTexture(item.texture);
-
-  if (texture) {
-    segments.push(texture);
-  }
-
-  if (item.pricingMode === "UNIT") {
-    segments.push("UNIDAD");
-  } else {
-    if ((item.linearMeters ?? 0) > 0) {
-      segments.push(`${formatMetersSummary(item.linearMeters)}MLIN`);
-    }
-
-    if ((item.squareMeters ?? 0) > 0) {
-      segments.push(`${formatSquareMetersSummary(item.squareMeters)}M2`);
-    }
-  }
-
-  if (item.thickness != null) {
-    segments.push("G");
-  }
-
-  if (item.primer) {
-    segments.push("I");
-  }
-
-  return segments.filter(Boolean).join("·");
+  return buildDeliveryNoteItemDescription(item);
 };
 
 const isItemComplete = (item: DeliveryNoteItemFormState) =>
@@ -1080,10 +1051,7 @@ export const DeliveryNotesPage = () => {
                             <span className="font-semibold">{item.description}</span>
                             <span className="text-neutral-500">
                               {" | "}
-                              {item.color}
-                              {formatArticleTexture(item.texture)
-                                ? ` | ${formatArticleTexture(item.texture)}`
-                                : ""}
+                              {buildDeliveryNoteItemDescription(item)}
                               {" | x"}
                               {item.quantity}
                               {item.pricingMode === "UNIT"
@@ -1317,18 +1285,30 @@ export const DeliveryNotesPage = () => {
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
                                 <span className="hidden text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
-                                  {`${item.description || "Pieza pendiente"} · ${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}${item.pricingMode === "UNIT" ? ` · U ${item.customUnitPrice || "0"}` : ` · M ${item.linearMeters || "0"} · M2 ${item.squareMeters || "0"}`}${item.hasThickness ? " · G" : ""}${item.hasPrimer ? " · I" : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
+                                  {`${buildDeliveryNoteItemDescription({
+                                    color: item.color || "Sin color",
+                                    description: item.description || "Pieza pendiente",
+                                    linearMeters: parseMeters(item.linearMeters),
+                                    pricingMode: item.pricingMode,
+                                    primer: item.hasPrimer,
+                                    squareMeters: parseMetersSquared(item.squareMeters),
+                                    texture: item.texture,
+                                    thickness: item.hasThickness ? 1 : null
+                                  })} · x${item.quantity}${item.pricingMode === "UNIT" ? ` · U ${item.customUnitPrice || "0"}` : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
                                 </span>
                                 <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[10px] font-semibold text-neutral-900 sm:text-[11px]">
-                                  <span className="truncate">{item.description || "Pieza pendiente"}</span>
-                                  <span className="text-neutral-400">·</span>
-                                  <span className="truncate">{item.color || "Sin color"}</span>
-                                  {formatArticleTexture(item.texture) ? (
-                                    <>
-                                      <span className="text-neutral-400">·</span>
-                                      <span>{formatArticleTexture(item.texture)}</span>
-                                    </>
-                                  ) : null}
+                                  <span className="truncate">
+                                    {buildDeliveryNoteItemDescription({
+                                      color: item.color || "Sin color",
+                                      description: item.description || "Pieza pendiente",
+                                      linearMeters: parseMeters(item.linearMeters),
+                                      pricingMode: item.pricingMode,
+                                      primer: item.hasPrimer,
+                                      squareMeters: parseMetersSquared(item.squareMeters),
+                                      texture: item.texture,
+                                      thickness: item.hasThickness ? 1 : null
+                                    })}
+                                  </span>
                                   <span className="text-neutral-400">·</span>
                                   <span>x{item.quantity}</span>
                                   {item.pricingMode === "UNIT" ? (
@@ -1379,7 +1359,16 @@ export const DeliveryNotesPage = () => {
                                   ) : null}
                                 </span>
                                 <span className="hidden truncate text-[10px] text-neutral-500">
-                                  {`${item.color || "Sin color"}${formatArticleTexture(item.texture) ? ` · ${formatArticleTexture(item.texture)}` : ""} · x${item.quantity}`}
+                                  {`${buildDeliveryNoteItemDescription({
+                                    color: item.color || "Sin color",
+                                    description: item.description || "Pieza pendiente",
+                                    linearMeters: parseMeters(item.linearMeters),
+                                    pricingMode: item.pricingMode,
+                                    primer: item.hasPrimer,
+                                    squareMeters: parseMetersSquared(item.squareMeters),
+                                    texture: item.texture,
+                                    thickness: item.hasThickness ? 1 : null
+                                  })} · x${item.quantity}`}
                                 </span>
                               </span>
                               <span className="shrink-0 text-[10px] font-semibold text-[var(--epx-accent)] sm:text-xs">

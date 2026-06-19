@@ -1,5 +1,9 @@
 import type { DeliveryNoteItemFormState } from "@/components/delivery-notes/ItemFormSheet";
 import type { Customer, DeliveryNotePricingMode, DeliveryNoteTexture } from "@/domain/entities";
+import {
+  inferEmbeddedColorAndTexture,
+  normalizeSpecialPieceName
+} from "@/lib/deliveryNoteItemDescription";
 
 export interface ParsedVoiceAlbaranItem {
   description: string;
@@ -83,20 +87,6 @@ const normalizeLooseText = (value: string): string =>
     .trim();
 
 const compactLooseText = (value: string): string => normalizeLooseText(value).replace(/\s+/g, "");
-
-const normalizeSpecialPieceName = (value: string): string =>
-  normalizeLooseText(value)
-    .replace(/[+/_-]+/g, " ")
-    .replace(/\bmas\b/g, " ")
-    .replace(/\bk/g, "c")
-    .replace(
-      /\b(?:pieza|especial|incluir|incluye|incluida|incluido|guardar|como|pon|poner|mete|meter)\b/g,
-      " "
-    )
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\s+/g, "");
 
 const stripFillerWords = (value: string): string =>
   normalizeLooseText(value)
@@ -377,6 +367,7 @@ export const mapParsedVoiceItemToFormState = (
       }) ?? null;
 
     const usesExistingSpecialPiece = matchedSpecialPiece !== null;
+    const inferred = inferEmbeddedColorAndTexture(usesExistingSpecialPiece ? matchedSpecialPiece.name : item.description);
 
     return {
       hasThickness: item.hasThickness,
@@ -389,9 +380,9 @@ export const mapParsedVoiceItemToFormState = (
             ? formatNumericField(item.customUnitPrice)
             : "",
       description: usesExistingSpecialPiece ? matchedSpecialPiece.name : item.description.trim(),
-      color: item.color?.trim() ?? "",
+      color: item.color?.trim() || inferred.color || "",
       pricingMode: usesExistingSpecialPiece ? "UNIT" : item.pricingMode,
-      texture: item.texture,
+      texture: inferred.texture ?? item.texture,
       linearMeters:
         usesExistingSpecialPiece || item.pricingMode === "UNIT" ? "" : formatNumericField(item.linearMeters),
       quantity: item.quantity.toString(),

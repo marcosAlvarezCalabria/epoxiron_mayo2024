@@ -19,27 +19,12 @@ import type {
 import type {
   DailyDeliveryNotesReportUploader
 } from "../../domain/services/DailyDeliveryNotesReportUploader.js";
+import { normalizeSpecialPieceName } from "../../domain/services/deliveryNoteItemDescription.js";
 
 export interface PriceCalculationResult {
   unitPrice: number;
   totalPrice: number;
 }
-
-const normalizeSpecialPieceName = (value: string): string =>
-  value
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .replace(/[+/_-]+/g, " ")
-    .replace(/\bmas\b/g, " ")
-    .replace(/\bk/g, "c")
-    .replace(
-      /\b(?:pieza|especial|incluir|incluye|incluida|incluido|guardar|como|pon|poner|mete|meter)\b/g,
-      " "
-    )
-    .replace(/[^a-z0-9\s]+/g, " ")
-    .replace(/\s+/g, "")
-    .trim();
 
 const toCustomerInput = (customer: Customer) => ({
   name: customer.name,
