@@ -43,4 +43,16 @@ describe("deliveryNoteItemDescription helpers", () => {
       normalizeSpecialPieceName("gondola cado cajon mas chapa")
     );
   });
+
+  it("prefers explicit spoken dimensions over calculated M2 in the rendered description", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "CHAPA 3000X1000",
+        color: "RAL 9005",
+        texture: "NORMAL",
+        pricingMode: "DIMENSIONS",
+        squareMeters: 3
+      })
+    ).toBe("CHAPA 3000X1000 Â· RAL 9005");
+  });
 });

@@ -322,6 +322,37 @@ const extractUnitPriceGuess = (text: string): number | null => {
   return match?.[1] ? normalizeDecimal(match[1]) : null;
 };
 
+const extractDimensionExpression = (text: string): string | null => {
+  const normalized = normalizeLooseText(text);
+  const matches = Array.from(
+    normalized.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)/gi)
+  );
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return matches
+    .map((match) => {
+      const width = match[1]?.replace(",", ".") ?? "";
+      const height = match[2]?.replace(",", ".") ?? "";
+      if (!width || !height) {
+        return null;
+      }
+
+      const normalizedWidth = Number.isInteger(Number.parseFloat(width))
+        ? Number.parseInt(width, 10).toString()
+        : width;
+      const normalizedHeight = Number.isInteger(Number.parseFloat(height))
+        ? Number.parseInt(height, 10).toString()
+        : height;
+
+      return `${normalizedWidth}X${normalizedHeight}`;
+    })
+    .filter((value): value is string => Boolean(value))
+    .join("+");
+};
+
 const cleanupDescriptionGuess = (value: string): string | null => {
   const cleaned = stripFillerWords(value)
     .replace(/\b(?:pieza|linea|línea)\b/g, " ")
@@ -339,40 +370,50 @@ const cleanupDescriptionGuess = (value: string): string | null => {
 
 const extractDescriptionGuess = (text: string): string | null => {
   const normalized = normalizeLooseText(text);
+  const dimensionExpression = extractDimensionExpression(text);
+  const appendDimensions = (value: string | null) => {
+    if (!value) {
+      return dimensionExpression;
+    }
+
+    return dimensionExpression && !value.includes(dimensionExpression)
+      ? `${value} ${dimensionExpression}`
+      : value;
+  };
 
   const namedAfterVerbMatch = normalized.match(
     /\b(?:se va a llamar|se llamara|se llamará|va a ser|sera|será)\s+([a-záéíóúñ][a-záéíóúñ\s-]*?)(?=\s+y\s+(?:va|vamos|le)\b|\s+(?:en|con)\b|\s+\d|\s+ral\b|$)/i
   );
   if (namedAfterVerbMatch?.[1]) {
-    return cleanupDescriptionGuess(namedAfterVerbMatch[1]);
+    return appendDimensions(cleanupDescriptionGuess(namedAfterVerbMatch[1]));
   }
 
   const explicitPieceMatch = normalized.match(
     /\bpieza\s+(?:va a ser|sera|será|seria|sería|es)?\s*(?:un|una)?\s*([a-záéíóúñ][a-záéíóúñ\s-]*?)(?=\s+y\s+(?:va|vamos|le)\b|\s+(?:en|con|por|a)\b|\s+\d|\s+ral\b|$)/i
   );
   if (explicitPieceMatch?.[1]) {
-    return cleanupDescriptionGuess(explicitPieceMatch[1]);
+    return appendDimensions(cleanupDescriptionGuess(explicitPieceMatch[1]));
   }
 
   const articleMatch = normalized.match(
     /\b(?:un|una|otro|otra)\s+([a-záéíóúñ][a-záéíóúñ\s-]*?)(?=\s+y\s+(?:va|vamos|le)\b|\s+(?:en|con|por|a)\b|\s+\d|\s+ral\b|$)/i
   );
   if (articleMatch?.[1]) {
-    return cleanupDescriptionGuess(articleMatch[1]);
+    return appendDimensions(cleanupDescriptionGuess(articleMatch[1]));
   }
 
   const namedPieceMatch = normalized.match(
     /\b(?:pieza|linea|línea)\s+(?:seria|sería|es)?\s*([a-záéíóúñ][a-záéíóúñ\s-]*?)(?=\s+y\s+(?:va|vamos|le)\b|\s+(?:en|con|por|a)\b|\s+\d|\s+ral\b|$)/i
   );
   if (namedPieceMatch?.[1]) {
-    return cleanupDescriptionGuess(namedPieceMatch[1]);
+    return appendDimensions(cleanupDescriptionGuess(namedPieceMatch[1]));
   }
 
   const fallbackMatch = normalized.match(
     /\b([a-záéíóúñ][a-záéíóúñ\s-]{2,}?)(?=\s+y\s+(?:va|vamos|le)\b|\s+(?:en|con|por|a)\b|\s+\d|\s+ral\b|$)/i
   );
 
-  return fallbackMatch?.[1] ? cleanupDescriptionGuess(fallbackMatch[1]) : null;
+  return fallbackMatch?.[1] ? appendDimensions(cleanupDescriptionGuess(fallbackMatch[1])) : dimensionExpression;
 };
 
 const normalizeCustomerName = (value: string | null): string => {

@@ -86,6 +86,20 @@ export const descriptionContainsTexture = (
   }
 };
 
+const descriptionContainsExplicitDimensions = (description: string) => {
+  const normalizedDescription = normalizeEmbeddedValue(description);
+
+  return /\b\d+(?:[.,]\d+)?\s*(?:X|\*)\s*\d+(?:[.,]\d+)?\b/.test(normalizedDescription) ||
+    /\b\d+(?:[.,]\d+)?\s+POR\s+\d+(?:[.,]\d+)?\b/.test(normalizedDescription);
+};
+
+const descriptionContainsCalculatedMeasures = (description: string) => {
+  const normalizedDescription = normalizeEmbeddedValue(description);
+
+  return /\b\d+(?:[.,]\d+)?\s*MLIN\b/.test(normalizedDescription) ||
+    /\b\d+(?:[.,]\d+)?\s*M2\b/.test(normalizedDescription);
+};
+
 type DeliveryNoteItemLike = Pick<
   DeliveryNoteItem | DeliveryNoteItemDraft,
   "description" | "color" | "texture" | "pricingMode" | "linearMeters" | "squareMeters" | "thickness" | "primer"
@@ -95,6 +109,8 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemLike) => 
   const segments = [item.description];
   const texture = item.texture && item.texture !== "NORMAL" ? formatDeliveryNoteTexture(item.texture) : null;
   const pricingMode: DeliveryNotePricingMode = item.pricingMode ?? "DIMENSIONS";
+  const keepsOriginalDimensions =
+    descriptionContainsExplicitDimensions(item.description) || descriptionContainsCalculatedMeasures(item.description);
 
   if (item.color && !descriptionContainsColor(item.description, item.color)) {
     segments.push(item.color);
@@ -106,7 +122,7 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemLike) => 
 
   if (pricingMode === "UNIT") {
     segments.push("UNIDAD");
-  } else {
+  } else if (!keepsOriginalDimensions) {
     if ((item.linearMeters ?? 0) > 0) {
       segments.push(`${formatMetersSummary(item.linearMeters)}MLIN`);
     }

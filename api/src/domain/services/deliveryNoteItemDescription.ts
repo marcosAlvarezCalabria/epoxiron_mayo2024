@@ -64,11 +64,27 @@ const descriptionContainsTexture = (description: string, texture: DeliveryNoteTe
   }
 };
 
+const descriptionContainsExplicitDimensions = (description: string) => {
+  const normalizedDescription = normalizeEmbeddedValue(description);
+
+  return /\b\d+(?:[.,]\d+)?\s*(?:X|\*)\s*\d+(?:[.,]\d+)?\b/.test(normalizedDescription) ||
+    /\b\d+(?:[.,]\d+)?\s+POR\s+\d+(?:[.,]\d+)?\b/.test(normalizedDescription);
+};
+
+const descriptionContainsCalculatedMeasures = (description: string) => {
+  const normalizedDescription = normalizeEmbeddedValue(description);
+
+  return /\b\d+(?:[.,]\d+)?\s*MLIN\b/.test(normalizedDescription) ||
+    /\b\d+(?:[.,]\d+)?\s*M2\b/.test(normalizedDescription);
+};
+
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
 
 export const buildDeliveryNoteItemDescription = (item: DeliveryNote["items"][number]) => {
   const segments = [item.description];
   const texture = formatArticleTexture(item.texture);
+  const keepsOriginalDimensions =
+    descriptionContainsExplicitDimensions(item.description) || descriptionContainsCalculatedMeasures(item.description);
 
   if (item.color && !descriptionContainsColor(item.description, item.color)) {
     segments.push(item.color);
@@ -80,7 +96,7 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNote["items"][num
 
   if (item.pricingMode === "UNIT") {
     segments.push("UNIDAD");
-  } else {
+  } else if (!keepsOriginalDimensions) {
     if ((item.linearMeters ?? 0) > 0) {
       segments.push(`${formatDocumentNumber(item.linearMeters ?? 0)}MLIN`);
     }
