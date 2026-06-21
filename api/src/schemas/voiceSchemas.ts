@@ -148,7 +148,7 @@ const llmParsedVoiceAlbaranSchema = z.object({
   items: z.array(llmItemSchema)
 });
 
-const parsedVoiceAlbaranResponseSchema = z.object({
+export const parsedVoiceAlbaranResponseSchema = z.object({
   customerName: z.string().trim().min(1).nullable(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   notes: z.string().trim().min(1).nullable(),

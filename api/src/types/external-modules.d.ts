@@ -59,3 +59,18 @@ declare module "ollama" {
     public chat(request: OllamaChatRequest): Promise<OllamaChatResponse>;
   }
 }
+
+declare module "swagger-ui-express" {
+  import type { RequestHandler } from "express";
+
+  interface SwaggerUiOptions {
+    explorer?: boolean;
+  }
+
+  const swaggerUi: {
+    serve: RequestHandler[];
+    setup(document: unknown, options?: SwaggerUiOptions): RequestHandler;
+  };
+
+  export default swaggerUi;
+}
