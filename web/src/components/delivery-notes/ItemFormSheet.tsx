@@ -384,7 +384,24 @@ export const ItemFormSheet = ({
                   >
                     <MinusIcon className="h-4 w-4" />
                   </button>
-                  <span className="text-lg font-bold text-neutral-900">{item.quantity}</span>
+                  <input
+                    className="w-20 border border-neutral-300 bg-white px-2 py-1 text-center text-lg font-bold text-neutral-900 outline-none"
+                    inputMode="numeric"
+                    onChange={(event) => {
+                      const digitsOnly = event.target.value.replace(/\D/g, "");
+                      setItem((current) => ({
+                        ...current,
+                        quantity: digitsOnly
+                      }));
+                    }}
+                    onBlur={() =>
+                      setItem((current) => ({
+                        ...current,
+                        quantity: Math.max(1, Number.parseInt(current.quantity || "1", 10)).toString()
+                      }))
+                    }
+                    value={item.quantity}
+                  />
                   <button
                     className="border border-neutral-300 bg-white p-2 text-neutral-600"
                     onClick={() =>
