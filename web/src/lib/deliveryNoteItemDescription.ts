@@ -15,6 +15,18 @@ const normalizeEmbeddedValue = (value: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+export const normalizeDeliveryNoteDescriptionInput = (value: string): string => {
+  const separatorPattern = /\s*(?:\u00B7|Â·)\s*/gu;
+  const trailingUnitPattern = /\s*(?:(?:\u00B7|Â·)\s*)?UNIDAD(?:ES)?\s*$/u;
+
+  return value
+    .toLocaleUpperCase("es-ES")
+    .replace(separatorPattern, " · ")
+    .replace(trailingUnitPattern, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 export const normalizeSpecialPieceName = (value: string): string =>
   value
     .normalize("NFD")
@@ -106,23 +118,22 @@ type DeliveryNoteItemLike = Pick<
 >;
 
 export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemLike) => {
-  const segments = [item.description];
+  const normalizedDescription = normalizeDeliveryNoteDescriptionInput(item.description);
+  const segments = [normalizedDescription];
   const texture = item.texture && item.texture !== "NORMAL" ? formatDeliveryNoteTexture(item.texture) : null;
   const pricingMode: DeliveryNotePricingMode = item.pricingMode ?? "DIMENSIONS";
   const keepsOriginalDimensions =
-    descriptionContainsExplicitDimensions(item.description) || descriptionContainsCalculatedMeasures(item.description);
+    descriptionContainsExplicitDimensions(normalizedDescription) || descriptionContainsCalculatedMeasures(normalizedDescription);
 
-  if (item.color && !descriptionContainsColor(item.description, item.color)) {
+  if (item.color && !descriptionContainsColor(normalizedDescription, item.color)) {
     segments.push(item.color);
   }
 
-  if (texture && !descriptionContainsTexture(item.description, item.texture)) {
+  if (texture && !descriptionContainsTexture(normalizedDescription, item.texture)) {
     segments.push(texture);
   }
 
-  if (pricingMode === "UNIT") {
-    segments.push("UNIDAD");
-  } else if (!keepsOriginalDimensions) {
+  if (pricingMode !== "UNIT" && !keepsOriginalDimensions) {
     if ((item.linearMeters ?? 0) > 0) {
       segments.push(`${formatMetersSummary(item.linearMeters)}MLIN`);
     }

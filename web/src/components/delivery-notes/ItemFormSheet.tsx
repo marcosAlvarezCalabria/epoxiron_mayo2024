@@ -15,6 +15,7 @@ import type {
 } from "@/domain/entities";
 import {
   inferEmbeddedColorAndTexture,
+  normalizeDeliveryNoteDescriptionInput,
   normalizeSpecialPieceName
 } from "@/lib/deliveryNoteItemDescription";
 import {
@@ -69,7 +70,7 @@ const parseDecimal = (value: string) => {
 const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft => ({
   color: item.color.trim(),
   customUnitPrice: parseDecimal(item.customUnitPrice),
-  description: item.description.trim(),
+  description: normalizeDeliveryNoteDescriptionInput(item.description),
   linearMeters: parseMeters(item.linearMeters),
   pricingMode: item.pricingMode,
   primer: item.hasPrimer,
@@ -277,7 +278,7 @@ export const ItemFormSheet = ({
                     : "border-neutral-300"
                 }`}
                 onChange={(event) => {
-                  const value = event.target.value;
+                  const value = normalizeDeliveryNoteDescriptionInput(event.target.value);
                   setItem((current) => ({ ...current, description: value }));
                   setFieldErrors((current) => ({ ...current, description: undefined }));
                 }}

@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildDeliveryNoteItemDescription,
   inferEmbeddedColorAndTexture,
+  normalizeDeliveryNoteDescriptionInput,
   normalizeSpecialPieceName
 } from "./deliveryNoteItemDescription";
+
+const middleDot = "\u00B7";
 
 describe("deliveryNoteItemDescription helpers", () => {
   it("detects embedded combined RAL colors and texture markers", () => {
@@ -26,7 +29,7 @@ describe("deliveryNoteItemDescription helpers", () => {
         texture: "NORMAL",
         pricingMode: "UNIT"
       })
-    ).toBe("BASTIDOR LATERAL 9005+7024 3000X1500 · UNIDAD");
+    ).toBe("BASTIDOR LATERAL 9005+7024 3000X1500");
 
     expect(
       buildDeliveryNoteItemDescription({
@@ -35,7 +38,13 @@ describe("deliveryNoteItemDescription helpers", () => {
         texture: "TEXTURADO",
         pricingMode: "UNIT"
       })
-    ).toBe("BARRA Z 9016 TEXT · UNIDAD");
+    ).toBe("BARRA Z 9016 TEXT");
+  });
+
+  it("normalizes manual descriptions to uppercase and removes trailing unidad", () => {
+    expect(
+      normalizeDeliveryNoteDescriptionInput(`papelera 510x510x2+510x1120x4 ${middleDot} ral 9003 ${middleDot} unidad`)
+    ).toBe(`PAPELERA 510X510X2+510X1120X4 ${middleDot} RAL 9003`);
   });
 
   it("keeps special-piece matching normalization compatible with spoken variants", () => {
@@ -53,6 +62,6 @@ describe("deliveryNoteItemDescription helpers", () => {
         pricingMode: "DIMENSIONS",
         squareMeters: 3
       })
-    ).toBe("CHAPA 3000X1000 Â· RAL 9005");
+    ).toBe(`CHAPA 3000X1000 ${middleDot} RAL 9005`);
   });
 });

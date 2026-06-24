@@ -1,10 +1,10 @@
 import type { DeliveryNote, DeliveryNoteTexture } from "../entities/DeliveryNote.js";
 
 const TEXTURE_LABELS: Record<DeliveryNoteTexture, string> = {
-  NORMAL: "Normal",
-  MATE: "Mate",
-  TEXTURADO: "Texturado",
-  GOFRADO: "Gofrado"
+  NORMAL: "NORMAL",
+  MATE: "MATE",
+  TEXTURADO: "TEXTURADO",
+  GOFRADO: "GOFRADO"
 };
 
 const normalizeEmbeddedValue = (value: string) =>
@@ -14,6 +14,18 @@ const normalizeEmbeddedValue = (value: string) =>
     .toUpperCase()
     .replace(/\s+/g, " ")
     .trim();
+
+export const normalizeDeliveryNoteDescriptionInput = (value: string): string => {
+  const separatorPattern = /\s*(?:\u00B7|Â·)\s*/gu;
+  const trailingUnitPattern = /\s*(?:(?:\u00B7|Â·)\s*)?UNIDAD(?:ES)?\s*$/u;
+
+  return value
+    .toLocaleUpperCase("es-ES")
+    .replace(separatorPattern, " · ")
+    .replace(trailingUnitPattern, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
 
 export const normalizeSpecialPieceName = (value: string): string =>
   value
@@ -81,22 +93,21 @@ const descriptionContainsCalculatedMeasures = (description: string) => {
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
 
 export const buildDeliveryNoteItemDescription = (item: DeliveryNote["items"][number]) => {
-  const segments = [item.description];
+  const normalizedDescription = normalizeDeliveryNoteDescriptionInput(item.description);
+  const segments = [normalizedDescription];
   const texture = formatArticleTexture(item.texture);
   const keepsOriginalDimensions =
-    descriptionContainsExplicitDimensions(item.description) || descriptionContainsCalculatedMeasures(item.description);
+    descriptionContainsExplicitDimensions(normalizedDescription) || descriptionContainsCalculatedMeasures(normalizedDescription);
 
-  if (item.color && !descriptionContainsColor(item.description, item.color)) {
+  if (item.color && !descriptionContainsColor(normalizedDescription, item.color)) {
     segments.push(item.color);
   }
 
-  if (texture && !descriptionContainsTexture(item.description, item.texture)) {
+  if (texture && !descriptionContainsTexture(normalizedDescription, item.texture)) {
     segments.push(texture);
   }
 
-  if (item.pricingMode === "UNIT") {
-    segments.push("UNIDAD");
-  } else if (!keepsOriginalDimensions) {
+  if (item.pricingMode !== "UNIT" && !keepsOriginalDimensions) {
     if ((item.linearMeters ?? 0) > 0) {
       segments.push(`${formatDocumentNumber(item.linearMeters ?? 0)}MLIN`);
     }

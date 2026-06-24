@@ -43,7 +43,10 @@ import {
   type ParsedVoiceAlbaranData
 } from "@/features/voice/voiceAlbaran";
 import { ApiError } from "@/infrastructure/api/apiClient";
-import { buildDeliveryNoteItemDescription } from "@/lib/deliveryNoteItemDescription";
+import {
+  buildDeliveryNoteItemDescription,
+  normalizeDeliveryNoteDescriptionInput
+} from "@/lib/deliveryNoteItemDescription";
 import {
   formatMeters,
   formatMetersSummary,
@@ -122,7 +125,7 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
 const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft => ({
   color: item.color.trim(),
   customUnitPrice: item.customUnitPrice.trim() ? Number.parseFloat(item.customUnitPrice.replace(",", ".")) : null,
-  description: item.description.trim(),
+  description: normalizeDeliveryNoteDescriptionInput(item.description),
   linearMeters: parseMeters(item.linearMeters),
   pricingMode: item.pricingMode,
   primer: item.hasPrimer,

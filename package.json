@@ -1,7 +1,6 @@
 {
   "name": "epoxiron",
   "private": true,
-  "packageManager": "pnpm@10.0.0",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
@@ -10,8 +9,5 @@
   },
   "devDependencies": {
     "pnpm": "^11.2.2"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["@prisma/client", "@prisma/engines", "esbuild", "prisma"]
   }
 }

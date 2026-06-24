@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { normalizeDeliveryNoteDescriptionInput } from "../domain/services/deliveryNoteItemDescription.js";
 
 const deliveryNoteTextureSchema = z.enum(["NORMAL", "MATE", "TEXTURADO", "GOFRADO"]);
 const deliveryNotePricingModeSchema = z.enum(["DIMENSIONS", "UNIT"]);
 
 export const deliveryNoteItemDraftSchema = z.object({
-  description: z.string().min(1),
+  description: z.string().min(1).transform((value) => normalizeDeliveryNoteDescriptionInput(value)),
   color: z.string().min(1),
   texture: deliveryNoteTextureSchema.optional().default("NORMAL"),
   pricingMode: deliveryNotePricingModeSchema.optional().default("DIMENSIONS"),
