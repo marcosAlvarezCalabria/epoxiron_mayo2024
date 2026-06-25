@@ -1,21 +1,20 @@
 # Deploy en Hostinger KVM 2
 
-Esta guía asume:
+Esta guia asume:
 
 - Ubuntu 22.04 o 24.04
-- `OpenClaw` ya instalado en el VPS
-- `Hermes Agent`, `Epoxiron API` y `web` convivirán en la misma máquina
-- El tráfico público entrará por `Nginx`
+- `Hermes Agent`, `Epoxiron API` y `web` conviviran en la misma maquina
+- El trafico publico entrara por `Nginx`
 
 ## Arquitectura recomendada
 
-- `Nginx` público: `80/443`
+- `Nginx` publico: `80/443`
 - `web` en contenedor local: `127.0.0.1:8081`
 - `api` en contenedor local: `127.0.0.1:3001`
 - `Hermes Agent` como proceso `systemd`: `127.0.0.1:8080`
 - `PostgreSQL` local o en contenedor: `127.0.0.1:5432`
 
-`Hermes` no debe quedar expuesto públicamente. Solo `api` debe hablar con él.
+`Hermes` no debe quedar expuesto publicamente. Solo `api` debe hablar con el.
 
 ## 1. Preparar el usuario de despliegue
 
@@ -42,7 +41,7 @@ sudo chown -R epoxiron:epoxiron /opt/epoxiron
 cd /opt/epoxiron
 ```
 
-## 4. Preparar env de producción
+## 4. Preparar env de produccion
 
 ```bash
 cp api/.env.production.example api/.env.production
@@ -56,7 +55,7 @@ Editar:
 - `/opt/epoxiron/.env`
 - `/etc/epoxiron/hermes.env`
 
-Valores mínimos:
+Valores minimos:
 
 - `DATABASE_URL`
 - `CORS_ORIGIN`
@@ -69,7 +68,7 @@ Valores mínimos:
 
 ## 5. Instalar Hermes Agent
 
-Instálalo fuera del repo, como runtime independiente:
+Instalalo fuera del repo, como runtime independiente:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
@@ -122,15 +121,15 @@ sudo systemctl reload nginx
 
 Sustituye `app.example.com` por tu dominio real y provisiona TLS con Let's Encrypt.
 
-## 10. Coexistencia con OpenClaw
+## 10. Coexistencia con otros servicios
 
-Para no romper OpenClaw:
+Para no romper otros servicios ya desplegados en el VPS:
 
-- No reutilices sus puertos
-- Mantén `Hermes` en `127.0.0.1:8080`
-- Mantén `Epoxiron API` en `127.0.0.1:3001`
-- Revisa si OpenClaw ya usa `Nginx`; si sí, añade un `server_name` distinto y no sobrescribas su configuración
-- Si OpenClaw usa Docker, evita nombres de red/servicio genéricos compartidos
+- No reutilices puertos ya ocupados
+- Manten `Hermes` en `127.0.0.1:8080`
+- Manten `Epoxiron API` en `127.0.0.1:3001`
+- Revisa si ya existe configuracion de `Nginx`; si si, añade un `server_name` distinto y no sobrescribas configuracion ajena
+- Si ya hay otros stacks en Docker, evita nombres de red o servicio genericos compartidos
 
 ## 11. Verificaciones operativas
 
@@ -141,7 +140,7 @@ docker compose -f deploy/docker-compose.vps.yml ps
 sudo systemctl status hermes epoxiron-api epoxiron-web
 ```
 
-## 12. Actualización
+## 12. Actualizacion
 
 ```bash
 cd /opt/epoxiron
@@ -150,4 +149,3 @@ docker compose -f deploy/docker-compose.vps.yml up -d --build
 docker compose -f deploy/docker-compose.vps.yml exec api npx prisma migrate deploy --schema api/prisma/schema.prisma
 sudo systemctl restart hermes epoxiron-api epoxiron-web
 ```
-

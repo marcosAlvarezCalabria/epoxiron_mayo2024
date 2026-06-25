@@ -18,9 +18,9 @@ Motivos:
 
 Se adopta este enfoque:
 
-1. El frontend captura voz con Web Speech API cuando el navegador lo soporte.
-2. El frontend envia la transcripcion a un endpoint nuevo del backend.
-3. El backend llama a Ollama para extraer un JSON estructurado.
+1. El frontend captura audio con `getUserMedia` + `MediaRecorder` cuando el navegador lo soporte.
+2. El frontend puede enviar audio crudo al backend para transcripcion y parseo en un solo paso.
+3. El backend transcribe el audio con el proveedor configurado y luego extrae un JSON estructurado.
 4. El frontend adapta ese JSON al estado actual del formulario de albaranes.
 5. El usuario revisa y confirma manualmente antes de crear el albaran.
 
@@ -57,11 +57,12 @@ Estas reglas ya existen y la feature debe respetarlas:
 La idea original es valida, pero estos puntos se corrigen para que la spec encaje con el repo real:
 
 - El monorepo usa `api/` y `web/`, no `packages/api/` ni `packages/web/`.
-- El nuevo endpoint de voz **debe requerir autenticacion**, igual que el resto de la app interna.
-- La configuracion de Ollama debe validarse en `api/src/config/env.ts`.
+- Los endpoints de voz **deben requerir autenticacion**, igual que el resto de la app interna.
+- La configuracion de parser y transcripcion debe validarse en `api/src/config/env.ts`.
 - El dominio actual usa estas texturas: `NORMAL | MATE | TEXTURADO | GOFRADO`.
-- La salida del parser debe mapearse al contrato real de `DeliveryNoteItemDraft`.
-- Web Speech API debe tratarse como mejora progresiva, no como dependencia universal.
+- La salida del parser debe mapearse al contrato real que consume `web/src/features/voice/voiceAlbaran.ts`.
+- La captura de audio debe tratarse como mejora progresiva, no como dependencia universal.
+- El flujo real contempla piezas especiales y `pricingMode` por item.
 
 ## UX esperada
 
@@ -81,7 +82,7 @@ La idea original es valida, pero estos puntos se corrigen para que la spec encaj
 
 ### Criterios UX
 
-- El boton de voz solo aparece habilitado cuando el navegador soporta Speech Recognition.
+- El boton de voz solo aparece habilitado cuando el navegador soporta captura de audio con `MediaRecorder`.
 - Si no hay soporte, el usuario sigue pudiendo trabajar exactamente igual que hoy.
 - No se crea ningun albaran automaticamente.
 - El usuario siempre ve y controla lo que se va a guardar.
@@ -91,6 +92,10 @@ La idea original es valida, pero estos puntos se corrigen para que la spec encaj
 ### Ruta
 
 `POST /api/voice/parse-albaran`
+
+Ruta adicional implementada:
+
+`POST /api/voice/parse-albaran-audio`
 
 ### Autenticacion
 
@@ -115,21 +120,59 @@ Requiere la misma autenticacion de cookie/JWT que el resto de endpoints bajo `/a
     {
       "description": "barandilla",
       "color": "RAL 7016",
+      "specialPieceIntent": false,
+      "pricingMode": "DIMENSIONS",
+      "customUnitPrice": null,
       "texture": "GOFRADO",
       "linearMeters": 12,
       "squareMeters": null,
-      "thickness": null,
-      "primer": false,
+      "hasThickness": false,
+      "hasPrimer": false,
+      "saveAsSpecialPiece": false,
       "quantity": 1
     }
   ]
 }
 ```
 
+### Request y response de audio
+
+`POST /api/voice/parse-albaran-audio`
+
+- request `multipart/form-data` con campo `audio`
+- response:
+
+```json
+{
+  "transcript": "cliente example una barandilla ral 7016 gofrado",
+  "parsed": {
+    "customerName": "CLIENTE EXAMPLE",
+    "date": "2026-06-11",
+    "notes": null,
+    "items": [
+      {
+        "description": "BARANDILLA",
+        "color": "RAL 7016",
+        "specialPieceIntent": false,
+        "pricingMode": "DIMENSIONS",
+        "customUnitPrice": null,
+        "texture": "GOFRADO",
+        "linearMeters": 12,
+        "squareMeters": null,
+        "hasThickness": false,
+        "hasPrimer": false,
+        "saveAsSpecialPiece": false,
+        "quantity": 1
+      }
+    ]
+  }
+}
+```
+
 ### Errores
 
 - `400` si falta `transcript` o es vacio
-- `422` si Ollama no devuelve un JSON interpretable o no se puede normalizar al contrato esperado
+- `422` si el proveedor no devuelve un JSON interpretable o no se puede normalizar al contrato esperado
 - `500` si hay error interno no controlado
 
 Respuesta recomendada para `422`:
@@ -155,11 +198,17 @@ El LLM no debe devolver el contrato final del dominio sin filtro. Debe devolver 
     {
       "description": "string",
       "color": "string o null",
+      "specialPieceIntent": "boolean opcional",
+      "pricingMode": "dimensions | unit | null",
+      "customUnitPrice": "number o null",
       "texture": "mate | texturado | gofrado | normal | null",
       "linearMeters": "number o null",
       "squareMeters": "number o null",
       "thickness": "number o null",
-      "primer": "boolean",
+      "hasThickness": "boolean opcional",
+      "hasPrimer": "boolean opcional",
+      "saveAsSpecialPiece": "boolean opcional",
+      "primer": "boolean opcional",
       "quantity": "number"
     }
   ]
@@ -175,12 +224,13 @@ El backend debe transformar esa salida a un shape compatible con el frontend y e
 - `texture: "gofrado"` -> `GOFRADO`
 - `texture: "normal"` o `null` -> `NORMAL`
 - `color: null` -> usar cadena vacia solo si el formulario lo exige; si no, mantener `null` hasta la adaptacion UI
+- `pricingMode: "unit"` solo se conserva si `customUnitPrice > 0`; en caso contrario se degrada a `DIMENSIONS`
 - `quantity` por defecto `1`
-- `primer` por defecto `false`
+- `primer`, `hasPrimer`, `hasThickness`, `saveAsSpecialPiece` y `specialPieceIntent` por defecto `false`
 - items sin `description` valida deben descartarse
 - si despues de normalizar no queda ningun item valido, responder `422`
 
-## Prompt de sistema para Ollama
+## Prompt de sistema para parser de voz
 
 El prompt debe ser estricto y orientado a extraccion, no a conversacion.
 
@@ -198,10 +248,16 @@ Estructura obligatoria:
     {
       "description": "string",
       "color": "string o null",
+      "specialPieceIntent": boolean,
+      "pricingMode": "dimensions | unit | null",
+      "customUnitPrice": number o null,
       "texture": "mate | texturado | gofrado | normal | null",
       "linearMeters": number o null,
       "squareMeters": number o null,
       "thickness": number o null,
+      "hasThickness": boolean,
+      "hasPrimer": boolean,
+      "saveAsSpecialPiece": boolean,
       "primer": boolean,
       "quantity": number
     }
@@ -226,34 +282,44 @@ Se implementara dentro de `api/src/` siguiendo el estilo actual:
 
 - schema Zod para request y response
 - controller dedicado
-- servicio de infraestructura para Ollama
+- servicio de infraestructura para parser de voz
+- servicio de infraestructura para transcripcion
 - router dedicado
-- alta en `api/src/server.ts`
+- alta en `api/src/app.ts`
 
 ### Propuesta de archivos
 
 - `api/src/schemas/voiceSchemas.ts`
 - `api/src/controllers/VoiceController.ts`
 - `api/src/infrastructure/services/OllamaVoiceAlbaranParser.ts`
+- `api/src/infrastructure/services/OpenAiCompatibleVoiceAlbaranParser.ts`
+- `api/src/infrastructure/services/OllamaVoiceTranscriber.ts`
+- `api/src/infrastructure/services/OpenAiVoiceTranscriber.ts`
+- `api/src/infrastructure/services/GeminiVoiceTranscriber.ts`
 - `api/src/routes/voice.routes.ts`
-
-Si durante la implementacion compensa introducir un use case de aplicacion para mantener el patron actual, se acepta:
-
 - `api/src/application/use-cases/parseVoiceAlbaran.ts`
+- `api/src/application/use-cases/parseVoiceAlbaranAudio.ts`
+- `api/src/infrastructure/services/VoiceAlbaranParserFactory.ts`
 
 ### Dependencias
 
-Se debe reutilizar `fetch` nativo de Node si el runtime actual lo soporta. No hace falta meter SDK pesado si una llamada HTTP simple cubre el caso.
+El parser puede resolverse via cliente compatible HTTP y el proyecto ya contempla proveedores configurables. La implementacion actual tambien usa la libreria `ollama` donde aporta valor.
 
 ### Variables de entorno
 
-Variables nuevas:
+Variables relevantes del estado actual:
 
 - `VOICE_PARSER_PROVIDER`
 - `VOICE_PARSER_BASE_URL`
 - `VOICE_PARSER_MODEL`
 - `VOICE_PARSER_API_KEY`
 - `VOICE_PARSER_TIMEOUT_MS`
+- `VOICE_TRANSCRIBER_PROVIDER`
+- `VOICE_TRANSCRIBER_BASE_URL`
+- `VOICE_TRANSCRIBER_MODEL`
+- `VOICE_TRANSCRIBER_API_KEY`
+- `VOICE_TRANSCRIBER_TIMEOUT_MS`
+- `VOICE_TRANSCRIBER_LANGUAGE`
 
 Requisitos:
 
@@ -274,11 +340,15 @@ Requisitos:
 interface ParsedVoiceAlbaranItem {
   description: string;
   color: string | null;
+  specialPieceIntent: boolean;
+  pricingMode: "DIMENSIONS" | "UNIT";
+  customUnitPrice: number | null;
   texture: "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO";
   linearMeters: number | null;
   squareMeters: number | null;
-  thickness: number | null;
-  primer: boolean;
+  hasThickness: boolean;
+  hasPrimer: boolean;
+  saveAsSpecialPiece: boolean;
   quantity: number;
 }
 
@@ -297,16 +367,14 @@ interface VoiceAlbaranButtonProps {
 
 ### Comportamiento del componente
 
-- Detecta `window.SpeechRecognition || window.webkitSpeechRecognition`
-- Configura:
-  - `lang = "es-ES"`
-  - `continuous = false`
-  - `interimResults = false`
+- Detecta soporte de `navigator.mediaDevices.getUserMedia` y `MediaRecorder`
 - Muestra tres estados:
   - reposo
   - escuchando
   - procesando
-- Envia el transcript a `POST /api/voice/parse-albaran`
+- Graba una intervencion corta con corte por silencio y limite maximo
+- Envia audio a `POST /api/voice/parse-albaran-audio`
+- Guarda el transcript devuelto y permite reenviarlo manualmente a `POST /api/voice/parse-albaran`
 - Si el backend responde bien, invoca `onDataExtracted`
 - Si falla, invoca `onError` o muestra un mensaje controlado
 
@@ -322,21 +390,21 @@ La pagina actual ya carga clientes y mantiene el estado del formulario. La integ
   - mantener `customerSearch` con el nombre extraido si aporta valor UX
   - mostrar aviso de que el cliente debe seleccionarse manualmente
 - mapear items extraidos a `DeliveryNoteItemFormState`
+- intentar resolver piezas especiales contra `customer.specialPieces`
 
 ### Reglas de mapeo UI
 
 - `description` -> `description`
-- `color` -> si falta, usar `RAL 7016` solo si se decide mantener el default actual del formulario; si no, dejarlo vacio y forzar revision
-- `texture` -> `texture`
+- `color` -> si falta, dejarlo vacio y forzar revision
+- `texture` -> preferir textura inferida desde descripcion de pieza especial si aplica
 - `linearMeters` -> string formateada para el formulario
 - `squareMeters` -> string formateada para el formulario
 - `quantity` -> string
-- `primer` -> `hasPrimer`
-- `thickness != null` -> `hasThickness = true`
-- `thickness == null` -> `hasThickness = false`
-- `pricingMode` por defecto -> `DIMENSIONS`
-- `saveAsSpecialPiece` -> `false`
-- `customUnitPrice` -> `""`
+- `hasPrimer` -> `hasPrimer`
+- `hasThickness` -> `hasThickness`
+- `pricingMode` -> `pricingMode`
+- `saveAsSpecialPiece` -> conservar o activar si coincide con una pieza especial del cliente
+- `customUnitPrice` -> string si el item va por unidad o coincide con pieza especial
 
 ## Decision importante sobre color por defecto
 
@@ -354,7 +422,7 @@ En otras palabras: no conviene que la voz "invente" un `RAL 7016` silenciosament
 - El endpoint de voz requiere auth normal.
 - No se exponen stack traces al cliente.
 - El transcript no debe loggearse completo en produccion si contiene informacion sensible del cliente.
-- La configuracion de Ollama solo se lee desde `env.ts`.
+- La configuracion de parser y transcriptor solo se lee desde `env.ts`.
 - El backend debe limitar el prompt a extraccion estructurada; nada de ejecutar instrucciones del usuario.
 
 ## Observabilidad
@@ -370,6 +438,9 @@ No registrar:
 - `VOICE_PARSER_PROVIDER`
 - `VOICE_PARSER_BASE_URL`
 - `VOICE_PARSER_MODEL`
+- `VOICE_TRANSCRIBER_PROVIDER`
+- `VOICE_TRANSCRIBER_BASE_URL`
+- `VOICE_TRANSCRIBER_MODEL`
 - cookies
 - respuesta cruda completa del proveedor si incluye payload sensible
 
@@ -378,17 +449,19 @@ No registrar:
 ### API
 
 - valida request vacia -> `400`
-- respuesta correcta de Ollama -> `200`
+- request sin audio en `parse-albaran-audio` -> `400`
+- respuesta correcta del parser -> `200`
 - respuesta con JSON invalido -> `422`
 - normalizacion de texturas y defaults
 - descarte de items invalidos
 
 ### Web
 
-- boton deshabilitado sin soporte Speech Recognition
+- boton deshabilitado sin soporte de captura de audio
 - `onDataExtracted` se dispara con respuesta valida
 - error de backend muestra feedback y no rompe el composer
 - match de cliente exacto y fallback por prefijo
+- resolucion de piezas especiales del cliente
 - pre-relleno correcto de items
 
 ## Criterios de aceptacion
@@ -413,7 +486,7 @@ No registrar:
 La feature tiene sentido si se implementa como **asistente de captura**, no como automatismo completo ni como agente. La via correcta en este repo es:
 
 - voz en frontend como mejora progresiva
-- parseo estructurado en backend autenticado
+- transcripcion y parseo estructurado en backend autenticado
 - adaptacion al formulario actual
 - confirmacion humana antes de cualquier escritura
 

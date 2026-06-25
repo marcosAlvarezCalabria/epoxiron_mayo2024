@@ -268,7 +268,6 @@ export const VoiceAlbaranButton = ({ onDataExtracted, onError }: VoiceAlbaranBut
       return;
     }
 
-    console.log("[voice] transcript sent to backend:", transcript);
     setStatus("processing");
     void parseVoiceAlbaran(transcript)
       .then((data) => {
