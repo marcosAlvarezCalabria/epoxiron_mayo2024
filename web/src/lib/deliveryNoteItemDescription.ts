@@ -17,13 +17,18 @@ const normalizeEmbeddedValue = (value: string) =>
 
 export const normalizeDeliveryNoteDescriptionInput = (value: string): string => {
   const separatorPattern = /\s*(?:\u00B7|Â·)\s*/gu;
-  const trailingUnitPattern = /\s*(?:(?:\u00B7|Â·)\s*)?UNIDAD(?:ES)?\s*$/u;
+  const unitWordPattern = /\bUNIDAD(?:ES)?\b/gu;
+  const ralPrefixPattern = /\bRAL\s+(?=\d)/gu;
 
   return value
     .toLocaleUpperCase("es-ES")
     .replace(separatorPattern, " · ")
-    .replace(trailingUnitPattern, "")
+    .replace(ralPrefixPattern, "")
+    .replace(unitWordPattern, "")
+    .replace(/\s*·\s*·\s*/gu, " · ")
+    .replace(/\s*·\s*$/u, "")
     .replace(/\s+/g, " ")
+    .replace(/\s*·\s*/gu, " · ")
     .trim();
 };
 
@@ -117,6 +122,8 @@ type DeliveryNoteItemLike = Pick<
   "description" | "color" | "texture" | "pricingMode" | "linearMeters" | "squareMeters" | "thickness" | "primer"
 >;
 
+const normalizeRenderedColor = (value: string) => value.replace(/^RAL\s+/u, "").trim();
+
 export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemLike) => {
   const normalizedDescription = normalizeDeliveryNoteDescriptionInput(item.description);
   const segments = [normalizedDescription];
@@ -126,7 +133,7 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemLike) => 
     descriptionContainsExplicitDimensions(normalizedDescription) || descriptionContainsCalculatedMeasures(normalizedDescription);
 
   if (item.color && !descriptionContainsColor(normalizedDescription, item.color)) {
-    segments.push(item.color);
+    segments.push(normalizeRenderedColor(item.color));
   }
 
   if (texture && !descriptionContainsTexture(normalizedDescription, item.texture)) {

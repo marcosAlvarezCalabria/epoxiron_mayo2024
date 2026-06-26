@@ -1,9 +1,4 @@
-import {
-  ChevronDownIcon,
-  MinusIcon,
-  PlusIcon,
-  XMarkIcon
-} from "@heroicons/react/24/outline";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { calculatePricePreview } from "@/application/use-cases";
 import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
@@ -61,10 +56,17 @@ interface ItemFormSheetProps {
 }
 
 const emptyErrors: DeliveryNoteItemFieldErrors = {};
+const quantityOptions = Array.from({ length: 200 }, (_, index) => index + 1);
+const quantityWheelItemHeight = 34;
 
 const parseDecimal = (value: string) => {
   const normalized = value.trim().replace(",", ".");
   return normalized ? Number.parseFloat(normalized) : null;
+};
+
+const clampQuantity = (value: string) => {
+  const parsed = Number.parseInt(value || "1", 10);
+  return Math.min(quantityOptions.length, Math.max(1, parsed)).toString();
 };
 
 const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft => ({
@@ -95,8 +97,11 @@ export const ItemFormSheet = ({
   const [fieldErrors, setFieldErrors] = useState<DeliveryNoteItemFieldErrors>(emptyErrors);
   const [preview, setPreview] = useState<PricePreviewState | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [openTemplatePicker, setOpenTemplatePicker] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
+  const [showAllSpecialPieces, setShowAllSpecialPieces] = useState(false);
+  const [isQuantityInputFocused, setIsQuantityInputFocused] = useState(false);
   const previewRequestIdRef = useRef(0);
+  const quantityWheelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -106,8 +111,21 @@ export const ItemFormSheet = ({
     setItem(initialItem);
     setFieldErrors(emptyErrors);
     setPreview(null);
-    setOpenTemplatePicker(false);
+    setTemplateSearch("");
+    setShowAllSpecialPieces(false);
   }, [initialItem, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || isQuantityInputFocused) {
+      return;
+    }
+
+    const quantity = Number.parseInt(clampQuantity(item.quantity), 10);
+    quantityWheelRef.current?.scrollTo({
+      top: (quantity - 1) * quantityWheelItemHeight,
+      behavior: "auto"
+    });
+  }, [isOpen, isQuantityInputFocused, item.quantity]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -166,6 +184,22 @@ export const ItemFormSheet = ({
     () => availableTemplates.find((template) => template === item.description) ?? null,
     [availableTemplates, item.description]
   );
+  const filteredSpecialPieces = useMemo(() => {
+    const search = templateSearch.trim().toLowerCase();
+    const pieces = customer?.specialPieces ?? [];
+
+    if (showAllSpecialPieces) {
+      return pieces;
+    }
+
+    if (!search) {
+      return [];
+    }
+
+    return pieces.filter((piece) => piece.name.toLowerCase().includes(search));
+  }, [customer?.specialPieces, showAllSpecialPieces, templateSearch]);
+  const hasTypedTemplateSearch = templateSearch.trim().length > 0;
+  const shouldShowSpecialPieceResults = showAllSpecialPieces || hasTypedTemplateSearch;
 
   const close = () => {
     onClose();
@@ -231,7 +265,7 @@ export const ItemFormSheet = ({
           </div>
 
           <div className="border-b border-neutral-300 bg-[color:rgb(255_149_0_/_0.06)] px-5 py-1.5 sm:px-6">
-            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap text-[11px] text-neutral-500">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
               <span className="font-semibold uppercase tracking-[0.16em]">
                 Precio
               </span>
@@ -278,8 +312,7 @@ export const ItemFormSheet = ({
                     : "border-neutral-300"
                 }`}
                 onChange={(event) => {
-                  const value = normalizeDeliveryNoteDescriptionInput(event.target.value);
-                  setItem((current) => ({ ...current, description: value }));
+                  setItem((current) => ({ ...current, description: event.target.value }));
                   setFieldErrors((current) => ({ ...current, description: undefined }));
                 }}
                 placeholder="Descripcion de la pieza"
@@ -291,53 +324,79 @@ export const ItemFormSheet = ({
             </div>
 
             {availableTemplates.length ? (
-                <div className="space-y-3 border border-[var(--epx-accent)]/25 bg-[color:rgb(255_149_0_/_0.08)] p-3">
-                  <button
-                  className="flex w-full items-center justify-between border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-4 py-3 text-left text-sm font-semibold text-neutral-900"
-                  onClick={() => setOpenTemplatePicker((current) => !current)}
-                  type="button"
-                >
-                  <span>
-                    {selectedTemplateLabel ? `Pieza especial por unidad: ${selectedTemplateLabel}` : "Piezas especiales por unidad"}
+              <div className="space-y-3 border border-[var(--epx-accent)]/25 bg-[color:rgb(255_149_0_/_0.08)] p-3">
+                <div className="flex items-center justify-between gap-3 border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] px-4 py-3">
+                  <span className="text-sm font-semibold text-neutral-900">
+                    {selectedTemplateLabel ? `Pieza especial seleccionada: ${selectedTemplateLabel}` : "Buscador de piezas especiales"}
                   </span>
-                  <ChevronDownIcon
-                    className={`h-4 w-4 transition-transform ${openTemplatePicker ? "rotate-180" : ""}`}
-                  />
-                </button>
+                  <button
+                    className="border border-neutral-300 bg-white px-2.5 py-1 text-xs font-semibold text-neutral-700"
+                    onClick={() => {
+                      setShowAllSpecialPieces((current) => !current);
+                      setTemplateSearch("");
+                    }}
+                    type="button"
+                  >
+                    {showAllSpecialPieces
+                      ? "Ocultar"
+                      : `${customer?.specialPieces.length ?? 0} piezas`}
+                  </button>
+                </div>
 
-                {openTemplatePicker ? (
-                  <div className="overflow-hidden border border-neutral-300 bg-white">
-                    {availableTemplates.map((template) => (
-                      <button
+                <div className="space-y-3 border border-neutral-300 bg-white p-3">
+                    <input
+                      className="w-full border border-neutral-300 bg-white px-3 py-2.5 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+                      onChange={(event) => {
+                        setTemplateSearch(event.target.value);
+                        setShowAllSpecialPieces(false);
+                      }}
+                      placeholder="Buscar pieza especial del cliente"
+                      value={templateSearch}
+                    />
+
+                    {shouldShowSpecialPieceResults ? (
+                      <div className="max-h-64 overflow-y-auto border border-neutral-300">
+                        {filteredSpecialPieces.length ? filteredSpecialPieces.map((piece) => (
+                        <button
                           className={`flex w-full items-center justify-between border-b border-neutral-300 px-4 py-3 text-left text-sm last:border-b-0 ${
-                            item.description === template
-                            ? "bg-[color:rgb(255_149_0_/_0.16)] text-neutral-900"
-                            : "text-neutral-600 hover:bg-neutral-50"
+                            item.description === piece.name
+                              ? "bg-[color:rgb(255_149_0_/_0.16)] text-neutral-900"
+                              : "text-neutral-600 hover:bg-neutral-50"
                           }`}
-                        key={template}
-                        onClick={() => {
-                          const inferred = inferEmbeddedColorAndTexture(template);
-                          setItem((current) => ({
-                            ...current,
-                            color: inferred.color ?? current.color,
-                            description: template,
-                            pricingMode: "UNIT",
-                            texture: inferred.texture ?? current.texture
-                          }));
-                          setOpenTemplatePicker(false);
-                        }}
-                        type="button"
-                      >
-                        <span>{template}</span>
-                        {item.description === template ? (
-                          <span className="text-xs font-semibold text-[var(--epx-accent)]">
-                            Seleccionada
+                          key={piece.id ?? piece.name}
+                          onClick={() => {
+                            const inferred = inferEmbeddedColorAndTexture(piece.name);
+                            setItem((current) => ({
+                              ...current,
+                              color: inferred.color ?? current.color,
+                              customUnitPrice: piece.price.toString(),
+                              description: piece.name,
+                              pricingMode: "UNIT",
+                              texture: inferred.texture ?? current.texture
+                            }));
+                            setShowAllSpecialPieces(false);
+                            setTemplateSearch("");
+                          }}
+                          type="button"
+                        >
+                          <span className="min-w-0 flex-1 pr-3">{piece.name}</span>
+                          <span className="shrink-0 text-xs text-neutral-500">
+                            {piece.price.toFixed(2)} €
                           </span>
-                        ) : null}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                          {item.description === piece.name ? (
+                            <span className="ml-3 shrink-0 text-xs font-semibold text-[var(--epx-accent)]">
+                              Seleccionada
+                            </span>
+                          ) : null}
+                        </button>
+                        )) : (
+                          <div className="px-4 py-6 text-sm text-neutral-500">
+                            No hay piezas especiales que coincidan con la busqueda.
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                </div>
                 <p className="text-xs text-neutral-600">
                   Si eliges una pieza especial, el sistema usa su precio por unidad y no calcula por M o M2.
                 </p>
@@ -369,52 +428,100 @@ export const ItemFormSheet = ({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
                   Cantidad
                 </p>
-                <div className="mt-3 flex items-center justify-between">
-                  <button
-                    className="border border-neutral-300 bg-white p-2 text-neutral-600"
-                    onClick={() =>
-                      setItem((current) => ({
-                        ...current,
-                        quantity: Math.max(
-                          1,
-                          Number.parseInt(current.quantity || "1", 10) - 1
-                        ).toString()
-                      }))
-                    }
-                    type="button"
-                  >
-                    <MinusIcon className="h-4 w-4" />
-                  </button>
-                  <input
-                    className="w-20 border border-neutral-300 bg-white px-2 py-1 text-center text-lg font-bold text-neutral-900 outline-none"
-                    inputMode="numeric"
-                    onChange={(event) => {
-                      const digitsOnly = event.target.value.replace(/\D/g, "");
-                      setItem((current) => ({
-                        ...current,
-                        quantity: digitsOnly
-                      }));
-                    }}
-                    onBlur={() =>
-                      setItem((current) => ({
-                        ...current,
-                        quantity: Math.max(1, Number.parseInt(current.quantity || "1", 10)).toString()
-                      }))
-                    }
-                    value={item.quantity}
-                  />
-                  <button
-                    className="border border-neutral-300 bg-white p-2 text-neutral-600"
-                    onClick={() =>
-                      setItem((current) => ({
-                        ...current,
-                        quantity: (Number.parseInt(current.quantity || "1", 10) + 1).toString()
-                      }))
-                    }
-                    type="button"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                  </button>
+                <div className="mt-3">
+                  <div className="mx-auto w-16">
+                    <div className="relative overflow-hidden rounded-[18px] border border-neutral-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,244,241,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_18px_rgba(19,19,19,0.05)]">
+                      {isQuantityInputFocused ? (
+                        <div
+                          className="flex items-center justify-center"
+                          style={{ height: `${quantityWheelItemHeight}px` }}
+                        >
+                          <input
+                            autoFocus
+                            className="w-full bg-transparent px-1 text-center text-lg font-bold text-neutral-950 outline-none"
+                            inputMode="numeric"
+                            onBlur={() => {
+                              setItem((current) => ({
+                                ...current,
+                                quantity: clampQuantity(current.quantity)
+                              }));
+                              setIsQuantityInputFocused(false);
+                            }}
+                            onChange={(event) => {
+                              const digitsOnly = event.target.value.replace(/\D/g, "");
+                              setItem((current) => ({
+                                ...current,
+                                quantity: digitsOnly || ""
+                              }));
+                            }}
+                            value={item.quantity}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          <div
+                            aria-hidden="true"
+                            className="pointer-events-none absolute inset-x-2 top-1/2 z-10 rounded-xl border border-[var(--epx-accent)]/20 bg-[color:rgb(255_149_0_/_0.14)] shadow-[0_8px_18px_rgba(255,149,0,0.10)]"
+                            style={{
+                              height: `${quantityWheelItemHeight}px`,
+                              transform: "translateY(-50%)"
+                            }}
+                          />
+                          <div
+                            className="overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            onScroll={(event) => {
+                              const nextValue =
+                                Math.round(event.currentTarget.scrollTop / quantityWheelItemHeight) + 1;
+                              const clampedValue = Math.min(
+                                quantityOptions.length,
+                                Math.max(1, nextValue)
+                              );
+
+                              setItem((current) =>
+                                current.quantity === clampedValue.toString()
+                                  ? current
+                                  : { ...current, quantity: clampedValue.toString() }
+                              );
+                            }}
+                            ref={quantityWheelRef}
+                            style={{
+                              height: `${quantityWheelItemHeight}px`,
+                              scrollSnapType: "y mandatory"
+                            }}
+                          >
+                            {quantityOptions.map((quantityOption) => {
+                              const isSelected = item.quantity === quantityOption.toString();
+
+                              return (
+                                <button
+                                  className={`relative z-20 flex w-full items-center justify-center text-center transition-all ${
+                                    isSelected
+                                      ? "text-lg font-bold text-neutral-950"
+                                      : "text-base font-medium text-neutral-400"
+                                  }`}
+                                  key={quantityOption}
+                                  onClick={() => {
+                                    setItem((current) => ({
+                                      ...current,
+                                      quantity: quantityOption.toString()
+                                    }));
+                                    setIsQuantityInputFocused(true);
+                                  }}
+                                  style={{
+                                    height: `${quantityWheelItemHeight}px`,
+                                    scrollSnapAlign: "center"
+                                  }}
+                                  type="button"
+                                >
+                                  {quantityOption}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 

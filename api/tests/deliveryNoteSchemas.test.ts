@@ -4,7 +4,7 @@ import { deliveryNoteItemDraftSchema } from "../src/schemas/deliveryNoteSchemas.
 const middleDot = "\u00B7";
 
 describe("deliveryNoteItemDraftSchema", () => {
-  it("normalizes manual descriptions to uppercase and removes trailing unidad", () => {
+  it("normalizes manual descriptions removing ral and unidad from line text", () => {
     const result = deliveryNoteItemDraftSchema.parse({
       description: `papelera 510x510x2+510x1120x4 ${middleDot} ral 9003 ${middleDot} unidad`,
       color: "RAL 9003",
@@ -12,6 +12,6 @@ describe("deliveryNoteItemDraftSchema", () => {
       quantity: 1
     });
 
-    expect(result.description).toBe(`PAPELERA 510X510X2+510X1120X4 ${middleDot} RAL 9003`);
+    expect(result.description).toBe(`PAPELERA 510X510X2+510X1120X4 ${middleDot} 9003`);
   });
 });

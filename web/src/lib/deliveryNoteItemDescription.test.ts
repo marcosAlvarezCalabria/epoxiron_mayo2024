@@ -41,10 +41,10 @@ describe("deliveryNoteItemDescription helpers", () => {
     ).toBe("BARRA Z 9016 TEXT");
   });
 
-  it("normalizes manual descriptions to uppercase and removes trailing unidad", () => {
+  it("normalizes manual descriptions removing ral and unidad from line text", () => {
     expect(
       normalizeDeliveryNoteDescriptionInput(`papelera 510x510x2+510x1120x4 ${middleDot} ral 9003 ${middleDot} unidad`)
-    ).toBe(`PAPELERA 510X510X2+510X1120X4 ${middleDot} RAL 9003`);
+    ).toBe(`PAPELERA 510X510X2+510X1120X4 ${middleDot} 9003`);
   });
 
   it("keeps special-piece matching normalization compatible with spoken variants", () => {
@@ -62,6 +62,6 @@ describe("deliveryNoteItemDescription helpers", () => {
         pricingMode: "DIMENSIONS",
         squareMeters: 3
       })
-    ).toBe(`CHAPA 3000X1000 ${middleDot} RAL 9005`);
+    ).toBe(`CHAPA 3000X1000 ${middleDot} 9005`);
   });
 });
