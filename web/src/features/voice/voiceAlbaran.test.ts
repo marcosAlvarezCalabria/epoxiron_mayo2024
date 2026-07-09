@@ -348,11 +348,19 @@ describe("voiceAlbaran helpers", () => {
     ).toContain("marcada(s) como especial");
   });
 
-  it("keeps spoken dimensions in the draft description instead of replacing them with calculated M2", () => {
+  it("keeps spoken dimensions in the draft description without calculating M2", () => {
     expect(buildVoiceDraftPreview("una chapa 3000 por 1000 ral 9005").items[0]).toMatchObject({
       description: "Chapa 3000X1000",
       color: "RAL 9005",
-      squareMeters: 3
+      squareMeters: null
+    });
+  });
+
+  it("preserves explicitly spoken M2 in the draft preview", () => {
+    expect(buildVoiceDraftPreview("una chapa 3000 por 1000 ral 9005 0,63 m2").items[0]).toMatchObject({
+      description: "Chapa 3000X1000",
+      color: "RAL 9005",
+      squareMeters: 0.63
     });
   });
 });

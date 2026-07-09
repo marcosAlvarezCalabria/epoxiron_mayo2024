@@ -269,6 +269,8 @@ Reglas:
 - Si la fecha no se menciona, usa la fecha de hoy.
 - Si un campo no se entiende, usa null.
 - No inventes medidas ni colores.
+- Si el usuario dicta dimensiones como `3000x1000`, conservalas dentro de `description`, pero no calcules `squareMeters` ni `linearMeters` a partir de ellas.
+- Solo rellena `squareMeters` o `linearMeters` cuando el usuario lo diga explicitamente.
 - quantity es 1 si no se menciona.
 - primer es false si no se menciona.
 - No devuelvas texto adicional fuera del JSON.

@@ -12,6 +12,9 @@ const normalizeText = (value: string): string =>
 
 const compactText = (value: string): string => normalizeText(value).replace(/\s+/g, "");
 const uppercaseSpanish = (value: string): string => value.toLocaleUpperCase("es-ES").trim();
+const dimensionPattern = /\b\d+(?:[.,]\d+)?\s*(?:x|\*|por)\s*\d+(?:[.,]\d+)?\b/i;
+const explicitSquareMetersPattern =
+  /\b\d+(?:[.,]\d+)?\s*(?:m2|m\^2|metros?\s+cuadrados?)\b/i;
 
 const scoreCustomerMatch = (customerName: string, spokenName: string): number => {
   const normalizedCustomer = normalizeText(customerName);
@@ -55,6 +58,26 @@ const resolveCustomerName = (customers: Customer[], spokenName: string | null): 
   return bestMatch && bestMatch.score >= 0.6 ? bestMatch.customer.name : uppercaseSpanish(spokenName);
 };
 
+const sanitizeDerivedMeasurements = (
+  transcript: string,
+  parsed: ParsedVoiceAlbaran
+): ParsedVoiceAlbaran => {
+  const hasExplicitSquareMeters = explicitSquareMetersPattern.test(transcript);
+
+  return {
+    ...parsed,
+    items: parsed.items.map((item) => ({
+      ...item,
+      squareMeters:
+        item.squareMeters != null &&
+        !hasExplicitSquareMeters &&
+        dimensionPattern.test(item.description)
+          ? null
+          : item.squareMeters
+    }))
+  };
+};
+
 export class ParseVoiceAlbaranUseCase {
   public constructor(
     private readonly parser: VoiceAlbaranParser,
@@ -76,10 +99,11 @@ export class ParseVoiceAlbaranUseCase {
       customerNames: customers.map((customer) => customer.name),
       specialPieceNames
     });
+    const sanitized = sanitizeDerivedMeasurements(transcript, parsed);
 
     return {
-      ...parsed,
-      customerName: resolveCustomerName(customers, parsed.customerName)
+      ...sanitized,
+      customerName: resolveCustomerName(customers, sanitized.customerName)
     };
   }
 }

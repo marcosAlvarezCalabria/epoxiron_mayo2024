@@ -39,11 +39,9 @@ Reglas:
 - Si el usuario dice un numero de 4 cifras aislado como 9005, 7016 o 7006, interpretalo como un color RAL y devuelvelo como "RAL XXXX".
 - Si el color RAL llega fragmentado por la transcripcion, por ejemplo 9000 6, 900 6, 9 0 0 6 o 5000 3, reconstruyelo como un unico codigo RAL de 4 cifras: 9006, 9006, 9006 y 5003.
 - Si detectas un posible RAL fragmentado, prioriza reconstruir el color antes que inventar otro campo.
-- Si el usuario da medidas con formato 800*500, 800x500, 800 x 500 o 800 por 500 y no menciona metros lineales, interpretalo como dimensiones de una pieza en milimetros y calcula el area en metros cuadrados.
 - Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida dentro de description con formato compacto tipo "3000X1000". No sustituyas la medida en description por el total calculado en M2.
-- Para calcular metros cuadrados a partir de dimensiones en milimetros, convierte cada lado a metros y multiplica. Ejemplo: 800*500 = 0.4 m2.
-- Si una misma pieza incluye varias medidas en milimetros separadas por +, "mas", comas o separadores equivalentes, calcula el area de cada medida y suma todas en un unico squareMeters. Ejemplo: 1050x1200 + 500x400 = 1.46 m2.
-- Si el usuario da varias dimensiones de piezas, usa squareMeters para reflejar el area de cada pieza y quantity para el numero de unidades si se menciona.
+- No calcules metros cuadrados ni metros lineales a partir de dimensiones como 800X500 o 3000X1000. Solo rellena squareMeters o linearMeters cuando el usuario los diga explicitamente.
+- Si el usuario dicta dimensiones en milimetros pero no dice M2, conserva esas dimensiones en description y deja squareMeters en null.
 - Si el usuario dice "por unidad", "precio por unidad", "a 5 euros", "cinco euros la unidad" o equivalente, usa pricingMode = "unit" y customUnitPrice con ese valor.
 - No uses pricingMode = "unit" solo porque el usuario diga "una unidad", "dos unidades" o la cantidad de piezas. Eso solo indica quantity.
 - Si pricingMode = "unit", no inventes linearMeters ni squareMeters salvo que el usuario los haya dado como informacion descriptiva clara. Prioriza el precio unitario.

@@ -289,29 +289,7 @@ const extractLinearMetersGuess = (text: string): number | null => {
 
 const extractSquareMetersGuess = (text: string): number | null => {
   const explicitMatch = text.match(/(\d+(?:[.,]\d+)?)\s*m2\b/i);
-  if (explicitMatch?.[1]) {
-    return normalizeDecimal(explicitMatch[1]);
-  }
-
-  const dimensionMatches = Array.from(
-    text.matchAll(/(\d+(?:[.,]\d+)?)\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)/gi)
-  );
-
-  if (dimensionMatches.length === 0) {
-    return null;
-  }
-
-  const totalSquareMeters = dimensionMatches.reduce((sum, match) => {
-    const width = normalizeDecimal(match[1] ?? "");
-    const height = normalizeDecimal(match[2] ?? "");
-    if (width == null || height == null) {
-      return sum;
-    }
-
-    return sum + (width * height) / 1_000_000;
-  }, 0);
-
-  return totalSquareMeters > 0 ? Number.parseFloat(totalSquareMeters.toFixed(3)) : null;
+  return explicitMatch?.[1] ? normalizeDecimal(explicitMatch[1]) : null;
 };
 
 const extractUnitPriceGuess = (text: string): number | null => {
