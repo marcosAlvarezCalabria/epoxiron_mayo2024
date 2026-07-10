@@ -58,23 +58,28 @@ const resolveCustomerName = (customers: Customer[], spokenName: string | null): 
   return bestMatch && bestMatch.score >= 0.6 ? bestMatch.customer.name : uppercaseSpanish(spokenName);
 };
 
+const extractSquareMetersFromDescription = (description: string): number | null => {
+  const match = description.match(/\b(\d+(?:[.,]\d+)?)\s*[xX]\s*(\d+(?:[.,]\d+)?)\b/);
+  if (!match) return null;
+  const a = parseFloat(match[1].replace(",", "."));
+  const b = parseFloat(match[2].replace(",", "."));
+  if (isNaN(a) || isNaN(b)) return null;
+  return Math.round((a / 1000) * (b / 1000) * 10000) / 10000;
+};
+
 const sanitizeDerivedMeasurements = (
-  transcript: string,
+  _transcript: string,
   parsed: ParsedVoiceAlbaran
 ): ParsedVoiceAlbaran => {
-  const hasExplicitSquareMeters = explicitSquareMetersPattern.test(transcript);
-
   return {
     ...parsed,
-    items: parsed.items.map((item) => ({
-      ...item,
-      squareMeters:
-        item.squareMeters != null &&
-        !hasExplicitSquareMeters &&
-        dimensionPattern.test(item.description)
-          ? null
-          : item.squareMeters
-    }))
+    items: parsed.items.map((item) => {
+      if (item.pricingMode === "UNIT") return item;
+      if (item.squareMeters == null && dimensionPattern.test(item.description)) {
+        return { ...item, squareMeters: extractSquareMetersFromDescription(item.description) };
+      }
+      return item;
+    })
   };
 };
 

@@ -40,8 +40,8 @@ Reglas:
 - Si el color RAL llega fragmentado por la transcripcion, por ejemplo 9000 6, 900 6, 9 0 0 6 o 5000 3, reconstruyelo como un unico codigo RAL de 4 cifras: 9006, 9006, 9006 y 5003.
 - Si detectas un posible RAL fragmentado, prioriza reconstruir el color antes que inventar otro campo.
 - Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida dentro de description con formato compacto tipo "3000X1000". No sustituyas la medida en description por el total calculado en M2.
-- No calcules metros cuadrados ni metros lineales a partir de dimensiones como 800X500 o 3000X1000. Solo rellena squareMeters o linearMeters cuando el usuario los diga explicitamente.
-- Si el usuario dicta dimensiones en milimetros pero no dice M2, conserva esas dimensiones en description y deja squareMeters en null.
+- Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida en description con formato "3000X1000" Y calcula squareMeters dividiendo cada dimension entre 1000 y multiplicandolas: ej. 3000X1000 → squareMeters = 3.0, 2180X180 → squareMeters = 0.3924, 860X180 → squareMeters = 0.1548. Redondea a 4 decimales.
+- Si el usuario da solo una dimension lineal ("3 metros", "3 ml"), usa linearMeters. Si da dos dimensiones en mm, calcula squareMeters aunque no diga "M2" explicitamente.
 - Si el usuario dice "por unidad", "precio por unidad", "a 5 euros", "cinco euros la unidad" o equivalente, usa pricingMode = "unit" y customUnitPrice con ese valor.
 - No uses pricingMode = "unit" solo porque el usuario diga "una unidad", "dos unidades" o la cantidad de piezas. Eso solo indica quantity.
 - Si pricingMode = "unit", no inventes linearMeters ni squareMeters salvo que el usuario los haya dado como informacion descriptiva clara. Prioriza el precio unitario.
