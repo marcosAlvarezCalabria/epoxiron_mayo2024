@@ -3,6 +3,33 @@ import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
 
 const normalizeText = (value: string) => value.trim().toLowerCase();
+const normalizeOptionalText = (value: string | null | undefined): string | null => {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+};
+
+export const normalizeCustomerInput = (input: CustomerInput): CustomerInput => ({
+  ...input,
+  name: input.name.trim(),
+  email: normalizeOptionalText(input.email),
+  phone: normalizeOptionalText(input.phone),
+  address: normalizeOptionalText(input.address),
+  notes: normalizeOptionalText(input.notes),
+  vat: normalizeOptionalText(input.vat)?.toUpperCase() ?? null,
+  legalName: normalizeOptionalText(input.legalName),
+  fiscalStreet: normalizeOptionalText(input.fiscalStreet),
+  fiscalStreet2: normalizeOptionalText(input.fiscalStreet2),
+  fiscalCity: normalizeOptionalText(input.fiscalCity),
+  fiscalZip: normalizeOptionalText(input.fiscalZip),
+  fiscalProvince: normalizeOptionalText(input.fiscalProvince),
+  fiscalCountryCode:
+    input.fiscalCountryCode === undefined
+      ? undefined
+      : normalizeOptionalText(input.fiscalCountryCode)?.toUpperCase() ?? null,
+  paymentTermCode: normalizeOptionalText(input.paymentTermCode),
+  externalPartnerId:
+    input.externalPartnerId === undefined ? undefined : normalizeOptionalText(input.externalPartnerId)
+});
 
 const ensureUniqueSpecialPieceNames = (input: CustomerInput) => {
   const seen = new Set<string>();
@@ -54,9 +81,10 @@ export class CreateCustomerUseCase {
   public constructor(private readonly repository: CustomerRepository) {}
 
   public async execute(input: CustomerInput) {
-    ensureUniqueSpecialPieceNames(input);
-    await ensureUniqueCustomer(this.repository, input);
-    return this.repository.create(input);
+    const normalizedInput = normalizeCustomerInput(input);
+    ensureUniqueSpecialPieceNames(normalizedInput);
+    await ensureUniqueCustomer(this.repository, normalizedInput);
+    return this.repository.create(normalizedInput);
   }
 }
 
@@ -69,9 +97,10 @@ export class UpdateCustomerUseCase {
       throw new DomainException("Cliente no encontrado", 404);
     }
 
-    ensureUniqueSpecialPieceNames(input);
-    await ensureUniqueCustomer(this.repository, input, current.id);
-    return this.repository.update(id, input);
+    const normalizedInput = normalizeCustomerInput(input);
+    ensureUniqueSpecialPieceNames(normalizedInput);
+    await ensureUniqueCustomer(this.repository, normalizedInput, current.id);
+    return this.repository.update(id, normalizedInput);
   }
 }
 

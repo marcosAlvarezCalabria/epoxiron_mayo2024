@@ -5,8 +5,10 @@ import {
   DeleteCustomerUseCase,
   GetCustomerUseCase,
   GetCustomersUseCase,
+  normalizeCustomerInput,
   UpdateCustomerUseCase
 } from "../src/application/use-cases/customers.js";
+import { validateFiscalCustomer } from "../src/domain/entities/Customer.js";
 
 class InMemoryCustomerRepository {
   public customers: Customer[] = [];
@@ -23,6 +25,17 @@ class InMemoryCustomerRepository {
       phone: input.phone ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
+      vat: input.vat ?? null,
+      legalName: input.legalName ?? null,
+      fiscalStreet: input.fiscalStreet ?? null,
+      fiscalStreet2: input.fiscalStreet2 ?? null,
+      fiscalCity: input.fiscalCity ?? null,
+      fiscalZip: input.fiscalZip ?? null,
+      fiscalProvince: input.fiscalProvince ?? null,
+      fiscalCountryCode:
+        input.fiscalCountryCode === undefined ? current.fiscalCountryCode : input.fiscalCountryCode,
+      paymentTermCode: input.paymentTermCode ?? null,
+      externalPartnerId: input.externalPartnerId ?? current.externalPartnerId,
       grosorPrecio: input.grosorPrecio ?? null,
       updatedAt: new Date()
     };
@@ -67,6 +80,16 @@ class InMemoryCustomerRepository {
       phone: input.phone ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
+      vat: input.vat ?? null,
+      legalName: input.legalName ?? null,
+      fiscalStreet: input.fiscalStreet ?? null,
+      fiscalStreet2: input.fiscalStreet2 ?? null,
+      fiscalCity: input.fiscalCity ?? null,
+      fiscalZip: input.fiscalZip ?? null,
+      fiscalProvince: input.fiscalProvince ?? null,
+      fiscalCountryCode: input.fiscalCountryCode ?? "ES",
+      paymentTermCode: input.paymentTermCode ?? null,
+      externalPartnerId: input.externalPartnerId ?? null,
       grosorPrecio: input.grosorPrecio ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -87,6 +110,16 @@ const buildCustomer = (id: string, name: string): Customer => ({
   phone: null,
   address: null,
   notes: null,
+  vat: null,
+  legalName: null,
+  fiscalStreet: null,
+  fiscalStreet2: null,
+  fiscalCity: null,
+  fiscalZip: null,
+  fiscalProvince: null,
+  fiscalCountryCode: null,
+  paymentTermCode: null,
+  externalPartnerId: null,
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,
@@ -261,5 +294,71 @@ describe("customer use cases", () => {
 
     expect(repository.delete).toHaveBeenCalledWith("customer-2");
     expect(repository.customers.find((customer) => customer.id === "customer-2")).toBeUndefined();
+  });
+
+  it("keeps a historical customer without fiscal data readable and editable", async () => {
+    const getUseCase = new GetCustomerUseCase(repository);
+    const updateUseCase = new UpdateCustomerUseCase(repository);
+
+    expect((await getUseCase.execute("customer-1")).vat).toBeNull();
+
+    const updated = await updateUseCase.execute("customer-1", {
+      name: "Pinturas Lopez",
+      pricePerLinearMeter: 10,
+      pricePerSquareMeter: 20,
+      minimumRate: 15,
+      grosorPrecio: 5,
+      specialPieces: []
+    });
+
+    expect(updated.vat).toBeNull();
+    expect(updated.fiscalCountryCode).toBeNull();
+  });
+
+  it("normalizes VAT, country and optional fiscal text", () => {
+    const normalized = normalizeCustomerInput({
+      name: "  Taller Norte  ",
+      vat: "  b12345678  ",
+      legalName: "  Taller Norte SL  ",
+      fiscalCountryCode: " es ",
+      fiscalStreet2: "   ",
+      pricePerLinearMeter: 10,
+      pricePerSquareMeter: 20,
+      minimumRate: 15,
+      specialPieces: []
+    });
+
+    expect(normalized).toMatchObject({
+      name: "Taller Norte",
+      vat: "B12345678",
+      legalName: "Taller Norte SL",
+      fiscalCountryCode: "ES",
+      fiscalStreet2: null
+    });
+  });
+
+  it("reports every missing fiscal field without persisting a completeness flag", () => {
+    expect(validateFiscalCustomer(buildCustomer("customer-3", "Cliente histórico"))).toEqual([
+      "MISSING_LEGAL_NAME",
+      "MISSING_VAT",
+      "MISSING_STREET",
+      "MISSING_CITY",
+      "MISSING_ZIP",
+      "MISSING_COUNTRY"
+    ]);
+  });
+
+  it("accepts a complete fiscal customer", () => {
+    const customer: Customer = {
+      ...buildCustomer("customer-3", "Cliente fiscal"),
+      legalName: "Cliente Fiscal SL",
+      vat: "B12345678",
+      fiscalStreet: "Calle Mayor 1",
+      fiscalCity: "Madrid",
+      fiscalZip: "28001",
+      fiscalCountryCode: "ES"
+    };
+
+    expect(validateFiscalCustomer(customer)).toEqual([]);
   });
 });

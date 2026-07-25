@@ -74,12 +74,25 @@ describe("OpenAPI docs", () => {
     expect(response.status).toBe(200);
     expect(uiResponse.status).toBe(200);
 
-    const body = await response.json() as { openapi?: string; paths?: Record<string, unknown> };
+    const body = await response.json() as {
+      openapi?: string;
+      paths?: Record<string, unknown>;
+      components?: {
+        schemas?: {
+          CustomerInput?: {
+            properties?: Record<string, unknown>;
+          };
+        };
+      };
+    };
     const html = await uiResponse.text();
 
     expect(body.openapi).toMatch(/^3\.0\.\d+$/);
     expect(body.paths).toHaveProperty("/api/auth/login/google");
     expect(body.paths).toHaveProperty("/api/hermes-tools/dashboard-summary");
+    expect(body.components?.schemas?.CustomerInput?.properties).toHaveProperty("vat");
+    expect(body.components?.schemas?.CustomerInput?.properties).toHaveProperty("fiscalCountryCode");
+    expect(body.components?.schemas?.CustomerInput?.properties).not.toHaveProperty("externalPartnerId");
     expect(html).toContain("Swagger UI");
   });
 
