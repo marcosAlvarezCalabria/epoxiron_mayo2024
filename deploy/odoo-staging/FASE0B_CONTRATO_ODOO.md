@@ -77,7 +77,8 @@ La estrategia confirmada es leer `invoice_pdf_report_file` mediante la API despu
 
 - Formalizar estados terminales, reintentos y reconciliación del documento VeriFactu.
 - Definir la clave idempotente local y su índice único.
-- Confirmar con casos monetarios adicionales la política exacta de redondeo.
+- Implementar con `Decimal` el redondeo global por impuesto observado en
+  `res.company.tax_calculation_rounding_method=round_globally`.
 - Añadir el adaptador JSON-2 dentro de la arquitectura de la API; no reutilizar el spike como
   código de producción.
 

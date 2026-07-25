@@ -1,9 +1,8 @@
 # SPEC — Facturación con Odoo (sustitución de Sage 50)
 
 > Especificación del módulo de facturación de Epoxiron.
-> **Fecha:** 2026-07-25 · **Versión:** v2.3 (decisiones funcionales del cliente incorporadas)
-> **Estado:** Fase 0A/0B completada; decisiones del MVP cerradas, pendiente fijar redondeo antes de Fase 1.
-> **Fase 1 NO se implementa hasta cerrar la política monetaria indicada en §5.2**.
+> **Fecha:** 2026-07-25 · **Versión:** v2.4 (política monetaria de Odoo confirmada)
+> **Estado:** Fase 0A/0B y decisiones del MVP completadas; preparada para especificar la Fase 1.
 > **Autor:** Marcos + Claude · Revisión técnica: Codex.
 
 ---
@@ -25,8 +24,7 @@ especializada vive fuera.
 
 > **Nota de la revisión técnica:** la arquitectura es adecuada, pero el flujo de VeriFactu, la
 > idempotencia y la persistencia monetaria necesitan más rigor. Este documento recoge esas correcciones.
-> **La Fase 0 está completada; las decisiones funcionales del MVP están cerradas y solo falta validar
-> la política monetaria antes de comenzar la Fase 1.**
+> **La Fase 0 está completada y las decisiones funcionales y monetarias del MVP están cerradas.**
 
 ---
 
@@ -47,12 +45,13 @@ especializada vive fuera.
 | Agrupación | **1..N albaranes → 1 factura** |
 | Precios | Tarifas expresadas como **base imponible**, sin IVA incluido |
 | IVA inicial | Solo **21 %**; sin exenciones, intracomunitarias ni recargo de equivalencia |
+| Redondeo fiscal | **Global por impuesto** (`round_globally`), confirmado por API en `res.company` |
 | Factura completada | Cuando VeriFactu/AEAT devuelve **`accepted`** |
 | Cobros en MVP | Fuera de alcance; la condición de pago varía por cliente |
 | Sage 50 | Se retirará completamente en la puesta en marcha de Odoo |
 
-**Pendiente antes de Fase 1:** fijar la política de redondeo de §5.2. La serie se cerrará antes de
-producción; rectificativas, cobros y handoff a gestoría quedan fuera del MVP.
+La Fase 1 ya puede especificarse. La serie se cerrará antes de producción; rectificativas, cobros y
+handoff a gestoría quedan fuera del MVP.
 
 ---
 
@@ -203,15 +202,18 @@ legalName?: string;         // razón social
 }
 ```
 
-**Reglas monetarias (a fijar en Fase 0B, alineadas con Odoo):**
-- `Decimal` en Prisma para importes; precio unitario con la precisión acordada (p. ej. `Decimal(12,4)`),
-  importes con `Decimal(12,2)`.
-- **Redondeo:** decidir **por línea** vs **global** y configurarlo **igual en Odoo y en Epoxiron** para
-  que cuadren al céntimo (Odoo tiene "Round per Line" / "Round Globally").
-- Definir número de decimales de precio unitario, base imponible y cuota.
+**Reglas monetarias confirmadas, alineadas con Odoo:**
+- `Decimal` en Prisma para importes; precio unitario con `Decimal(12,4)` e importes monetarios con
+  `Decimal(12,2)`.
+- La empresa Odoo tiene `tax_calculation_rounding_method=round_globally`: se acumula la base de todas
+  las líneas sujetas al mismo impuesto y se redondea la cuota fiscal global a la precisión de la
+  moneda. No se redondea el IVA de cada línea antes de sumarlo.
 - Las tarifas son base imponible y el único tipo inicial es 21 %:
-  `taxAmount = round(subtotal × 0,21)` y `total = subtotal + taxAmount`, aplicando la política de
-  redondeo que se cierre. No se implementan precios con IVA incluido en el MVP.
+  `subtotal = Σ bases`, `taxAmount = roundCurrency(subtotal × 0,21)` y
+  `total = subtotal + taxAmount`.
+- Epoxiron usa `Decimal` para la previsualización, pero después de crear la factura persiste como
+  valores autoritativos los importes devueltos por Odoo.
+- No se implementan precios con IVA incluido en el MVP.
 
 ### 5.3 `DeliveryNote` — trazabilidad
 ```ts
@@ -361,11 +363,11 @@ No exponer al navegador URLs internas de Odoo ni credenciales/sesiones:
 - Autenticación y lectura de modelos reales verificadas con JSON-2 y XML-RPC.
 - Cliente ficticio ID 9 creado sin NIF inventado.
 
-**Fase 0B — Contrato técnico — COMPLETADA, salvo redondeo**
+**Fase 0B — Contrato técnico — COMPLETADA**
 - Factura JSON-2 ID 1 y factura XML-RPC ID 2: `posted`, VeriFactu `accepted`, QR y PDF.
 - Campos, métodos, diferencias de transporte, PDF e idempotencia documentados.
 - JSON-2 elegido para Fase 1.
-- Pendiente únicamente ejecutar casos monetarios para fijar el redondeo exacto.
+- Redondeo global por impuesto (`round_globally`) confirmado por lectura de `res.company`.
 
 **Fase 1A — Datos fiscales**
 - Migración **compatible** con clientes existentes (columnas opcionales).
@@ -460,9 +462,9 @@ emisor y del cliente, y el corte/migración desde Sage.
 
 ## 16. Estado y siguiente paso
 
-**No generar aún el prompt de Codex de Fase 1.** Orden:
-1. Cerrar la política exacta de redondeo con Odoo mediante casos monetarios.
-2. Generar `CODEX_FACTURAS_ODOO_FASE1.md` (1A→1D) sobre `feature/facturacion-odoo`.
+**Siguiente orden de trabajo:**
+1. Generar `CODEX_FACTURAS_ODOO_FASE1.md` (1A→1D) sobre `feature/facturacion-odoo`.
+2. Implementar y validar la Fase 1 sin tocar `main` ni producción.
 3. Antes de producción, cerrar serie, datos fiscales y plan de corte/migración completa desde Sage.
 
 La Fase 0 está implementada y documentada únicamente en `feature/facturacion-odoo`. `main` y
