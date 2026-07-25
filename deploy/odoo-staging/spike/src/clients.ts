@@ -24,15 +24,39 @@ export class Json2Client implements OdooClient {
   public constructor(private readonly config: SpikeConfig) {}
 
   public async authenticate(): Promise<{ userId: number | null; version: string }> {
-    const versionResponse = await fetch(`${this.config.ODOO_URL}/web/webclient/version_info`);
+    const versionResponse = await fetch(`${this.config.ODOO_URL}/web/webclient/version_info`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8"
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        method: "call",
+        params: {},
+        id: crypto.randomUUID()
+      })
+    });
     if (!versionResponse.ok) {
       throw new Error(`No se pudo leer la versión: HTTP ${versionResponse.status}`);
     }
-    const version = (await versionResponse.json()) as { server_version?: unknown };
+    const versionEnvelope = (await versionResponse.json()) as {
+      result?: { server_version?: unknown };
+      error?: { message?: unknown };
+    };
+    if (!versionEnvelope.result) {
+      const reason =
+        typeof versionEnvelope.error?.message === "string"
+          ? versionEnvelope.error.message
+          : "respuesta sin resultado";
+      throw new Error(`No se pudo leer la versión: ${reason}`);
+    }
     const context = await this.call<Record<string, OdooValue>>("res.users", "context_get", {});
     return {
       userId: typeof context.uid === "number" ? context.uid : null,
-      version: typeof version.server_version === "string" ? version.server_version : "unknown"
+      version:
+        typeof versionEnvelope.result.server_version === "string"
+          ? versionEnvelope.result.server_version
+          : "unknown"
     };
   }
 

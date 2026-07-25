@@ -1,6 +1,6 @@
 # Contrato Odoo — Fase 0B
 
-Estado: **pendiente de completar con evidencia de staging**.
+Estado: **lecturas completadas; pendiente factura de prueba, VeriFactu, PDF y redondeo**.
 
 No se cerrará este documento con supuestos. Los resultados deben proceder de
 los informes sanitizados del spike JSON-2 y XML-RPC.
@@ -9,9 +9,9 @@ los informes sanitizados del spike JSON-2 y XML-RPC.
 
 | Dato | Evidencia observada |
 |---|---|
-| URL y versión exacta | Pendiente |
-| Localización española | Pendiente |
-| `l10n_es_edi_verifactu` | Pendiente |
+| URL y versión exacta | `https://epoxiron.odoo.com` · `saas~19.4+e` |
+| Localización española | IVA de ventas 21 % localizado (`account.tax` ID 5) |
+| `l10n_es_edi_verifactu` | Instalado; 19 campos relacionados detectados en `account.move` |
 | Certificado cargado | Pendiente |
 | Entorno de pruebas activo | Pendiente |
 
@@ -19,19 +19,21 @@ los informes sanitizados del spike JSON-2 y XML-RPC.
 
 | Comprobación | JSON-2 | XML-RPC |
 |---|---|---|
-| Autenticación | Pendiente | Pendiente |
-| Lectura `res.partner` | Pendiente | Pendiente |
+| Autenticación | Correcta, usuario ID 2 | Correcta, usuario ID 2 |
+| Lectura `res.partner` | Correcta, 189 campos | Correcta, 189 campos |
 | Crear `account.move` | Pendiente | Pendiente |
 | Ejecutar `action_post` | Pendiente | Pendiente |
 | Consultar VeriFactu | Pendiente | Pendiente |
 | Descargar PDF | Pendiente | Pendiente |
 
-**Transporte elegido y motivo:** pendiente.
+**Transporte elegido y motivo:** pendiente de completar las escrituras. Ambos transportes ofrecen las
+mismas capacidades de lectura; JSON-2 sigue siendo el candidato preferido por ser la API vigente de
+Odoo 19 y sustituir a XML-RPC.
 
 ## Campos y estados reales
 
-- Campos fiscales de `res.partner`: pendiente.
-- Campos relevantes de `account.move`: pendiente.
+- Campos fiscales de `res.partner`: disponibles; confirmar valores con un cliente de prueba.
+- Campos relevantes de `account.move`: 253 campos legibles por ambos transportes.
 - Estado contable antes/después de `action_post`: pendiente.
 - Campos, valores y transiciones VeriFactu: pendiente.
 - Momento de disponibilidad del QR y significado: pendiente.
@@ -53,7 +55,7 @@ los informes sanitizados del spike JSON-2 y XML-RPC.
 
 ## Idempotencia
 
-- Existe `x_epoxiron_idempotency_key`: pendiente.
+- Existe `x_epoxiron_idempotency_key`: **no**.
 - Tipo, índice y unicidad: pendiente.
 - Búsqueda fiable por API: pendiente.
 - Viabilidad de módulo mínimo si no existe: pendiente.
@@ -74,5 +76,5 @@ Los informes y PDF permanecen fuera de Git en `spike/output/`.
 
 | Fecha | Transporte | SHA-256 del informe | Resultado |
 |---|---|---|---|
-| Pendiente | Pendiente | Pendiente | Pendiente |
-
+| 2026-07-25 | JSON-2 lectura | `926D4521AA1EA7F055E3712F390FFE32C59E23AF754F02D7007DEBE7445BD798` | Correcto |
+| 2026-07-25 | XML-RPC lectura | `05C7D5378B1DB467A9F0B04D83AEF4A74632F54ADC84C4451D05B13D6D130BC8` | Correcto |
