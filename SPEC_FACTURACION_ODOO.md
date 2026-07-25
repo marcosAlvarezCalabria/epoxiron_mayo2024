@@ -1,18 +1,19 @@
 # SPEC — Facturación con Odoo (sustitución de Sage 50)
 
 > Especificación del módulo de facturación de Epoxiron.
-> **Fecha:** 2026-07-25 · **Versión:** v2.2 (resultados reales del spike incorporados)
-> **Estado:** Fase 0A/0B completada en Odoo Cloud; pendiente cerrar §13 y el redondeo antes de Fase 1.
-> **Fase 1 NO se implementa hasta cerrar los bloqueantes (§13)**.
+> **Fecha:** 2026-07-25 · **Versión:** v2.3 (decisiones funcionales del cliente incorporadas)
+> **Estado:** Fase 0A/0B completada; decisiones del MVP cerradas, pendiente fijar redondeo antes de Fase 1.
+> **Fase 1 NO se implementa hasta cerrar la política monetaria indicada en §5.2**.
 > **Autor:** Marcos + Claude · Revisión técnica: Codex.
 
 ---
 
 ## 0. Resumen ejecutivo
 
-El cliente (empresa, Impuesto de Sociedades) usa **Sage 50** y quiere sustituirlo por **Odoo**, con
-Epoxiron como front operativo del taller. Decisión: **migrar a Odoo** (Sage 50 no tiene API cómoda),
-**poco a poco y validando primero en una base de pruebas alojada por Odoo**.
+El cliente (empresa, Impuesto de Sociedades) usa **Sage 50** y ha decidido sustituirlo completamente
+por **Odoo**, con Epoxiron como front operativo del taller. Odoo llevará toda la gestión contable;
+la migración de proveedores, plan contable y saldos será un trabajo separado coordinado con la
+gestoría. El MVP de esta spec cubre la facturación de venta desde Epoxiron.
 
 **Sin urgencia legal:** VeriFactu obliga a tener el SIF adaptado el **1-ene-2027** (Sociedades),
 1-jul-2027 el resto, con periodo de pruebas previo (nota AEAT, ampliación dic-2025). Sage 50 ya cumple.
@@ -24,7 +25,8 @@ especializada vive fuera.
 
 > **Nota de la revisión técnica:** la arquitectura es adecuada, pero el flujo de VeriFactu, la
 > idempotencia y la persistencia monetaria necesitan más rigor. Este documento recoge esas correcciones.
-> **La Fase 0 está completada; la Fase 1 no comienza hasta cerrar §13 y la política monetaria.**
+> **La Fase 0 está completada; las decisiones funcionales del MVP están cerradas y solo falta validar
+> la política monetaria antes de comenzar la Fase 1.**
 
 ---
 
@@ -42,8 +44,15 @@ especializada vive fuera.
 | API de integración | **JSON-2**; XML-RPC validado solo como referencia de compatibilidad |
 | Flujo fiscal validado | `create` → `action_post` → `account.move.send.wizard.action_send_and_print` |
 | PDF | Lectura API de `invoice_pdf_report_file` en Base64 después del envío |
+| Agrupación | **1..N albaranes → 1 factura** |
+| Precios | Tarifas expresadas como **base imponible**, sin IVA incluido |
+| IVA inicial | Solo **21 %**; sin exenciones, intracomunitarias ni recargo de equivalencia |
+| Factura completada | Cuando VeriFactu/AEAT devuelve **`accepted`** |
+| Cobros en MVP | Fuera de alcance; la condición de pago varía por cliente |
+| Sage 50 | Se retirará completamente en la puesta en marcha de Odoo |
 
-**Pendiente de cerrar antes de Fase 1:** ver §13 y fijar la política de redondeo de §5.2.
+**Pendiente antes de Fase 1:** fijar la política de redondeo de §5.2. La serie se cerrará antes de
+producción; rectificativas, cobros y handoff a gestoría quedan fuera del MVP.
 
 ---
 
@@ -156,10 +165,11 @@ en la UI, backfill, y solo después valorar restricciones.
 ```ts
 vat?: string;               // NIF/CIF — NO asumir UNIQUE (sucursales, duplicados históricos, contactos)
 legalName?: string;         // razón social
-fiscalAddress?: {
+  fiscalAddress?: {
   street?: string; city?: string; zip?: string; province?: string; country?: string; // "ES"
-};
-externalPartnerId?: string;      // id de res.partner en Odoo (cache de sync)
+  };
+  externalPartnerId?: string;      // id de res.partner en Odoo (cache de sync)
+  paymentTermCode?: string;        // condición de pago por cliente; no implica gestionar el cobro
 ```
 
 > `vat` **no** se marca único sin confirmar antes sucursales, duplicados y contactos relacionados.
@@ -199,7 +209,9 @@ externalPartnerId?: string;      // id de res.partner en Odoo (cache de sync)
 - **Redondeo:** decidir **por línea** vs **global** y configurarlo **igual en Odoo y en Epoxiron** para
   que cuadren al céntimo (Odoo tiene "Round per Line" / "Round Globally").
 - Definir número de decimales de precio unitario, base imponible y cuota.
-- Tratamiento de **precios con IVA incluido**: si aplica, `base = total / (1 + tipo)`.
+- Las tarifas son base imponible y el único tipo inicial es 21 %:
+  `taxAmount = round(subtotal × 0,21)` y `total = subtotal + taxAmount`, aplicando la política de
+  redondeo que se cierre. No se implementan precios con IVA incluido en el MVP.
 
 ### 5.3 `DeliveryNote` — trazabilidad
 ```ts
@@ -227,8 +239,8 @@ model InvoiceDeliveryNote {
 
 La `Invoice` en estado `CREATING` y sus asociaciones `InvoiceDeliveryNote` se crean en la **primera
 transacción local**, antes de llamar a Odoo. Esto reserva los albaranes frente a doble clic y
-peticiones concurrentes. La política para liberar o reutilizar la asociación tras una cancelación
-se cerrará con las respuestas bloqueantes antes de implementar la Fase 1.
+peticiones concurrentes. Como rectificativas y abonos quedan fuera del MVP, la Fase 1 definirá
+únicamente la recuperación de reservas fallidas; no permitirá cancelar una factura ya emitida.
 
 ### 5.5 Endpoints nuevos (API Epoxiron)
 | Método | Ruta | Descripción |
@@ -248,7 +260,8 @@ la API cae; timeout de Odoo tras haber creado; dos peticiones concurrentes sobre
 confirma pero falla la transacción local). Diseño:
 
 ```
-1. Validar ficha fiscal del cliente (NIF + domicilio). Si incompleta → 422.
+1. Validar ficha fiscal del cliente (NIF + domicilio) y condición de pago si procede. Si la ficha
+   necesaria para emitir está incompleta → 422.
 2. Calcular idempotencyKey determinista (p. ej. hash de deliveryNoteIds ordenados + serie).
 3. INSERT Invoice local en estado CREATING con UNIQUE(idempotencyKey)
    → si hay concurrencia/doble clic, el segundo INSERT falla (lock lógico).
@@ -327,12 +340,16 @@ No exponer al navegador URLs internas de Odoo ni credenciales/sesiones:
 
 ## 10. VeriFactu y continuidad
 
-- **Serie:** se mantiene la actual del cliente (VeriFactu no obliga a reiniciarla).
+- **Serie:** la serie y el último número de Sage se decidirán antes de la puesta en marcha. No bloquean
+  el desarrollo ni el entorno de pruebas, pero sí la primera factura de producción.
 - **Encadenamiento:** la cadena de hash **arranca de cero en Odoo** (nuevo SIF), por SIF + NIF. Cortar
   con Sage y empezar en Odoo es correcto y legal.
 - **Corte limpio:** fecha fija (fin de mes); no emitir desde Sage y Odoo a la vez para el mismo NIF.
 - **Envío AEAT:** separado y potencialmente diferido respecto a `action_post` (§4) → reconciliación (§6).
 - **Edición:** Custom/Enterprise → `l10n_es_edi_verifactu` nativo, mantenido por Odoo ante cambios AEAT.
+- **Alcance Odoo:** sustituirá completamente a Sage 50. La migración de proveedores, plan contable,
+  saldos iniciales y demás datos contables no forma parte del MVP de integración Epoxiron y requiere
+  un plan de migración propio con la gestoría antes del corte.
 
 ---
 
@@ -352,10 +369,12 @@ No exponer al navegador URLs internas de Odoo ni credenciales/sesiones:
 
 **Fase 1A — Datos fiscales**
 - Migración **compatible** con clientes existentes (columnas opcionales).
-- Validación NIF/domicilio; formulario fiscal; indicador de ficha incompleta; cobertura de tests.
+- Añadir NIF, razón social, domicilio fiscal y condición de pago al formulario de cliente.
+- Backfill durante la migración; indicador de ficha incompleta; cobertura de tests.
 
 **Fase 1B — Núcleo de facturación**
 - Entidad, repositorios, gateway y casos de uso.
+- Factura agrupada desde 1..N albaranes, base imponible e IVA único del 21 %.
 - **Saga idempotente** y reconciliación.
 - Tests unitarios con `InMemoryRepository` y gateway falso; tests de integración Prisma.
 
@@ -399,18 +418,25 @@ ambos transportes autenticados y dos facturas de prueba aceptadas con documento,
 
 ---
 
-## 13. Decisiones que BLOQUEAN la Fase 1 (cerrar con cliente/gestoría)
+## 13. Decisiones funcionales y pendientes
 
-- [ ] Facturación **por albarán** o **agrupada**.
-- [ ] ¿Los precios actuales son **base imponible** o **incluyen IVA**?
-- [ ] **Serie(s)** y **último número** de Sage.
-- [ ] **Tipos de IVA** y excepciones reales (exentos, intracomunitarios, recargo de equivalencia).
-- [ ] **Rectificativas y abonos**: cómo se gestionan.
-- [ ] **Forma y condiciones de pago**.
-- [ ] Qué significa funcionalmente **"factura completada"**: contabilizada, enviada o **aceptada por AEAT**.
-- [ ] Datos fiscales del **emisor** (razón social, NIF, domicilio, pie, IBAN).
-- [ ] **NIF/CIF + domicilio** de cada cliente (backfill).
-- [ ] Handoff a la **gestoría**: software, formato y periodicidad de los datos.
+| Tema | Decisión | Estado | Momento límite |
+|---|---|---|---|
+| Agrupación | Factura agrupada desde 1..N albaranes | ✅ Cerrado | MVP |
+| Precios | Base imponible, sin IVA incluido | ✅ Cerrado | MVP |
+| Serie y último número de Sage | Se decide en la puesta en marcha | ⏳ Aplazado | Antes de producción |
+| Tipos de IVA | Solo 21 % | ✅ Cerrado | MVP |
+| Rectificativas y abonos | Sin definir; excluidos del MVP | ⏳ Aplazado | Antes de incorporarlos |
+| Condiciones de pago | Varían por cliente; no se gestionan cobros en el MVP | ⚠️ Parcial | Datos de migración |
+| Factura completada | VeriFactu/AEAT en estado `accepted` | ✅ Cerrado y validado | MVP |
+| Datos fiscales del emisor | Se cargan en Odoo durante la migración | ⏳ Fase 1A | Antes de emitir |
+| Datos fiscales de clientes | Nuevos campos web + backfill de migración | ⏳ Fase 1A | Antes de emitir |
+| Handoff gestoría | Irrelevante para el MVP; posible PDF inicialmente | ⏳ Aplazado | Operación posterior |
+| Alcance de Odoo | Sustitución completa de Sage 50 | ✅ Cerrado | Plan de migración separado |
+
+Los asuntos aplazados no bloquean el desarrollo del MVP cuando tienen un momento límite posterior
+explícito. Sí bloquean la primera emisión en producción la serie, los datos fiscales completos del
+emisor y del cliente, y el corte/migración desde Sage.
 
 ---
 
@@ -418,8 +444,8 @@ ambos transportes autenticados y dos facturas de prueba aceptadas con documento,
 
 - **Fase 0:** Odoo staging con localización ES + VeriFactu + API respondiendo.
 - **Fase 1:** emitir factura real desde albarán, con serie continuada, IVA correcto, cuadre al céntimo,
-  y **QR VeriFactu cuando AEAT la acepte** (posiblemente diferido), con la Invoice espejo y el albarán
-  INVOICED; resistente a doble clic/timeout/caída (saga + reconciliación).
+  agrupando 1..N albaranes y con **QR VeriFactu cuando AEAT la acepte** (posiblemente diferido), con
+  la Invoice espejo y todos los albaranes INVOICED; resistente a doble clic/timeout/caída.
 
 ---
 
@@ -435,9 +461,9 @@ ambos transportes autenticados y dos facturas de prueba aceptadas con documento,
 ## 16. Estado y siguiente paso
 
 **No generar aún el prompt de Codex de Fase 1.** Orden:
-1. Cerrar §13 (bloqueantes) con cliente/gestoría.
-2. Incorporar las respuestas a esta spec y cerrar la política de redondeo.
-3. Generar `CODEX_FACTURAS_ODOO_FASE1.md` (1A→1D) sobre `feature/facturacion-odoo`.
+1. Cerrar la política exacta de redondeo con Odoo mediante casos monetarios.
+2. Generar `CODEX_FACTURAS_ODOO_FASE1.md` (1A→1D) sobre `feature/facturacion-odoo`.
+3. Antes de producción, cerrar serie, datos fiscales y plan de corte/migración completa desde Sage.
 
 La Fase 0 está implementada y documentada únicamente en `feature/facturacion-odoo`. `main` y
 producción permanecen intactas. Las escrituras del spike vuelven a estar bloqueadas con
