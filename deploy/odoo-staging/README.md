@@ -25,13 +25,19 @@ contenedores en su VPS.
 8. Crear un contacto exclusivo de pruebas y guardar su ID.
 9. Anotar en `FASE0B_CONTRATO_ODOO.md` el método de redondeo fiscal.
 
-## Usuario técnico
+## Usuario y API key para el spike
 
-1. Crear un usuario exclusivo, por ejemplo `epoxiron-api`.
-2. Conceder el mínimo acceso necesario a contactos y facturación.
-3. Generar una API key desde sus preferencias.
-4. Copiar `.env.example` a `.env` y guardar allí URL, base, usuario y key.
-5. No enviar ni versionar la API key.
+1. No crear todavía un segundo usuario interno: una suscripción de un usuario
+   puede requerir pagar el usuario adicional.
+2. En el único usuario administrador, generar una API key dedicada con una
+   descripción inequívoca, por ejemplo `epoxiron-fase0-spike`.
+3. Copiar `.env.example` a `.env` y usar el email del administrador en
+   `ODOO_USER`, junto con la API key generada.
+4. No enviar ni versionar la API key.
+5. Revocar la key al terminar el spike si no se reutiliza.
+6. Antes de producción, decidir si se contrata un segundo usuario técnico con
+   permisos mínimos o se mantiene una key exclusiva y revocable del
+   administrador.
 
 ## Validaciones del spike
 

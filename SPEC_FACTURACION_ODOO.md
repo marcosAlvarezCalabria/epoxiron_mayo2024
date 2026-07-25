@@ -377,7 +377,10 @@ git push -u origin feature/facturacion-odoo  # publica la rama y enlaza upstream
 - Crear una base exclusiva de pruebas; no usar todavía la futura base de producción.
 - Activar **Localización España** + **`l10n_es_edi_verifactu`** y cargar el **certificado digital**.
 - Mantener VeriFactu en modo **pruebas** mientras se valida.
-- Crear un usuario técnico con permisos mínimos y **API key** para el gateway.
+- Para el spike, generar una **API key dedicada** en el único usuario administrador contratado y usar
+  su login en `ODOO_USER`; no crear todavía un segundo usuario interno, porque puede incrementar la
+  suscripción. Antes de producción se decidirá si se contrata un usuario técnico separado con permisos
+  mínimos o se mantiene una key exclusiva y revocable del administrador.
 - Confirmar en el spike que Odoo Cloud permite el campo de idempotencia necesario mediante Studio;
   si exigiera un módulo propio, reevaluar Odoo.sh o self-hosting antes de Fase 1.
 
