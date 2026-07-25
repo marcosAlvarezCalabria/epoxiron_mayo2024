@@ -1,8 +1,9 @@
 # SPEC — Facturación con Odoo (sustitución de Sage 50)
 
 > Especificación del módulo de facturación de Epoxiron.
-> **Fecha:** 2026-07-25 · **Versión:** v2 (revisión técnica incorporada)
-> **Estado:** Fase 0 lista para empezar · **Fase 1 NO se implementa hasta cerrar los bloqueantes (§13)**.
+> **Fecha:** 2026-07-25 · **Versión:** v2.1 (revisión técnica y alojamiento cloud incorporados)
+> **Estado:** Fase 0 en curso: rama y spike preparados; pendiente crear y validar la base Odoo Cloud.
+> **Fase 1 NO se implementa hasta cerrar los bloqueantes (§13)**.
 > **Autor:** Marcos + Claude · Revisión técnica: Codex.
 
 ---
@@ -152,11 +153,12 @@ legalName?: string;         // razón social
 fiscalAddress?: {
   street?: string; city?: string; zip?: string; province?: string; country?: string; // "ES"
 };
-fiscalProfileComplete?: boolean; // derivado; bloquea/permite facturar
 externalPartnerId?: string;      // id de res.partner en Odoo (cache de sync)
 ```
 
 > `vat` **no** se marca único sin confirmar antes sucursales, duplicados y contactos relacionados.
+> La completitud fiscal **no se persiste**: se calcula en dominio a partir de NIF, razón social y
+> domicilio para evitar que un indicador almacenado quede desactualizado.
 
 ### 5.2 Nueva entidad `Invoice` — importes en `Decimal`, no `Float`
 ```ts
@@ -166,7 +168,7 @@ externalPartnerId?: string;      // id de res.partner en Odoo (cache de sync)
   series: string;
   number?: string;             // nº legal devuelto por Odoo (tras posted)
   customerId: string;
-  deliveryNoteIds: string[];   // 1..N albaranes
+  deliveryNoteIds: string[];   // proyección de lectura; la persistencia usa InvoiceDeliveryNote
 
   // Importes: Prisma Decimal, precisión definida (p. ej. @db.Decimal(12,2))
   subtotal: Decimal;           // base imponible
@@ -178,7 +180,7 @@ externalPartnerId?: string;      // id de res.partner en Odoo (cache de sync)
   odooMoveState?: OdooMoveState;
   verifactuState: VerifactuState;
   externalInvoiceId?: string;  // account.move de Odoo
-  verifactuQrUrl?: string;     // solo cuando ACCEPTED
+  verifactuQrUrl?: string;     // disponibilidad independiente; determinar en el spike
   pdfKey?: string;             // ref interna al PDF servido por la API (§8), no URL de Odoo
   lastError?: string;
   createdAt: Date; updatedAt: Date;
@@ -200,7 +202,29 @@ invoiceId?: string;
 ```
 > Impacto UI: filtros, badges y transiciones en `web/src/pages/DeliveryNotesPage.tsx` (~línea 71).
 
-### 5.4 Endpoints nuevos (API Epoxiron)
+### 5.4 Relación `InvoiceDeliveryNote` — reserva e idempotencia local
+
+`deliveryNoteIds: string[]` es una proyección cómoda para dominio/API, pero no permite imponer en
+PostgreSQL que un albarán pertenezca a una sola factura. La persistencia usa una tabla explícita:
+
+```prisma
+model InvoiceDeliveryNote {
+  invoiceId      String
+  deliveryNoteId String @unique
+
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id])
+  deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id])
+
+  @@id([invoiceId, deliveryNoteId])
+}
+```
+
+La `Invoice` en estado `CREATING` y sus asociaciones `InvoiceDeliveryNote` se crean en la **primera
+transacción local**, antes de llamar a Odoo. Esto reserva los albaranes frente a doble clic y
+peticiones concurrentes. La política para liberar o reutilizar la asociación tras una cancelación se
+cerrará en Fase 0B/Fase 1 antes de implementar.
+
+### 5.5 Endpoints nuevos (API Epoxiron)
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | POST | `/api/invoices` | Inicia la saga de facturación desde 1..N albaranes (idempotente) |
@@ -253,9 +277,15 @@ interface InvoiceGateway {
   findInvoiceByRef(idempotencyKey: string): Promise<RemoteInvoiceRef | null>; // recuperación
   createDraftInvoice(input: CreateInvoiceInput): Promise<RemoteInvoiceRef>;
   postInvoice(externalInvoiceId: string): Promise<PostResult>;               // action_post
-  getVerifactuState(externalInvoiceId: string): Promise<VerifactuState & { qrUrl?: string }>;
+  getVerifactuState(externalInvoiceId: string): Promise<VerifactuResult>;
   fetchInvoicePdf(externalInvoiceId: string): Promise<Buffer>;               // servido por la API (§8)
 }
+
+type VerifactuResult = {
+  state: VerifactuState;
+  qrUrl?: string;
+  rejectionReason?: string;
+};
 ```
 > El dominio no conoce Odoo; solo este puerto. Dos implementaciones posibles (XML-RPC / JSON-2), se elige
 > en Fase 0B. Credenciales en variables de entorno validadas en `env.ts`, nunca en el repo.
@@ -277,7 +307,8 @@ No exponer al navegador URLs internas de Odoo ni credenciales/sesiones. Preferen
 
 - Odoo 19 ofrece la **API JSON-2** (`/json/2/<model>/<method>`, autenticación Bearer, **a confirmar el
   formato exacto contra la instancia** en el spike). Odoo documenta la **retirada de XML-RPC/JSON-RPC en
-  Odoo 22**. **Ambas** APIs externas requieren el **plan Custom** (que ya tenemos).
+  Odoo 22**. **Ambas** APIs externas requieren el **plan Custom**, que debe contratarse o activarse
+  antes del spike.
 - Recomendación: como staging será Odoo 19 y XML-RPC está en retirada, **evaluar empezar directamente con
   JSON-2**. El aislamiento por el puerto `InvoiceGateway` permite cambiar sin tocar el dominio.
 - Se decide en **Fase 0B** tras el spike, documentando campos y métodos reales de la instancia.
