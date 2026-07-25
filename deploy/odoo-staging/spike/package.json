@@ -1,0 +1,23 @@
+{
+  "name": "@epoxiron/odoo-staging-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "spike:json2": "tsx src/main.ts --transport=json2",
+    "spike:xmlrpc": "tsx src/main.ts --transport=xmlrpc"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "xmlrpc": "^1.3.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/xmlrpc": "^1.3.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
