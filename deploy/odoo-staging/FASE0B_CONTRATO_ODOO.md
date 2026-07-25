@@ -1,80 +1,93 @@
 # Contrato Odoo — Fase 0B
 
-Estado: **lecturas completadas; pendiente factura de prueba, VeriFactu, PDF y redondeo**.
-
-No se cerrará este documento con supuestos. Los resultados deben proceder de
-los informes sanitizados del spike JSON-2 y XML-RPC.
+Estado: **spike completado en el entorno de pruebas de VeriFactu**.
 
 ## Instancia
 
 | Dato | Evidencia observada |
 |---|---|
-| URL y versión exacta | `https://epoxiron.odoo.com` · `saas~19.4+e` |
+| Instancia | `https://epoxiron.odoo.com` · `saas~19.4+e` |
+| Usuario API | Autenticación correcta, usuario ID 2 |
 | Localización española | IVA de ventas 21 % localizado (`account.tax` ID 5) |
-| `l10n_es_edi_verifactu` | Instalado; 19 campos relacionados detectados en `account.move` |
-| Certificado cargado | Pendiente |
-| Entorno de pruebas activo | Pendiente |
+| VeriFactu | Instalado y requerido en las facturas de prueba |
+| Certificado | Cargado por el usuario con alcance exclusivo VeriFactu |
+| Entorno | Opción **Entorno de prueba** comprobada por el usuario |
 
 ## Comparación de transportes
 
 | Comprobación | JSON-2 | XML-RPC |
 |---|---|---|
-| Autenticación | Correcta, usuario ID 2 | Correcta, usuario ID 2 |
-| Lectura `res.partner` | Correcta, 189 campos | Correcta, 189 campos |
-| Crear `account.move` | Pendiente | Pendiente |
-| Ejecutar `action_post` | Pendiente | Pendiente |
-| Consultar VeriFactu | Pendiente | Pendiente |
-| Descargar PDF | Pendiente | Pendiente |
+| Autenticación y lecturas | Correctas | Correctas |
+| Crear `account.move` | Correcto, factura ID 1 | Correcto, factura ID 2 |
+| Ejecutar `action_post` | `draft` → `posted` | `draft` → `posted` |
+| Ejecutar `account.move.send.wizard` | Correcto | Correcto |
+| Estado final VeriFactu | `accepted` | `accepted` |
+| Documento VeriFactu | ID 1 | ID 2 |
+| QR y PDF | Disponibles | Disponibles |
 
-**Transporte elegido y motivo:** pendiente de completar las escrituras. Ambos transportes ofrecen las
-mismas capacidades de lectura; JSON-2 sigue siendo el candidato preferido por ser la API vigente de
-Odoo 19 y sustituir a XML-RPC.
+**Transporte elegido para Fase 1: JSON-2.** Es la API vigente de Odoo 19, cubrió todo el
+flujo y evita construir una integración nueva sobre XML-RPC, que Odoo está sustituyendo.
+XML-RPC queda validado únicamente como referencia de compatibilidad.
 
-## Campos y estados reales
+## Flujo remoto confirmado
 
-- Campos fiscales de `res.partner`: disponibles; confirmar valores con un cliente de prueba.
-- Campos relevantes de `account.move`: 253 campos legibles por ambos transportes.
-- Estado contable antes/después de `action_post`: pendiente.
-- Campos, valores y transiciones VeriFactu: pendiente.
-- Momento de disponibilidad del QR y significado: pendiente.
+1. Crear `account.move` con `move_type=out_invoice`, cliente, líneas e impuestos.
+2. Ejecutar `account.move.action_post`.
+3. Crear `account.move.send.wizard` para la factura.
+4. Ejecutar `action_send_and_print`; esta acción genera PDF y procesa VeriFactu.
+5. Consultar `l10n_es_edi_verifactu_state` hasta obtener un estado terminal.
+6. Leer `invoice_pdf_report_file` y decodificar su contenido Base64.
+
+`action_post` por sí sola no envía VeriFactu: durante el spike permanecieron vacíos el estado,
+el documento y el QR hasta ejecutar el asistente de envío.
+
+## Campos y estados observados
+
+- `l10n_es_edi_verifactu_required=true`.
+- Estado final: `l10n_es_edi_verifactu_state=accepted`.
+- Documentos: `l10n_es_edi_verifactu_document_ids`.
+- QR: `l10n_es_edi_verifactu_qr_code`.
+- PDF: `invoice_pdf_report_file` después del envío.
+- Los dos transportes expusieron 189 campos de cliente, 253 de factura y 19 relacionados
+  con VeriFactu, QR o localización española.
 
 ## PDF
 
-- Ruta o método server-side: pendiente.
-- Autenticación necesaria: pendiente.
-- Momento en que incorpora QR: pendiente.
-
-## Redondeo
-
-| Ajuste | Valor observado |
-|---|---|
-| Por línea o global | Pendiente |
-| Decimales de moneda | Pendiente |
-| Decimales de precio unitario | Pendiente |
-| Base, cuota y total de prueba | Pendiente |
+El endpoint web de informe no aceptó crear una sesión con la API key aunque respondió HTTP 200.
+La estrategia confirmada es leer `invoice_pdf_report_file` mediante la API después de
+`action_send_and_print`, validar la cabecera `%PDF` y guardar el binario decodificado.
 
 ## Idempotencia
 
-- Existe `x_epoxiron_idempotency_key`: **no**.
-- Tipo, índice y unicidad: pendiente.
-- Búsqueda fiable por API: pendiente.
-- Viabilidad de módulo mínimo si no existe: pendiente.
-- Limitaciones de usar `ref` provisionalmente: pendiente.
+- `x_epoxiron_idempotency_key` no existe.
+- En Fase 1 se debe buscar primero una referencia técnica estable antes de crear.
+- `ref` puede servir como clave provisional de reconciliación, pero no aporta una restricción
+  única remota y no elimina por sí sola las condiciones de carrera.
+- Odoo Online no admite un módulo personalizado para añadir la restricción; la idempotencia
+  fuerte deberá residir en la API de Epoxiron y reconciliarse con Odoo.
 
-## Decisión final para Fase 1
+## Seguridad operativa
 
-- Transporte: pendiente.
-- Campos del adaptador: pendiente.
-- Estrategia de PDF: pendiente.
-- Reconciliación VeriFactu: pendiente.
-- Idempotencia remota: pendiente.
-- Configuración monetaria: pendiente.
+- Las escrituras exigen simultáneamente `SPIKE_ALLOW_WRITES=true` y `--confirm-write`.
+- La bandera local volvió a `false` al terminar.
+- Credenciales, informes y PDF permanecen fuera de Git.
+- Las facturas ID 1 y 2 pertenecen exclusivamente al entorno de pruebas.
+
+## Pendiente para Fase 1
+
+- Formalizar estados terminales, reintentos y reconciliación del documento VeriFactu.
+- Definir la clave idempotente local y su índice único.
+- Confirmar con casos monetarios adicionales la política exacta de redondeo.
+- Añadir el adaptador JSON-2 dentro de la arquitectura de la API; no reutilizar el spike como
+  código de producción.
 
 ## Evidencias
 
-Los informes y PDF permanecen fuera de Git en `spike/output/`.
+Los informes sanitizados y los PDF permanecen ignorados en `spike/output/`.
 
-| Fecha | Transporte | SHA-256 del informe | Resultado |
-|---|---|---|---|
-| 2026-07-25 | JSON-2 lectura | `926D4521AA1EA7F055E3712F390FFE32C59E23AF754F02D7007DEBE7445BD798` | Correcto |
-| 2026-07-25 | XML-RPC lectura | `05C7D5378B1DB467A9F0B04D83AEF4A74632F54ADC84C4451D05B13D6D130BC8` | Correcto |
+| Fecha | Evidencia | Resultado |
+|---|---|---|
+| 2026-07-25 | JSON-2 lectura | Correcto |
+| 2026-07-25 | XML-RPC lectura | Correcto |
+| 2026-07-25 | Factura JSON-2 ID 1 | `posted`, VeriFactu `accepted`, documento 1, QR y PDF |
+| 2026-07-25 | Factura XML-RPC ID 2 | `posted`, VeriFactu `accepted`, documento 2, QR y PDF |

@@ -65,6 +65,21 @@ const report: Report = {
 const client: OdooClient =
   transport === "json2" ? new Json2Client(config) : new XmlRpcClient(config);
 
+const createRecord = async (
+  model: string,
+  values: Record<string, OdooValue>
+): Promise<number> => {
+  const created =
+    transport === "json2"
+      ? await client.call<number | number[]>(model, "create", { vals_list: [values] })
+      : await client.call<number | number[]>(model, "create", { args: [values] });
+  const id = Array.isArray(created) ? created[0] : created;
+  if (typeof id !== "number") {
+    throw new Error(`Odoo no devolvió el ID creado para ${model}`);
+  }
+  return id;
+};
+
 const fieldsGet = async (model: string): Promise<Record<string, OdooValue>> =>
   client.call(model, "fields_get", {
     attributes: ["string", "type", "required", "readonly"]
@@ -88,29 +103,35 @@ const observe = async (invoiceId: number): Promise<Observation> => {
   };
 };
 
-const downloadPdf = async (invoiceId: number): Promise<Uint8Array> => {
-  const login = await fetch(`${config.ODOO_URL}/web/session/authenticate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "call",
-      params: { db: config.ODOO_DB, login: config.ODOO_USER, password: config.ODOO_API_KEY },
-      id: randomUUID()
-    })
+const sendInvoice = async (invoiceId: number): Promise<void> => {
+  const wizardId = await createRecord("account.move.send.wizard", {
+    move_id: invoiceId,
+    sending_methods: []
   });
-  const cookie = login.headers.get("set-cookie")?.split(";", 1)[0];
-  if (!login.ok || !cookie) {
-    throw new Error(`No se pudo crear sesión web para PDF: HTTP ${login.status}`);
+  await client.call("account.move.send.wizard", "action_send_and_print", {
+    ids: [wizardId],
+    context: {
+      active_model: "account.move",
+      active_id: invoiceId,
+      active_ids: [invoiceId]
+    }
+  });
+};
+
+const downloadPdf = async (invoiceId: number): Promise<Uint8Array> => {
+  const records = await client.call<OdooRecord[]>("account.move", "read", {
+    ids: [invoiceId],
+    fields: ["invoice_pdf_report_file"]
+  });
+  const encoded = records[0]?.invoice_pdf_report_file;
+  if (typeof encoded !== "string" || encoded.length === 0) {
+    throw new Error(`Odoo no generó el PDF para account.move ${invoiceId}`);
   }
-  const response = await fetch(
-    `${config.ODOO_URL}/report/pdf/account.report_invoice_with_payments/${invoiceId}`,
-    { headers: { Cookie: cookie } }
-  );
-  if (!response.ok || !(response.headers.get("content-type") ?? "").includes("application/pdf")) {
-    throw new Error(`Odoo no devolvió un PDF válido: HTTP ${response.status}`);
+  const pdf = Buffer.from(encoded, "base64");
+  if (pdf.subarray(0, 4).toString("ascii") !== "%PDF") {
+    throw new Error(`El adjunto de account.move ${invoiceId} no es un PDF válido`);
   }
-  return new Uint8Array(await response.arrayBuffer());
+  return pdf;
 };
 
 try {
@@ -172,9 +193,11 @@ try {
     if (report.idempotencyFieldAvailable) {
       values.x_epoxiron_idempotency_key = reference;
     }
-    report.invoiceId = await client.call<number>("account.move", "create", values);
+    report.invoiceId = await createRecord("account.move", values);
     report.observations.push(await observe(report.invoiceId));
     await client.call("account.move", "action_post", { ids: [report.invoiceId] });
+    report.observations.push(await observe(report.invoiceId));
+    await sendInvoice(report.invoiceId);
     report.observations.push(await observe(report.invoiceId));
     for (let attempt = 0; attempt < config.ODOO_POLL_ATTEMPTS; attempt += 1) {
       await new Promise<void>((done) => setTimeout(done, config.ODOO_POLL_INTERVAL_MS));
@@ -203,4 +226,3 @@ try {
   await writeFile(file, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   process.stdout.write(`Informe del spike: ${file}\n`);
 }
-

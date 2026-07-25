@@ -158,8 +158,14 @@ export class XmlRpcClient implements OdooClient {
     if (this.userId === null) {
       throw new Error("XML-RPC requiere authenticate() antes de call()");
     }
-    const args = Array.isArray(kwargs.ids) ? [kwargs.ids] : [];
-    const filtered = Object.fromEntries(Object.entries(kwargs).filter(([key]) => key !== "ids"));
+    const args = Array.isArray(kwargs.args)
+      ? kwargs.args
+      : Array.isArray(kwargs.ids)
+        ? [kwargs.ids]
+        : [];
+    const filtered = Object.fromEntries(
+      Object.entries(kwargs).filter(([key]) => key !== "ids" && key !== "args")
+    );
     return rpcCall<T>(
       rpcClient(`${this.config.ODOO_URL}/xmlrpc/2/object`),
       "execute_kw",
