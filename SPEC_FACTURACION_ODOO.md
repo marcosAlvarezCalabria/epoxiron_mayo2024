@@ -1,8 +1,8 @@
 # SPEC — Facturación con Odoo (sustitución de Sage 50)
 
 > Especificación del módulo de facturación de Epoxiron.
-> **Fecha:** 2026-07-25 · **Versión:** v2.1 (revisión técnica y alojamiento cloud incorporados)
-> **Estado:** Fase 0 en curso: rama y spike preparados; pendiente crear y validar la base Odoo Cloud.
+> **Fecha:** 2026-07-25 · **Versión:** v2.2 (resultados reales del spike incorporados)
+> **Estado:** Fase 0A/0B completada en Odoo Cloud; pendiente cerrar §13 y el redondeo antes de Fase 1.
 > **Fase 1 NO se implementa hasta cerrar los bloqueantes (§13)**.
 > **Autor:** Marcos + Claude · Revisión técnica: Codex.
 
@@ -24,7 +24,7 @@ especializada vive fuera.
 
 > **Nota de la revisión técnica:** la arquitectura es adecuada, pero el flujo de VeriFactu, la
 > idempotencia y la persistencia monetaria necesitan más rigor. Este documento recoge esas correcciones.
-> **La Fase 0 sí puede abordarse ya; la Fase 1 no, hasta cerrar §13 y el spike de §11.**
+> **La Fase 0 está completada; la Fase 1 no comienza hasta cerrar §13 y la política monetaria.**
 
 ---
 
@@ -39,8 +39,11 @@ especializada vive fuera.
 | Git | Rama **`feature/facturacion-odoo`** (aislada de `main`/producción) |
 | Fuente de la verdad de clientes | **Epoxiron** (sincroniza `res.partner` hacia Odoo) |
 | Módulo fiscal | `l10n_es_edi_verifactu` (nativo Enterprise) |
+| API de integración | **JSON-2**; XML-RPC validado solo como referencia de compatibilidad |
+| Flujo fiscal validado | `create` → `action_post` → `account.move.send.wizard.action_send_and_print` |
+| PDF | Lectura API de `invoice_pdf_report_file` en Base64 después del envío |
 
-**Pendiente de cerrar antes de Fase 1:** ver §13 (decisiones bloqueantes) y §11 (spike técnico).
+**Pendiente de cerrar antes de Fase 1:** ver §13 y fijar la política de redondeo de §5.2.
 
 ---
 
@@ -56,8 +59,8 @@ especializada vive fuera.
 │              │  InvoiceGateway (port)│                      │
 │              └───────────┬───────────┘                      │
 └──────────────────────────┼──────────────────────────────────┘
-                           │  API externa Odoo (XML-RPC o JSON-2,
-                           │  decidido en Fase 0B; aislada tras el puerto)
+                           │  API externa Odoo JSON-2
+                           │  (aislada tras el puerto)
                            ▼
 ┌────────────────────────────────────────────────────────────┐
 │          ODOO (Custom/Enterprise, cloud gestionada)          │
@@ -133,10 +136,13 @@ type UiInvoiceStatus =
 ```
 
 - El estado local y el de Odoo **no se mezclan** en un único campo.
-- El QR y la confirmación AEAT llegan cuando `VerifactuState = ACCEPTED`, posiblemente **después** de
-  contabilizar → hace falta **reconciliación asíncrona** (§6).
-- **A confirmar en el spike (Fase 0A):** nombres exactos de campos/estados de esta instancia Odoo 19 y
-  si el envío es inmediato o diferido en modo VeriFactu.
+- El spike confirmó que `action_post` deja la factura contabilizada, pero no crea el documento
+  VeriFactu. Es obligatorio ejecutar después `account.move.send.wizard.action_send_and_print`.
+- El estado remoto se consulta en `l10n_es_edi_verifactu_state`; el resultado terminal observado fue
+  `accepted`. El documento y el QR están en `l10n_es_edi_verifactu_document_ids` y
+  `l10n_es_edi_verifactu_qr_code`.
+- Aunque en las dos pruebas la aceptación llegó en segundos, el diseño mantiene reconciliación
+  asíncrona porque Odoo/AEAT pueden diferir el procesamiento.
 
 ---
 
@@ -221,8 +227,8 @@ model InvoiceDeliveryNote {
 
 La `Invoice` en estado `CREATING` y sus asociaciones `InvoiceDeliveryNote` se crean en la **primera
 transacción local**, antes de llamar a Odoo. Esto reserva los albaranes frente a doble clic y
-peticiones concurrentes. La política para liberar o reutilizar la asociación tras una cancelación se
-cerrará en Fase 0B/Fase 1 antes de implementar.
+peticiones concurrentes. La política para liberar o reutilizar la asociación tras una cancelación
+se cerrará con las respuestas bloqueantes antes de implementar la Fase 1.
 
 ### 5.5 Endpoints nuevos (API Epoxiron)
 | Método | Ruta | Descripción |
@@ -247,13 +253,16 @@ confirma pero falla la transacción local). Diseño:
 3. INSERT Invoice local en estado CREATING con UNIQUE(idempotencyKey)
    → si hay concurrencia/doble clic, el segundo INSERT falla (lock lógico).
 4. Constraint de BD: un albarán NO puede estar en más de una Invoice activa (no cancelada).
-5. Antes de crear en Odoo: BUSCAR en Odoo por la referencia Epoxiron (idempotencyKey escrita en un
-   campo de account.move, p. ej. `ref`/campo propio) → recuperación si ya se creó antes.
+5. Antes de crear en Odoo: BUSCAR en Odoo por la referencia Epoxiron escrita en `account.move.ref`.
+   El spike confirmó que `x_epoxiron_idempotency_key` no existe. `ref` permite reconciliar, pero no
+   impone unicidad remota; la garantía fuerte reside en PostgreSQL.
 6. Si no existe: crear account.move (draft) escribiendo la referencia Epoxiron.
-7. Confirmar (action_post) → pasa a posted; el envío VeriFactu puede ser inmediato o diferido.
-8. Operación local FINAL en una ÚNICA transacción Prisma:
+7. Confirmar (`action_post`) → pasa a `posted`.
+8. Crear `account.move.send.wizard` y ejecutar `action_send_and_print` para generar PDF y procesar
+   VeriFactu, sin habilitar el método de correo salvo petición funcional explícita.
+9. Operación local FINAL en una ÚNICA transacción Prisma:
    set externalInvoiceId, number, odooMoveState, localState=LINKED, y marcar albaranes INVOICED.
-9. Reconciliación asíncrona (job programado + endpoint manual):
+10. Reconciliación asíncrona (job programado + endpoint manual):
    - Para Invoices en CREATING/RECONCILING: consultar Odoo por referencia y adoptar/limpiar.
    - Para VerifactuState PENDING: sondear hasta ACCEPTED/REJECTED, guardar QR cuando ACCEPTED.
 ```
@@ -277,6 +286,7 @@ interface InvoiceGateway {
   findInvoiceByRef(idempotencyKey: string): Promise<RemoteInvoiceRef | null>; // recuperación
   createDraftInvoice(input: CreateInvoiceInput): Promise<RemoteInvoiceRef>;
   postInvoice(externalInvoiceId: string): Promise<PostResult>;               // action_post
+  sendInvoice(externalInvoiceId: string): Promise<void>;                     // send wizard + VeriFactu
   getVerifactuState(externalInvoiceId: string): Promise<VerifactuResult>;
   fetchInvoicePdf(externalInvoiceId: string): Promise<Buffer>;               // servido por la API (§8)
 }
@@ -287,31 +297,31 @@ type VerifactuResult = {
   rejectionReason?: string;
 };
 ```
-> El dominio no conoce Odoo; solo este puerto. Dos implementaciones posibles (XML-RPC / JSON-2), se elige
-> en Fase 0B. Credenciales en variables de entorno validadas en `env.ts`, nunca en el repo.
+> El dominio no conoce Odoo; solo este puerto. La implementación elegida es JSON-2. Credenciales en
+> variables de entorno validadas en `env.ts`, nunca en el repo.
 
 ---
 
 ## 8. Contrato del PDF
 
-No exponer al navegador URLs internas de Odoo ni credenciales/sesiones. Preferencia:
-- `GET /api/invoices/:id/pdf` → la **API recupera el PDF de Odoo (server-side, autenticado)** y lo
-  **sirve autenticada** (detrás de `authMiddleware`).
+No exponer al navegador URLs internas de Odoo ni credenciales/sesiones:
+- Después de `action_send_and_print`, el adaptador lee `invoice_pdf_report_file` mediante JSON-2,
+  decodifica Base64 y valida la cabecera `%PDF`.
+- `GET /api/invoices/:id/pdf` → la **API recupera el PDF server-side** y lo sirve mediante una ruta
+  autenticada detrás de `authMiddleware`.
 - **R2 como optimización posterior**: cachear una copia estable y servir desde ahí (ya existe pipeline
   R2 en el proyecto). No es requisito de Fase 1.
 - Nunca redirección directa con credenciales de Odoo al cliente.
 
 ---
 
-## 9. Transporte: XML-RPC vs JSON-2 (decisión explícita en Fase 0B)
+## 9. Transporte: decisión cerrada en Fase 0B
 
-- Odoo 19 ofrece la **API JSON-2** (`/json/2/<model>/<method>`, autenticación Bearer, **a confirmar el
-  formato exacto contra la instancia** en el spike). Odoo documenta la **retirada de XML-RPC/JSON-RPC en
-  Odoo 22**. **Ambas** APIs externas requieren el **plan Custom**, que debe contratarse o activarse
-  antes del spike.
-- Recomendación: como staging será Odoo 19 y XML-RPC está en retirada, **evaluar empezar directamente con
-  JSON-2**. El aislamiento por el puerto `InvoiceGateway` permite cambiar sin tocar el dominio.
-- Se decide en **Fase 0B** tras el spike, documentando campos y métodos reales de la instancia.
+- **Elegida: JSON-2**, autenticada con Bearer y `X-Odoo-Database`.
+- JSON-2 y XML-RPC completaron autenticación, lecturas, creación, contabilización y envío VeriFactu.
+- JSON-2 exige `vals_list` al crear registros. XML-RPC exige los valores como argumentos posicionales.
+- JSON-2 es la API vigente de Odoo 19; Odoo documenta la retirada de XML-RPC/JSON-RPC en Odoo 22.
+- XML-RPC no se implementará en Fase 1. El puerto `InvoiceGateway` mantiene aislado el transporte.
 
 ---
 
@@ -328,18 +338,17 @@ No exponer al navegador URLs internas de Odoo ni credenciales/sesiones. Preferen
 
 ## 11. Plan de implementación recomendado
 
-**Fase 0A — Decisiones y spike técnico**
-- Cerrar preguntas bloqueantes (§13).
-- Crear una base de pruebas en el **Standard Cloud Hosting de Odoo** con plan Custom, localización ES,
-  módulo VeriFactu, certificado y entorno de pruebas.
-- Probar autenticación, lectura de modelos y **campos reales disponibles**.
-- Crear **manualmente** una factura y observar el **flujo real** de VeriFactu, PDF, QR y **tiempos de
-  envío** a la AEAT.
+**Fase 0A — Entorno y spike técnico — COMPLETADA**
+- Odoo Custom en Standard Cloud Hosting, localización ES, certificado y VeriFactu en pruebas.
+- API key dedicada almacenada únicamente en `.env` ignorado.
+- Autenticación y lectura de modelos reales verificadas con JSON-2 y XML-RPC.
+- Cliente ficticio ID 9 creado sin NIF inventado.
 
-**Fase 0B — Contrato definitivo**
-- Documentar campos y métodos reales de esa instancia.
-- Elegir **XML-RPC o JSON-2**.
-- Definir estados, idempotencia, **redondeos** y recuperación ante fallos.
+**Fase 0B — Contrato técnico — COMPLETADA, salvo redondeo**
+- Factura JSON-2 ID 1 y factura XML-RPC ID 2: `posted`, VeriFactu `accepted`, QR y PDF.
+- Campos, métodos, diferencias de transporte, PDF e idempotencia documentados.
+- JSON-2 elegido para Fase 1.
+- Pendiente únicamente ejecutar casos monetarios para fijar el redondeo exacto.
 
 **Fase 1A — Datos fiscales**
 - Migración **compatible** con clientes existentes (columnas opcionales).
@@ -374,18 +383,19 @@ git push -u origin feature/facturacion-odoo  # publica la rama y enlaza upstream
 
 ### 12.2 Base de pruebas en Odoo Cloud
 - Contratar/activar el plan **Custom** con **Standard Cloud Hosting** gestionado por Odoo.
-- Crear una base exclusiva de pruebas; no usar todavía la futura base de producción.
+- Usar la instancia Odoo Cloud con **Entorno de prueba** de VeriFactu activado; no desactivarlo durante
+  el desarrollo.
 - Activar **Localización España** + **`l10n_es_edi_verifactu`** y cargar el **certificado digital**.
 - Mantener VeriFactu en modo **pruebas** mientras se valida.
 - Para el spike, generar una **API key dedicada** en el único usuario administrador contratado y usar
   su login en `ODOO_USER`; no crear todavía un segundo usuario interno, porque puede incrementar la
   suscripción. Antes de producción se decidirá si se contrata un usuario técnico separado con permisos
   mínimos o se mantiene una key exclusiva y revocable del administrador.
-- Confirmar en el spike que Odoo Cloud permite el campo de idempotencia necesario mediante Studio;
-  si exigiera un módulo propio, reevaluar Odoo.sh o self-hosting antes de Fase 1.
+- El spike confirmó que no existe un campo único remoto de idempotencia. No se instalará un módulo
+  propio: la unicidad se garantiza en PostgreSQL y `account.move.ref` se usa para reconciliación.
 
-**Criterio de aceptación Fase 0:** Odoo accesible, localización ES + VeriFactu activos, y una llamada de
-prueba a la API externa (auth + leer `res.partner`) responde OK.
+**Criterio de aceptación Fase 0 — CUMPLIDO:** Odoo accesible, localización ES + VeriFactu activos,
+ambos transportes autenticados y dos facturas de prueba aceptadas con documento, QR y PDF.
 
 ---
 
@@ -426,7 +436,9 @@ prueba a la API externa (auth + leer `res.partner`) responde OK.
 
 **No generar aún el prompt de Codex de Fase 1.** Orden:
 1. Cerrar §13 (bloqueantes) con cliente/gestoría.
-2. Ejecutar **Fase 0A/0B** (spike en staging) y fijar contrato real (API, estados, redondeos, PDF, envío).
-3. Solo entonces generar `CODEX_FACTURAS_ODOO_FASE1.md` (1A→1D) sobre `feature/facturacion-odoo`.
+2. Incorporar las respuestas a esta spec y cerrar la política de redondeo.
+3. Generar `CODEX_FACTURAS_ODOO_FASE1.md` (1A→1D) sobre `feature/facturacion-odoo`.
 
-El árbol de trabajo del repo permanece intacto; el único archivo nuevo es esta spec.
+La Fase 0 está implementada y documentada únicamente en `feature/facturacion-odoo`. `main` y
+producción permanecen intactas. Las escrituras del spike vuelven a estar bloqueadas con
+`SPIKE_ALLOW_WRITES=false`.
