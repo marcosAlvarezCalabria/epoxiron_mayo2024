@@ -1,67 +1,44 @@
-# Odoo 19 Enterprise — staging
+# Odoo Custom — Standard Cloud Hosting
 
-Stack aislado para validar Odoo Custom/Enterprise y VeriFactu. No comparte
-contenedores, red, PostgreSQL ni volúmenes con Epoxiron producción.
+Fase 0 para validar Odoo 19 Custom/Enterprise y VeriFactu en una base de
+pruebas alojada y operada por Odoo. Epoxiron no instala Odoo, PostgreSQL ni
+contenedores en su VPS.
 
-## Preparación
+## Decisión de alojamiento
 
-1. Copiar este directorio al servidor Hetzner de staging.
-2. Copiar `.env.example` a `.env` y reemplazar todos los valores de ejemplo.
-3. Colocar los addons Enterprise 19 autorizados en `enterprise/`. El directorio
-   está ignorado y nunca se publica en Git.
-4. Validar la configuración:
+- Plan: **Custom**.
+- Hosting: **Standard Cloud Hosting de Odoo**.
+- Odoo administra la infraestructura y las actualizaciones.
+- Epoxiron se integra exclusivamente mediante la API externa.
+- Odoo.sh y self-hosting quedan como alternativas únicamente si el spike
+  demuestra que hace falta un módulo propio.
 
-```bash
-docker compose --env-file .env config
-```
+## Configuración manual de Marcos
 
-El comando debe finalizar sin variables vacías ni errores de sintaxis.
+1. Contratar o activar el plan Custom.
+2. Crear una base exclusiva de pruebas en la región europea.
+3. Configurar España, razón social y NIF de la empresa.
+4. Instalar Localización España (`l10n_es`).
+5. Instalar `l10n_es_edi_verifactu`.
+6. Cargar manualmente el certificado digital.
+7. Mantener VeriFactu en entorno de pruebas.
+8. Crear un contacto exclusivo de pruebas y guardar su ID.
+9. Anotar en `FASE0B_CONTRATO_ODOO.md` el método de redondeo fiscal.
 
-5. Arrancar solo este stack:
-
-```bash
-docker compose --env-file .env up -d
-```
-
-Debe crear recursos con nombres `epoxiron_odoo_staging_*`.
-
-6. Verificar contenedores y logs:
-
-```bash
-docker compose --env-file .env ps
-docker compose --env-file .env logs --tail=200 odoo
-```
-
-PostgreSQL debe estar `healthy` y Odoo debe arrancar sin errores de base de
-datos ni addons.
-
-## Pasos manuales de Marcos
-
-1. Activar la suscripción Enterprise.
-2. Configurar España, razón social y NIF de la empresa.
-3. Instalar Localización España (`l10n_es`).
-4. Instalar `l10n_es_edi_verifactu`.
-5. Cargar manualmente el certificado digital. Nunca copiarlo al repositorio.
-6. Mantener VeriFactu en entorno de pruebas.
-7. Anotar el método de redondeo fiscal en `FASE0B_CONTRATO_ODOO.md`.
-8. Crear un contacto exclusivo de pruebas y guardar su ID en
-   `ODOO_TEST_PARTNER_ID`.
-
-## Usuario técnico y API key
+## Usuario técnico
 
 1. Crear un usuario exclusivo, por ejemplo `epoxiron-api`.
 2. Conceder el mínimo acceso necesario a contactos y facturación.
 3. Generar una API key desde sus preferencias.
-4. Guardar usuario y key únicamente en `.env`.
-5. Revocar la key si no se reutilizará tras el spike.
+4. Copiar `.env.example` a `.env` y guardar allí URL, base, usuario y key.
+5. No enviar ni versionar la API key.
 
-## Seguridad
+## Validaciones del spike
 
-- Odoo escucha en `127.0.0.1`; el acceso externo debe pasar por HTTPS.
-- No reutilizar secretos, certificados ni volúmenes de producción.
-- No ejecutar el spike contra producción.
-- Las escrituras del spike requieren a la vez `SPIKE_ALLOW_WRITES=true` y
-  `--confirm-write`.
+El script de [`spike/`](spike/README.md) compara JSON-2 y XML-RPC, inspecciona
+VeriFactu, descarga el PDF y comprueba la disponibilidad de
+`x_epoxiron_idempotency_key`.
 
-Las instrucciones del spike están en [`spike/README.md`](spike/README.md).
-
+Las escrituras requieren simultáneamente `SPIKE_ALLOW_WRITES=true` y el
+argumento `--confirm-write`. Nunca se ejecutará el modo escritura contra una
+base de producción.

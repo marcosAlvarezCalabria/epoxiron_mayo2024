@@ -11,7 +11,7 @@
 
 El cliente (empresa, Impuesto de Sociedades) usa **Sage 50** y quiere sustituirlo por **Odoo**, con
 Epoxiron como front operativo del taller. Decisión: **migrar a Odoo** (Sage 50 no tiene API cómoda),
-**poco a poco y validando primero en staging (Hetzner)**.
+**poco a poco y validando primero en una base de pruebas alojada por Odoo**.
 
 **Sin urgencia legal:** VeriFactu obliga a tener el SIF adaptado el **1-ene-2027** (Sociedades),
 1-jul-2027 el resto, con periodo de pruebas previo (nota AEAT, ampliación dic-2025). Sage 50 ya cumple.
@@ -32,9 +32,9 @@ especializada vive fuera.
 | Tema | Valor |
 |---|---|
 | Edición Odoo | **Custom (Enterprise)** — VeriFactu **nativo y mantenido por Odoo** (si la AEAT cambia algo, lo actualiza Odoo) |
-| Alojamiento | **Self-hosted en Hetzner** (incluido en el plan Custom) |
+| Alojamiento | **Standard Cloud Hosting de Odoo con plan Custom** — sin VPS propio; validar API y VeriFactu en el spike |
 | Usuarios | **1** (≈ 29,90 €/mes año 1 · 37,40 €/mes después; Sage era 68 €/mes) |
-| Estrategia | **Poco a poco**, validando en **staging (Hetzner)** antes de producción |
+| Estrategia | **Poco a poco**, validando en una **base de pruebas de Odoo Cloud** antes de producción |
 | Git | Rama **`feature/facturacion-odoo`** (aislada de `main`/producción) |
 | Fuente de la verdad de clientes | **Epoxiron** (sincroniza `res.partner` hacia Odoo) |
 | Módulo fiscal | `l10n_es_edi_verifactu` (nativo Enterprise) |
@@ -59,7 +59,7 @@ especializada vive fuera.
                            │  decidido en Fase 0B; aislada tras el puerto)
                            ▼
 ┌────────────────────────────────────────────────────────────┐
-│               ODOO (Custom/Enterprise, Hetzner)             │
+│          ODOO (Custom/Enterprise, cloud gestionada)          │
 │   res.partner ◄─ sync clientes                              │
 │   account.move (out_invoice) ◄─ facturas                    │
 │   l10n_es_edi_verifactu ─► hash · firma · QR · AEAT         │
@@ -299,8 +299,8 @@ No exponer al navegador URLs internas de Odoo ni credenciales/sesiones. Preferen
 
 **Fase 0A — Decisiones y spike técnico**
 - Cerrar preguntas bloqueantes (§13).
-- Levantar Odoo staging en Hetzner (Docker, `--restart=unless-stopped`), localización ES, módulo
-  VeriFactu, certificado, modo pruebas.
+- Crear una base de pruebas en el **Standard Cloud Hosting de Odoo** con plan Custom, localización ES,
+  módulo VeriFactu, certificado y entorno de pruebas.
 - Probar autenticación, lectura de modelos y **campos reales disponibles**.
 - Crear **manualmente** una factura y observar el **flujo real** de VeriFactu, PDF, QR y **tiempos de
   envío** a la AEAT.
@@ -341,11 +341,14 @@ git checkout -b feature/facturacion-odoo     # crea y cambia a la rama (aísla d
 git push -u origin feature/facturacion-odoo  # publica la rama y enlaza upstream
 ```
 
-### 12.2 Odoo en staging (Hetzner)
-- Odoo Custom en Docker, PostgreSQL propio de Odoo (separado del de Epoxiron).
-- Activar **Localización España** + **`l10n_es_edi_verifactu`**; cargar **certificado digital**.
-- Modo **pruebas** mientras se valida (sin envíos reales definitivos a la AEAT).
-- Usuario técnico + **credenciales de API** para el gateway.
+### 12.2 Base de pruebas en Odoo Cloud
+- Contratar/activar el plan **Custom** con **Standard Cloud Hosting** gestionado por Odoo.
+- Crear una base exclusiva de pruebas; no usar todavía la futura base de producción.
+- Activar **Localización España** + **`l10n_es_edi_verifactu`** y cargar el **certificado digital**.
+- Mantener VeriFactu en modo **pruebas** mientras se valida.
+- Crear un usuario técnico con permisos mínimos y **API key** para el gateway.
+- Confirmar en el spike que Odoo Cloud permite el campo de idempotencia necesario mediante Studio;
+  si exigiera un módulo propio, reevaluar Odoo.sh o self-hosting antes de Fase 1.
 
 **Criterio de aceptación Fase 0:** Odoo accesible, localización ES + VeriFactu activos, y una llamada de
 prueba a la API externa (auth + leer `res.partner`) responde OK.
