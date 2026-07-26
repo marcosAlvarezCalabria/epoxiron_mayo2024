@@ -13,6 +13,7 @@ const config = {
   apiKey: "secret-for-test",
   timeoutMs: 1000,
   taxRate: "21",
+  taxId: null,
   maxPdfBytes: 1024
 };
 

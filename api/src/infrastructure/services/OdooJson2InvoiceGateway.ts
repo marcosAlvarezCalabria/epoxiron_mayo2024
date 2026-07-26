@@ -59,6 +59,7 @@ export interface OdooJson2Config {
   apiKey: string;
   timeoutMs: number;
   taxRate: string;
+  taxId: number | null;
   maxPdfBytes: number;
 }
 
@@ -204,6 +205,26 @@ export class OdooJson2InvoiceGateway implements InvoiceGateway {
           : null;
       }
       if (!this.companyId) throw new OdooGatewayError("ODOO_COMPANY_NOT_FOUND");
+    }
+    if (this.config.taxId) {
+      const configured = await this.call<OdooRecord[]>("account.tax", "read", {
+        ids: [this.config.taxId],
+        fields: ["id", "type_tax_use", "amount", "active", "company_id", "price_include"]
+      });
+      const tax = configured[0];
+      const companyId = tax ? numericId(tax.company_id, "ODOO_TAX_INVALID") : null;
+      if (
+        !tax ||
+        tax.type_tax_use !== "sale" ||
+        Number(tax.amount) !== Number(this.config.taxRate) ||
+        tax.active !== true ||
+        companyId !== this.companyId ||
+        tax.price_include === true
+      ) {
+        throw new OdooGatewayError("ODOO_TAX_INVALID");
+      }
+      this.taxId = this.config.taxId;
+      return this.taxId;
     }
     const tax = await this.resolveSingle(
       "account.tax",

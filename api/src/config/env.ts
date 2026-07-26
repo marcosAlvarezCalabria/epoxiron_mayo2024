@@ -74,6 +74,7 @@ const envSchema = z
     ODOO_API_KEY: z.string().default(""),
     ODOO_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
     ODOO_TAX_RATE: z.coerce.number().positive().default(21),
+    ODOO_TAX_ID: z.coerce.number().int().positive().optional(),
     ODOO_SERIES: z.string().default(""),
     ODOO_RECONCILIATION_ENABLED: booleanStringWithDefaultFalse,
     ODOO_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(30000),

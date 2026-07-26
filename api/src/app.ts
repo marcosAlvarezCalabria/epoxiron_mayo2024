@@ -79,6 +79,7 @@ export const createAppContext = (): AppContext => {
     apiKey: env.ODOO_API_KEY,
     timeoutMs: env.ODOO_TIMEOUT_MS,
     taxRate: env.ODOO_TAX_RATE.toString(),
+    taxId: env.ODOO_TAX_ID ?? null,
     maxPdfBytes: env.ODOO_MAX_PDF_BYTES
   });
   const reconcileInvoiceUseCase = new ReconcileInvoiceUseCase(

@@ -183,6 +183,24 @@ const main = async () => {
         const context = invoice.lastErrorCode === "ODOO_COMPANY_NOT_FOUND"
           ? await odooCall("res.users", "context_get", {})
           : null;
+        let taxCandidates = null;
+        if (invoice.lastErrorCode === "ODOO_TAX_AMBIGUOUS") {
+          const userContext = await odooCall("res.users", "context_get", {});
+          const users = await odooCall("res.users", "read", {
+            ids: [userContext.uid],
+            fields: ["company_id"]
+          });
+          const companyId = relationId(Array.isArray(users) ? users[0]?.company_id : null);
+          taxCandidates = await odooCall("account.tax", "search_read", {
+            domain: [
+              ["type_tax_use", "=", "sale"],
+              ["amount", "=", 21],
+              ["active", "=", true],
+              ["company_id", "=", companyId]
+            ],
+            fields: ["id", "name", "description", "price_include", "tax_group_id"]
+          });
+        }
         throw new Error(`Invoice resume failed: ${JSON.stringify({
           localState: invoice.localState,
           externalInvoicePresent: Boolean(invoice.externalInvoiceId),
@@ -192,7 +210,8 @@ const main = async () => {
             companyId: context.company_id ?? null,
             allowedCompanyIds: context.allowed_company_ids ?? null,
             keys: Object.keys(context).sort()
-          } : null
+          } : null,
+          taxCandidates
         })}`, { cause: error });
       }
     }
