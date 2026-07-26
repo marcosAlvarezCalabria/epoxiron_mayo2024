@@ -16,6 +16,7 @@ import {
   moneyFromNumber,
   unitPriceFromSubtotal
 } from "../../domain/services/invoiceMoney.js";
+import { buildInvoiceLineDescription } from "../../domain/services/deliveryNoteItemDescription.js";
 
 export class InMemoryInvoiceRepository implements InvoiceRepository {
   public readonly invoices = new Map<string, Invoice>();
@@ -66,8 +67,12 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     const lines = selected.flatMap((note) =>
       note.items.map((item) => {
         const subtotal = moneyFromNumber(item.totalPrice);
+        const description = buildInvoiceLineDescription(note.number, item);
+        if (!description) {
+          throw new DomainException("Una línea no tiene descripción comercial completa", 422);
+        }
         return {
-          description: `${note.number} · ${item.description}`,
+          description,
           quantity: canonicalDecimal(item.quantity.toString(), 4),
           unitPrice: unitPriceFromSubtotal(subtotal, item.quantity),
           subtotal,

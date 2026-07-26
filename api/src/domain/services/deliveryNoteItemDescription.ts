@@ -1,4 +1,18 @@
-import type { DeliveryNote, DeliveryNoteTexture } from "../entities/DeliveryNote.js";
+import type {
+  DeliveryNotePricingMode,
+  DeliveryNoteTexture
+} from "../entities/DeliveryNote.js";
+
+interface DeliveryNoteItemDescriptionInput {
+  description: string;
+  color: string;
+  texture?: DeliveryNoteTexture | string;
+  pricingMode: DeliveryNotePricingMode | string;
+  linearMeters?: number | null;
+  squareMeters?: number | null;
+  thickness?: number | null;
+  primer?: boolean;
+}
 
 const TEXTURE_LABELS: Record<DeliveryNoteTexture, string> = {
   NORMAL: "NORMAL",
@@ -48,8 +62,17 @@ export const normalizeSpecialPieceName = (value: string): string =>
     .replace(/\s+/g, "")
     .trim();
 
-const formatArticleTexture = (texture?: DeliveryNoteTexture) =>
-  texture && texture !== "NORMAL" ? (TEXTURE_LABELS[texture] ?? texture) : null;
+const formatArticleTexture = (texture?: DeliveryNoteTexture | string) => {
+  if (!texture || texture === "NORMAL") {
+    return null;
+  }
+
+  if (texture === "MATE" || texture === "TEXTURADO" || texture === "GOFRADO") {
+    return TEXTURE_LABELS[texture];
+  }
+
+  return texture;
+};
 
 const descriptionContainsColor = (description: string, color: string) => {
   const normalizedDescription = normalizeEmbeddedValue(description);
@@ -62,7 +85,10 @@ const descriptionContainsColor = (description: string, color: string) => {
   return normalizedDescription.replace(/\s+/g, "").includes(normalizedColor);
 };
 
-const descriptionContainsTexture = (description: string, texture: DeliveryNoteTexture | undefined) => {
+const descriptionContainsTexture = (
+  description: string,
+  texture: DeliveryNoteTexture | string | undefined
+) => {
   if (!texture || texture === "NORMAL") {
     return false;
   }
@@ -98,7 +124,7 @@ const descriptionContainsCalculatedMeasures = (description: string) => {
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
 const normalizeRenderedColor = (value: string) => value.replace(/^RAL\s+/u, "").trim();
 
-export const buildDeliveryNoteItemDescription = (item: DeliveryNote["items"][number]) => {
+export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemDescriptionInput) => {
   const normalizedDescription = normalizeDeliveryNoteDescriptionInput(item.description);
   const segments = [normalizedDescription];
   const texture = formatArticleTexture(item.texture);
@@ -132,4 +158,18 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNote["items"][num
   }
 
   return segments.filter(Boolean).join(" · ");
+};
+
+export const buildInvoiceLineDescription = (
+  deliveryNoteNumber: string,
+  item: DeliveryNoteItemDescriptionInput
+): string => {
+  const normalizedDeliveryNoteNumber = deliveryNoteNumber.trim();
+  const itemDescription = buildDeliveryNoteItemDescription(item).trim();
+
+  if (!normalizedDeliveryNoteNumber || !itemDescription) {
+    return "";
+  }
+
+  return `${normalizedDeliveryNoteNumber} · ${itemDescription}`;
 };

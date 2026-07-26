@@ -3,6 +3,7 @@ import type { Customer } from "../src/domain/entities/Customer.js";
 import type { DeliveryNote } from "../src/domain/entities/DeliveryNote.js";
 import type {
   RemoteInvoice,
+  RemoteInvoiceDraft,
   RemoteInvoiceStatus
 } from "../src/domain/ports/InvoiceGateway.js";
 import { CreateInvoiceFromDeliveryNotesUseCase } from "../src/application/use-cases/invoices/createInvoiceFromDeliveryNotes.js";
@@ -75,7 +76,7 @@ const remote = (state: RemoteInvoiceStatus["verifactuState"] = "ACCEPTED"): Remo
 const gateway = () => ({
   ensureCustomer: vi.fn(async () => ({ id: "9" })),
   findInvoiceByReference: vi.fn(async (): Promise<RemoteInvoice | null> => null),
-  createDraftInvoice: vi.fn(async (): Promise<RemoteInvoice> => ({
+  createDraftInvoice: vi.fn(async (_input: RemoteInvoiceDraft): Promise<RemoteInvoice> => ({
     ...remote("NOT_SENT"),
     moveState: "DRAFT"
   })),
@@ -104,6 +105,63 @@ describe("invoice saga", () => {
     expect(notes.every((entry) => entry.status === "INVOICED")).toBe(true);
     expect(fakeGateway.createDraftInvoice).toHaveBeenCalledOnce();
     expect(fakeGateway.sendInvoice).toHaveBeenCalledOnce();
+  });
+
+  it("keeps one detailed and ordered invoice line per delivery-note product", async () => {
+    const firstNote = note("1");
+    firstNote.items = [
+      {
+        description: "Perfil",
+        color: "RAL 9005",
+        texture: "MATE",
+        pricingMode: "DIMENSIONS",
+        customUnitPrice: null,
+        linearMeters: 2.5,
+        squareMeters: null,
+        thickness: 3,
+        primer: true,
+        quantity: 2,
+        unitPrice: 10,
+        totalPrice: 20
+      },
+      {
+        description: "Perfil",
+        color: "RAL 7016",
+        texture: "NORMAL",
+        pricingMode: "UNIT",
+        customUnitPrice: 15,
+        linearMeters: null,
+        squareMeters: null,
+        thickness: null,
+        primer: false,
+        quantity: 1,
+        unitPrice: 15,
+        totalPrice: 15
+      }
+    ];
+    firstNote.totalAmount = 35;
+    const repository = new InMemoryInvoiceRepository([customer()], [firstNote]);
+    const fakeGateway = gateway();
+    const useCase = new CreateInvoiceFromDeliveryNotesUseCase(repository, fakeGateway, {
+      enabled: true,
+      taxRate: "21",
+      series: null
+    });
+
+    await useCase.execute(["1"]);
+
+    const draft = fakeGateway.createDraftInvoice.mock.calls[0]![0];
+    expect(draft.lines).toHaveLength(2);
+    expect(draft.lines.map((line) => line.position)).toEqual([0, 1]);
+    expect(draft.lines[0]!.description).toContain("ALB-1");
+    expect(draft.lines[0]!.description).toContain("PERFIL");
+    expect(draft.lines[0]!.description).toContain("9005");
+    expect(draft.lines[0]!.description).toContain("MATE");
+    expect(draft.lines[0]!.description).toContain("2,50MLIN");
+    expect(draft.lines[0]!.description).toContain("G");
+    expect(draft.lines[0]!.description).toContain("I");
+    expect(draft.lines[1]!.description).toContain("ALB-1");
+    expect(draft.lines[1]!.description).toContain("7016");
   });
 
   it("returns the same invoice on a repeated request", async () => {

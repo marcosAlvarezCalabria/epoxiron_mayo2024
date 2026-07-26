@@ -66,7 +66,17 @@ describe("OdooJson2InvoiceGateway", () => {
       vals_list: [{
         move_type: "out_invoice",
         partner_id: 9,
-        ref: "EPOX-abc"
+        ref: "EPOX-abc",
+        invoice_line_ids: [[
+          0,
+          0,
+          {
+            name: "ALB-1 · Pieza",
+            quantity: 1,
+            price_unit: 10,
+            tax_ids: [[6, 0, [5]]]
+          }
+        ]]
       }]
     });
   });

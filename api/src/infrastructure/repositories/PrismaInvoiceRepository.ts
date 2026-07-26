@@ -15,6 +15,7 @@ import {
   moneyFromNumber,
   unitPriceFromSubtotal
 } from "../../domain/services/invoiceMoney.js";
+import { buildInvoiceLineDescription } from "../../domain/services/deliveryNoteItemDescription.js";
 import { prisma } from "../prisma/client.js";
 
 const invoiceInclude = {
@@ -145,8 +146,12 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
         const lines = orderedNotes.flatMap((note) =>
           note.items.map((item) => {
             const subtotal = moneyFromNumber(item.totalPrice);
+            const description = buildInvoiceLineDescription(note.number, item);
+            if (!description) {
+              throw new DomainException("Una línea no tiene descripción comercial completa", 422);
+            }
             return {
-              description: `${note.number} · ${item.description}`,
+              description,
               quantity: canonicalDecimal(item.quantity.toString(), 4),
               unitPrice: unitPriceFromSubtotal(subtotal, item.quantity),
               subtotal,
