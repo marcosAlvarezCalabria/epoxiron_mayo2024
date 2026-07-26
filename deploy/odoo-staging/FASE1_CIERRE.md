@@ -19,6 +19,18 @@ Fecha: 2026-07-26.
 
 `git diff --check` también debe permanecer limpio antes del commit final.
 
+## Validación de concurrencia en staging
+
+La migración `20260726123000_add_delivery_note_number_sequence` se aplicó correctamente. Dos
+peticiones simultáneas de creación devolvieron `201` y reservaron números distintos y consecutivos:
+
+```text
+ALB-2026-0035
+ALB-2026-0036
+```
+
+API y web permanecieron levantadas después de la migración y del ensayo.
+
 ## Estado
 
 La rama `feature/facturacion-odoo` queda preparada para revisión humana. No se fusiona
