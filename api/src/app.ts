@@ -38,6 +38,11 @@ import { DailyDeliveryNotesReportScheduler } from "./infrastructure/services/Dai
 import { InvoiceReconciliationScheduler } from "./infrastructure/services/InvoiceReconciliationScheduler.js";
 import { OdooJson2InvoiceGateway } from "./infrastructure/services/OdooJson2InvoiceGateway.js";
 import { ReconcileInvoiceUseCase } from "./application/use-cases/invoices/reconcileInvoice.js";
+import { CreateInvoiceFromDeliveryNotesUseCase } from "./application/use-cases/invoices/createInvoiceFromDeliveryNotes.js";
+import { GetInvoiceUseCase } from "./application/use-cases/invoices/getInvoice.js";
+import { GetInvoicePdfUseCase } from "./application/use-cases/invoices/getInvoicePdf.js";
+import { ListInvoicesUseCase } from "./application/use-cases/invoices/listInvoices.js";
+import { InvoicesController } from "./controllers/InvoicesController.js";
 import { GeminiVoiceTranscriber } from "./infrastructure/services/GeminiVoiceTranscriber.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
@@ -55,6 +60,7 @@ import { buildCustomersRouter } from "./routes/customers.routes.js";
 import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
 import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
 import { buildVoiceRouter } from "./routes/voice.routes.js";
+import { buildInvoicesRouter } from "./routes/invoices.routes.js";
 
 export interface AppContext {
   app: express.Express;
@@ -80,6 +86,18 @@ export const createAppContext = (): AppContext => {
     invoiceGateway,
     env.ODOO_RECONCILIATION_MAX_ATTEMPTS
   );
+  const createInvoiceUseCase = new CreateInvoiceFromDeliveryNotesUseCase(
+    invoiceRepository,
+    invoiceGateway,
+    {
+      enabled: env.ODOO_INVOICING_ENABLED,
+      taxRate: env.ODOO_TAX_RATE.toString(),
+      series: env.ODOO_SERIES.trim() || null
+    }
+  );
+  const getInvoiceUseCase = new GetInvoiceUseCase(invoiceRepository);
+  const listInvoicesUseCase = new ListInvoicesUseCase(invoiceRepository);
+  const getInvoicePdfUseCase = new GetInvoicePdfUseCase(invoiceRepository, invoiceGateway);
   const invoiceReconciliationScheduler = new InvoiceReconciliationScheduler(
     invoiceRepository,
     reconcileInvoiceUseCase,
@@ -210,6 +228,13 @@ export const createAppContext = (): AppContext => {
     sendDailyDeliveryNotesReportUseCase
   );
   const voiceController = new VoiceController(parseVoiceAlbaranUseCase, parseVoiceAlbaranAudioUseCase);
+  const invoicesController = new InvoicesController(
+    createInvoiceUseCase,
+    getInvoiceUseCase,
+    listInvoicesUseCase,
+    reconcileInvoiceUseCase,
+    getInvoicePdfUseCase
+  );
 
   const app = express();
 
@@ -240,6 +265,7 @@ export const createAppContext = (): AppContext => {
   app.use("/api", authMiddleware);
   app.use("/api/customers", buildCustomersRouter(customersController));
   app.use("/api/delivery-notes", buildDeliveryNotesRouter(deliveryNotesController));
+  app.use("/api/invoices", buildInvoicesRouter(invoicesController));
   app.use("/api/voice", buildVoiceRouter(voiceController));
   app.get("/api/dashboard/summary", asyncHandler(deliveryNotesController.getDashboardSummary));
   app.use("/api/hermes-tools", buildHermesToolsRouter(customersController, deliveryNotesController));

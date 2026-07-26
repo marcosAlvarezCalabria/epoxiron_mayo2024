@@ -195,13 +195,15 @@ const isFiscalDataComplete = (customer: Customer) =>
 const badgeByStatus: Record<DeliveryNote["status"], string> = {
   DRAFT: "text-[var(--epx-text-muted)] bg-[var(--epx-surface)] border border-[var(--epx-surface-raised)]",
   PENDING: "text-[var(--epx-accent)] bg-[color:rgb(255_149_0_/_0.12)] border border-[var(--epx-accent)]/30",
-  REVIEWED: "text-[var(--epx-success)] bg-[color:rgb(209_255_0_/_0.12)] border border-[var(--epx-success)]/30"
+  REVIEWED: "text-[var(--epx-success)] bg-[color:rgb(209_255_0_/_0.12)] border border-[var(--epx-success)]/30",
+  INVOICED: "text-sky-200 bg-sky-500/10 border border-sky-500/30"
 };
 
 const statusLabel: Record<DeliveryNote["status"], string> = {
   DRAFT: "Borrador",
   PENDING: "Pendiente",
-  REVIEWED: "Revisado"
+  REVIEWED: "Revisado",
+  INVOICED: "Facturado"
 };
 
 export const CustomersPage = () => {

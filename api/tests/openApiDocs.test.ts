@@ -90,10 +90,48 @@ describe("OpenAPI docs", () => {
     expect(body.openapi).toMatch(/^3\.0\.\d+$/);
     expect(body.paths).toHaveProperty("/api/auth/login/google");
     expect(body.paths).toHaveProperty("/api/hermes-tools/dashboard-summary");
+    expect(body.paths).toHaveProperty("/api/invoices");
+    expect(body.paths).toHaveProperty("/api/invoices/{id}/reconcile");
+    expect(body.paths).toHaveProperty("/api/invoices/{id}/pdf");
     expect(body.components?.schemas?.CustomerInput?.properties).toHaveProperty("vat");
     expect(body.components?.schemas?.CustomerInput?.properties).toHaveProperty("fiscalCountryCode");
     expect(body.components?.schemas?.CustomerInput?.properties).not.toHaveProperty("externalPartnerId");
     expect(html).toContain("Swagger UI");
+  }, 10_000);
+
+  it("protects invoice creation and rejects client-supplied amounts or missing confirmation", async () => {
+    applyEnv("test");
+    const { createApp } = await import("../src/app.js");
+    server = createApp().listen(0);
+    const address = server.address() as AddressInfo;
+    const url = `http://127.0.0.1:${address.port}/api/invoices`;
+    const deliveryNoteId = "0d7f3b95-f00e-4e9d-a2b0-e6b78f654321";
+
+    const unauthorized = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ deliveryNoteIds: [deliveryNoteId], confirmed: true })
+    });
+    const suppliedAmount = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-hermes-secret": baseEnv.HERMES_SHARED_SECRET
+      },
+      body: JSON.stringify({ deliveryNoteIds: [deliveryNoteId], confirmed: true, total: "1.00" })
+    });
+    const unconfirmed = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-hermes-secret": baseEnv.HERMES_SHARED_SECRET
+      },
+      body: JSON.stringify({ deliveryNoteIds: [deliveryNoteId], confirmed: false })
+    });
+
+    expect(unauthorized.status).toBe(401);
+    expect(suppliedAmount.status).toBe(400);
+    expect(unconfirmed.status).toBe(400);
   }, 10_000);
 
   it("does not mount Swagger routes in production", async () => {

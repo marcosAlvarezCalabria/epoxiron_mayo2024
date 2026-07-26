@@ -44,7 +44,8 @@ const statCards = [
 const statusLabel = {
   DRAFT: "Borrador",
   PENDING: "Pendiente",
-  REVIEWED: "Revisado"
+  REVIEWED: "Revisado",
+  INVOICED: "Facturado"
 } as const;
 
 export const DashboardPage = () => {

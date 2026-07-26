@@ -6,6 +6,7 @@ import type { Invoice } from "../../domain/entities/Invoice.js";
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type {
   InvoicePatch,
+  InvoiceFilters,
   InvoiceRepository,
   ReserveInvoiceInput
 } from "../../domain/repositories/InvoiceRepository.js";
@@ -126,6 +127,26 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
   public async findByIdempotencyKey(key: string) {
     const invoice = [...this.invoices.values()].find((entry) => entry.idempotencyKey === key);
     return invoice ? structuredClone(invoice) : null;
+  }
+
+  public async findAll(filters: InvoiceFilters) {
+    return [...this.invoices.values()]
+      .filter((invoice) =>
+        (!filters.customerId || invoice.customer.customerId === filters.customerId) &&
+        (!filters.localState || invoice.localState === filters.localState) &&
+        (!filters.verifactuState || invoice.verifactuState === filters.verifactuState)
+      )
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(filters.offset, filters.offset + filters.limit)
+      .map((invoice) => structuredClone(invoice));
+  }
+
+  public async count(filters: Omit<InvoiceFilters, "limit" | "offset">) {
+    return [...this.invoices.values()].filter((invoice) =>
+      (!filters.customerId || invoice.customer.customerId === filters.customerId) &&
+      (!filters.localState || invoice.localState === filters.localState) &&
+      (!filters.verifactuState || invoice.verifactuState === filters.verifactuState)
+    ).length;
   }
 
   public async findDueForReconciliation(now: Date, limit: number) {

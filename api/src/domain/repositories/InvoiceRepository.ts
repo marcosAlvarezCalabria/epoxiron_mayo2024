@@ -35,10 +35,20 @@ export interface InvoicePatch {
   nextReconciliationAt?: Date | null;
 }
 
+export interface InvoiceFilters {
+  customerId?: string;
+  localState?: InvoiceLocalState;
+  verifactuState?: VerifactuState;
+  limit: number;
+  offset: number;
+}
+
 export interface InvoiceRepository {
   reserve(input: ReserveInvoiceInput): Promise<ReservedInvoice>;
   findById(id: string): Promise<Invoice | null>;
   findByIdempotencyKey(key: string): Promise<Invoice | null>;
+  findAll(filters: InvoiceFilters): Promise<Invoice[]>;
+  count(filters: Omit<InvoiceFilters, "limit" | "offset">): Promise<number>;
   findDueForReconciliation(now: Date, limit: number): Promise<Invoice[]>;
   update(id: string, patch: InvoicePatch): Promise<Invoice>;
   markLinked(id: string, patch: InvoicePatch): Promise<Invoice>;

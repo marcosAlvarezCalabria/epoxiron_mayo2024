@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   calculatePricePreview,
   createDeliveryNote,
@@ -43,6 +43,7 @@ import {
   type ParsedVoiceAlbaranData
 } from "@/features/voice/voiceAlbaran";
 import { ApiError } from "@/infrastructure/api/apiClient";
+import { createInvoice } from "@/features/invoices/invoiceApi";
 import {
   buildDeliveryNoteItemDescription,
   normalizeDeliveryNoteDescriptionInput
@@ -73,13 +74,15 @@ const badgeByStatus: Record<DeliveryNoteStatus, string> = {
   PENDING:
     "border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] text-[var(--epx-accent)]",
   REVIEWED:
-    "border border-[var(--epx-success)]/30 bg-[color:rgb(209_255_0_/_0.12)] text-[var(--epx-success)]"
+    "border border-[var(--epx-success)]/30 bg-[color:rgb(209_255_0_/_0.12)] text-[var(--epx-success)]",
+  INVOICED: "border border-sky-500/30 bg-sky-500/10 text-sky-200"
 };
 
 const statusLabel: Record<DeliveryNoteStatus, string> = {
   DRAFT: "Borrador",
   PENDING: "Pendiente",
-  REVIEWED: "Revisado"
+  REVIEWED: "Revisado",
+  INVOICED: "Facturado"
 };
 
 const emptyItem = (): DeliveryNoteItemFormState => ({
@@ -185,6 +188,7 @@ export const DeliveryNotesPage = () => {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [invoiceSelection, setInvoiceSelection] = useState<string[]>([]);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
@@ -478,6 +482,16 @@ export const DeliveryNotesPage = () => {
     }
   });
 
+  const invoiceMutation = useMutation({
+    mutationFn: createInvoice,
+    onSuccess: async ({ invoice }) => {
+      setInvoiceSelection([]);
+      await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
+      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      window.location.assign(`/invoices#${invoice.id}`);
+    }
+  });
+
   const mutationError = useMemo(() => {
     const error =
       createMutation.error ?? updateMutation.error ?? deleteMutation.error ?? statusMutation.error;
@@ -655,7 +669,38 @@ export const DeliveryNotesPage = () => {
       return { action: "Marcar revisado", nextStatus: "REVIEWED" as const };
     }
 
-    return { action: "Reabrir", nextStatus: "PENDING" as const };
+    if (note.status === "REVIEWED") {
+      return { action: "Reabrir", nextStatus: "PENDING" as const };
+    }
+
+    return null;
+  };
+
+  const selectedForInvoice = deliveryNotesQuery.data?.deliveryNotes.filter((note) =>
+    invoiceSelection.includes(note.id)
+  ) ?? [];
+  const invoiceSelectionCustomerId = selectedForInvoice[0]?.customerId;
+  const toggleInvoiceSelection = (note: DeliveryNote) => {
+    if (invoiceSelection.includes(note.id)) {
+      setInvoiceSelection((current) => current.filter((id) => id !== note.id));
+      return;
+    }
+    if (note.status !== "REVIEWED") return;
+    if (invoiceSelectionCustomerId && invoiceSelectionCustomerId !== note.customerId) {
+      window.alert("Solo puedes agrupar albaranes del mismo cliente.");
+      return;
+    }
+    setInvoiceSelection((current) => [...current, note.id]);
+  };
+
+  const confirmInvoice = () => {
+    const total = selectedForInvoice.reduce((sum, note) => sum + note.totalAmount, 0);
+    const accepted = window.confirm(
+      `Vas a crear una factura irreversible en Odoo con ${selectedForInvoice.length} albarán(es).\n` +
+      `Base estimada: ${formatCurrency(total)}\nIVA estimado (21%): ${formatCurrency(total * 0.21)}\n` +
+      `Total estimado: ${formatCurrency(total * 1.21)}\n\n¿Confirmas la creación?`
+    );
+    if (accepted) invoiceMutation.mutate(invoiceSelection);
   };
 
   const getItemPreview = (
@@ -693,7 +738,7 @@ export const DeliveryNotesPage = () => {
           <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-4">
             <div className="grid gap-3">
               <div className="flex flex-wrap gap-2">
-                {(["ALL", "DRAFT", "PENDING", "REVIEWED"] as const).map((value) => (
+                {(["ALL", "DRAFT", "PENDING", "REVIEWED", "INVOICED"] as const).map((value) => (
                   <button
                     className={`px-3 py-2 text-sm font-semibold ${
                       statusFilter === value
@@ -793,15 +838,52 @@ export const DeliveryNotesPage = () => {
             />
           ) : null}
 
+          {invoiceSelection.length > 0 ? (
+            <div className="border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.12)] p-4">
+              <p className="font-semibold text-white">
+                {invoiceSelection.length} albarán(es) seleccionados
+              </p>
+              <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
+                Base estimada: {formatCurrency(selectedForInvoice.reduce((sum, note) => sum + note.totalAmount, 0))}
+              </p>
+              {invoiceMutation.error instanceof ApiError ? (
+                <p className="mt-2 text-sm text-red-300">{invoiceMutation.error.message}</p>
+              ) : null}
+              <button
+                className="mt-3 bg-[var(--epx-accent)] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
+                disabled={invoiceMutation.isPending}
+                onClick={confirmInvoice}
+                type="button"
+              >
+                {invoiceMutation.isPending ? "Creando factura…" : "Revisar y crear factura"}
+              </button>
+            </div>
+          ) : null}
+
           <div className="space-y-3">
             {deliveryNotesQuery.data?.deliveryNotes.map((note) => (
-              <button
-                className={`w-full border p-4 text-left transition-colors ${
+              <div className="flex items-stretch gap-2" key={note.id}>
+                <label
+                  className={`flex w-11 shrink-0 items-center justify-center border ${
+                    note.status === "REVIEWED"
+                      ? "cursor-pointer border-[var(--epx-surface-raised)] bg-[var(--epx-surface)]"
+                      : "cursor-not-allowed border-white/5 bg-white/5 opacity-40"
+                  }`}
+                  title={note.status === "REVIEWED" ? "Seleccionar para facturar" : "Solo se facturan albaranes revisados"}
+                >
+                  <input
+                    checked={invoiceSelection.includes(note.id)}
+                    disabled={note.status !== "REVIEWED"}
+                    onChange={() => toggleInvoiceSelection(note)}
+                    type="checkbox"
+                  />
+                </label>
+                <button
+                className={`min-w-0 flex-1 border p-4 text-left transition-colors ${
                   selectedNote?.id === note.id
                     ? "border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.12)]"
                     : "border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] hover:border-[var(--epx-accent)]/30"
                 }`}
-                key={note.id}
                 onClick={() => {
                   setSelectedNoteId(note.id);
                   setMobilePane("detail");
@@ -826,6 +908,7 @@ export const DeliveryNotesPage = () => {
                   </span>
                 </div>
               </button>
+              </div>
             ))}
 
             {!deliveryNotesQuery.isLoading && !deliveryNotesQuery.data?.deliveryNotes.length ? (
@@ -902,6 +985,7 @@ export const DeliveryNotesPage = () => {
                       <button
                         aria-label="Editar albaran"
                         className="inline-flex h-9 w-9 items-center justify-center border border-neutral-300 bg-white text-neutral-700 sm:h-8 sm:w-8"
+                        disabled={selectedNote.status === "INVOICED"}
                         onClick={() => openEditComposer(selectedNote)}
                         type="button"
                       >
@@ -910,6 +994,7 @@ export const DeliveryNotesPage = () => {
                       <button
                         aria-label="Eliminar albaran"
                         className="inline-flex h-9 w-9 items-center justify-center border border-red-500/20 bg-red-500/10 text-red-200 sm:h-8 sm:w-8"
+                        disabled={selectedNote.status === "INVOICED"}
                         onClick={() => {
                           if (window.confirm(`Eliminar ${selectedNote.number}?`)) {
                             deleteMutation.mutate(selectedNote.id);
@@ -921,6 +1006,18 @@ export const DeliveryNotesPage = () => {
                       </button>
                     </div>
                   </div>
+                  {selectedNote.status === "INVOICED" ? (
+                    <p className="mt-3 text-sm text-sky-700">
+                      Este albarán está bloqueado porque ya fue facturado.{" "}
+                      {selectedNote.invoiceId ? (
+                        <Link className="font-semibold underline" to={`/invoices#${selectedNote.invoiceId}`}>
+                          Ver factura
+                        </Link>
+                      ) : (
+                        <Link className="font-semibold underline" to="/invoices">Ver facturas</Link>
+                      )}
+                    </p>
+                  ) : null}
                 </div>
 
                 <section className="border border-neutral-300 bg-white px-3 py-3 text-neutral-900 shadow-[0_18px_36px_rgba(0,0,0,0.05)] sm:px-6 sm:py-4">
@@ -1084,6 +1181,7 @@ export const DeliveryNotesPage = () => {
                   </p>
                 </div>
 
+                {getStatusAction(selectedNote) ? (
                 <button
                   className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold ${
                     selectedNote.status === "REVIEWED"
@@ -1093,6 +1191,7 @@ export const DeliveryNotesPage = () => {
                   disabled={statusMutation.isPending}
                   onClick={() => {
                     const statusAction = getStatusAction(selectedNote);
+                    if (!statusAction) return;
                     statusMutation.mutate({
                       id: selectedNote.id,
                       status: statusAction.nextStatus
@@ -1101,8 +1200,13 @@ export const DeliveryNotesPage = () => {
                   type="button"
                 >
                   <CheckCircleIcon className="h-5 w-5" />
-                  {getStatusAction(selectedNote).action}
+                  {getStatusAction(selectedNote)?.action}
                 </button>
+                ) : (
+                  <Link className="text-sm font-semibold text-sky-700 underline" to="/invoices">
+                    Ver factura
+                  </Link>
+                )}
               </div>
             </article>
           ) : (

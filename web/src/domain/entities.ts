@@ -51,7 +51,7 @@ export interface CustomerInput {
   specialPieces: SpecialPiece[];
 }
 
-export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED";
+export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED" | "INVOICED";
 export type DeliveryNoteTexture = "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO";
 export type DeliveryNotePricingMode = "DIMENSIONS" | "UNIT";
 
@@ -95,6 +95,7 @@ export interface DeliveryNote {
   totalAmount: number;
   date: string;
   items: DeliveryNoteItem[];
+  invoiceId?: string | null;
 }
 
 export interface DailyDeliveryNotesReportUpload {

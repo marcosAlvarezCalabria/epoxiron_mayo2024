@@ -5,6 +5,7 @@ import type { Invoice } from "../../domain/entities/Invoice.js";
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type {
   InvoicePatch,
+  InvoiceFilters,
   InvoiceRepository,
   ReserveInvoiceInput
 } from "../../domain/repositories/InvoiceRepository.js";
@@ -209,6 +210,31 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
       include: invoiceInclude
     });
     return record ? toDomain(record) : null;
+  }
+
+  public async findAll(filters: InvoiceFilters) {
+    const records = await prisma.invoice.findMany({
+      where: {
+        customerId: filters.customerId,
+        localState: filters.localState,
+        verifactuState: filters.verifactuState
+      },
+      take: filters.limit,
+      skip: filters.offset,
+      include: invoiceInclude,
+      orderBy: { createdAt: "desc" }
+    });
+    return records.map(toDomain);
+  }
+
+  public async count(filters: Omit<InvoiceFilters, "limit" | "offset">) {
+    return prisma.invoice.count({
+      where: {
+        customerId: filters.customerId,
+        localState: filters.localState,
+        verifactuState: filters.verifactuState
+      }
+    });
   }
 
   public async findDueForReconciliation(now: Date, limit: number) {

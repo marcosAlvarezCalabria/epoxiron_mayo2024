@@ -3,7 +3,8 @@ import {
   ArchiveBoxIcon,
   BuildingOffice2Icon,
   FolderOpenIcon,
-  HomeIcon
+  HomeIcon,
+  DocumentTextIcon
 } from "@heroicons/react/24/outline";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { authService } from "@/services/auth.service";
@@ -11,6 +12,7 @@ import { authService } from "@/services/auth.service";
 const navItems = [
   { to: "/", label: "Hoy", icon: HomeIcon },
   { to: "/delivery-notes", label: "Albaranes", icon: ArchiveBoxIcon },
+  { to: "/invoices", label: "Facturas", icon: DocumentTextIcon },
   { to: "/delivery-notes-library", label: "Biblioteca", icon: FolderOpenIcon },
   { to: "/customers", label: "Clientes", icon: BuildingOffice2Icon }
 ];
@@ -75,7 +77,7 @@ export const Layout = () => {
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--epx-surface-raised)] bg-[color:rgb(28_27_27_/_0.98)] px-3 py-2 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
+        <div className="mx-auto grid max-w-xl grid-cols-5 gap-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (

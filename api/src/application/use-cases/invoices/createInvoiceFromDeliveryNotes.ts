@@ -17,6 +17,12 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
   ) {}
 
   public async execute(deliveryNoteIds: string[]): Promise<Invoice> {
+    return (await this.executeWithResult(deliveryNoteIds)).invoice;
+  }
+
+  public async executeWithResult(
+    deliveryNoteIds: string[]
+  ): Promise<{ invoice: Invoice; created: boolean }> {
     if (!this.config.enabled) {
       throw new DomainException("La facturación Odoo está desactivada", 503);
     }
@@ -31,14 +37,16 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
     let invoice = reservation.invoice;
     let resumeLeaseToken: string | null = null;
     if (!reservation.created) {
-      if (invoice.localState !== "FAILED" || invoice.externalInvoiceId) return invoice;
+      if (invoice.localState !== "FAILED" || invoice.externalInvoiceId) {
+        return { invoice, created: false };
+      }
       const now = new Date();
       resumeLeaseToken = await this.repository.acquireReconciliationLease(
         invoice.id,
         now,
         new Date(now.getTime() + 60_000)
       );
-      if (!resumeLeaseToken) return invoice;
+      if (!resumeLeaseToken) return { invoice, created: false };
       invoice = (await this.repository.findById(invoice.id)) ?? invoice;
     }
 
@@ -75,7 +83,7 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
       await this.gateway.sendInvoice(remote.id);
       const status = await this.gateway.getInvoice(remote.id);
 
-      return this.repository.markLinked(invoice.id, {
+      const linked = await this.repository.markLinked(invoice.id, {
         externalInvoiceId: status.id,
         number: status.number,
         odooMoveState: status.moveState,
@@ -91,6 +99,7 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
             ? new Date(Date.now() + 30_000)
             : null
       });
+      return { invoice: linked, created: reservation.created };
     } catch (error: unknown) {
       const sanitized = externalError(error);
       await this.repository.update(invoice.id, {
