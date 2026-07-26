@@ -192,10 +192,18 @@ export class OdooJson2InvoiceGateway implements InvoiceGateway {
     if (!this.companyId) {
       const context = await this.call<Record<string, OdooValue>>("res.users", "context_get", {});
       const allowedCompanies = context.allowed_company_ids;
-      if (!Array.isArray(allowedCompanies) || typeof allowedCompanies[0] !== "number") {
-        throw new OdooGatewayError("ODOO_COMPANY_NOT_FOUND");
+      if (Array.isArray(allowedCompanies) && typeof allowedCompanies[0] === "number") {
+        this.companyId = allowedCompanies[0];
+      } else if (typeof context.uid === "number") {
+        const users = await this.call<OdooRecord[]>("res.users", "read", {
+          ids: [context.uid],
+          fields: ["company_id"]
+        });
+        this.companyId = users[0]
+          ? numericId(users[0].company_id, "ODOO_COMPANY_NOT_FOUND")
+          : null;
       }
-      this.companyId = allowedCompanies[0];
+      if (!this.companyId) throw new OdooGatewayError("ODOO_COMPANY_NOT_FOUND");
     }
     const tax = await this.resolveSingle(
       "account.tax",

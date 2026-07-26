@@ -173,12 +173,28 @@ const main = async () => {
     invoiceId = recoverable.id;
     invoice = (await apiCall(`/api/invoices/${invoiceId}`)).body.invoice;
     if (invoice.localState === "FAILED") {
-      throw new Error(`Invoice recovery stopped: ${JSON.stringify({
-        localState: invoice.localState,
-        externalInvoicePresent: Boolean(invoice.externalInvoiceId),
-        lastErrorCode: invoice.lastErrorCode,
-        reconciliationAttempts: invoice.reconciliationAttempts
-      })}`);
+      try {
+        invoice = (await apiCall("/api/invoices", {
+          method: "POST",
+          body: JSON.stringify({ deliveryNoteIds, confirmed: true })
+        })).body.invoice;
+      } catch (error) {
+        invoice = (await apiCall(`/api/invoices/${invoiceId}`)).body.invoice;
+        const context = invoice.lastErrorCode === "ODOO_COMPANY_NOT_FOUND"
+          ? await odooCall("res.users", "context_get", {})
+          : null;
+        throw new Error(`Invoice resume failed: ${JSON.stringify({
+          localState: invoice.localState,
+          externalInvoicePresent: Boolean(invoice.externalInvoiceId),
+          lastErrorCode: invoice.lastErrorCode,
+          reconciliationAttempts: invoice.reconciliationAttempts,
+          odooContext: context ? {
+            companyId: context.company_id ?? null,
+            allowedCompanyIds: context.allowed_company_ids ?? null,
+            keys: Object.keys(context).sort()
+          } : null
+        })}`, { cause: error });
+      }
     }
   } else {
     runId = new Date().toISOString().replace(/\D/g, "").slice(0, 14);

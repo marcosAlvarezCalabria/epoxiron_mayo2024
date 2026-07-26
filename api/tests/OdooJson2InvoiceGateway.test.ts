@@ -24,7 +24,8 @@ describe("OdooJson2InvoiceGateway", () => {
   it("uses vals_list and the required headers when creating a draft", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ allowed_company_ids: [1] }))
+      .mockResolvedValueOnce(jsonResponse({ uid: 2 }))
+      .mockResolvedValueOnce(jsonResponse([{ id: 2, company_id: [1, "Test Company"] }]))
       .mockResolvedValueOnce(jsonResponse([{ id: 5 }]))
       .mockResolvedValueOnce(jsonResponse([101]))
       .mockResolvedValueOnce(jsonResponse([{
@@ -51,8 +52,13 @@ describe("OdooJson2InvoiceGateway", () => {
       }]
     });
 
-    const taxRequest = fetchMock.mock.calls[1]?.[1] as RequestInit;
-    const createRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
+    const userRequest = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    const taxRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
+    const createRequest = fetchMock.mock.calls[3]?.[1] as RequestInit;
+    expect(JSON.parse(String(userRequest.body))).toEqual({
+      ids: [2],
+      fields: ["company_id"]
+    });
     expect((taxRequest.headers as Record<string, string>).Authorization).toBe("bearer secret-for-test");
     expect((taxRequest.headers as Record<string, string>)["X-Odoo-Database"]).toBe("test-db");
     expect(JSON.parse(String(createRequest.body))).toMatchObject({
