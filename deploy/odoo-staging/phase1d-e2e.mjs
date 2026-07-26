@@ -65,10 +65,10 @@ const loadTestPartner = async () => {
   });
   let partner = Array.isArray(records) ? records[0] : null;
   if (!partner) throw new Error("Configured Odoo test partner was not found");
-  if (!text(partner.vat)) {
+  if (!text(partner.vat) || text(partner.vat) === "B00000000") {
     await odooCall("res.partner", "write", {
       ids: [testPartnerId],
-      vals: { vat: "B00000000" }
+      vals: { vat: "B12345674" }
     });
     records = await odooCall("res.partner", "read", {
       ids: [testPartnerId],
@@ -151,6 +151,37 @@ const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mil
 const main = async () => {
   const fiscal = await loadTestPartner();
   const customer = await ensureLocalCustomer(fiscal);
+  if (process.env.PHASE1D_VERIFY_ONLY === "true") {
+    const accepted = await prisma.invoice.findFirst({
+      where: { customerId: customer.id, verifactuState: "ACCEPTED" },
+      orderBy: { createdAt: "desc" }
+    });
+    if (!accepted) throw new Error("No accepted staging invoice is available for verification");
+    const remoteMatches = await odooCall("account.move", "search_read", {
+      domain: [
+        ["move_type", "=", "out_invoice"],
+        ["ref", "=", accepted.remoteReference]
+      ],
+      fields: ["id", "name", "state", "amount_untaxed", "amount_tax", "amount_total"]
+    });
+    if (!Array.isArray(remoteMatches) || remoteMatches.length !== 1) {
+      throw new Error(`Expected one remote invoice, found ${remoteMatches?.length ?? 0}`);
+    }
+    process.stdout.write(`${JSON.stringify({
+      invoiceId: accepted.id,
+      externalInvoiceId: accepted.externalInvoiceId,
+      remoteReferenceMatches: remoteMatches.length,
+      localState: accepted.localState,
+      odooMoveState: accepted.odooMoveState,
+      verifactuState: accepted.verifactuState,
+      subtotal: accepted.subtotal.toFixed(2),
+      taxAmount: accepted.taxAmount.toFixed(2),
+      total: accepted.total.toFixed(2),
+      qrPresent: Boolean(accepted.verifactuQrValue),
+      pdfAvailable: accepted.pdfAvailable
+    }, null, 2)}\n`);
+    return;
+  }
   const recentThreshold = new Date(Date.now() - 60 * 60 * 1_000);
   const recoverable = await prisma.invoice.findFirst({
     where: {
