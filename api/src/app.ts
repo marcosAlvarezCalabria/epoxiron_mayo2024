@@ -33,7 +33,11 @@ import { buildOpenApiDocument } from "./docs/openapi.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDailyDeliveryNotesReportUploadRepository } from "./infrastructure/repositories/PrismaDailyDeliveryNotesReportUploadRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
+import { PrismaInvoiceRepository } from "./infrastructure/repositories/PrismaInvoiceRepository.js";
 import { DailyDeliveryNotesReportScheduler } from "./infrastructure/services/DailyDeliveryNotesReportScheduler.js";
+import { InvoiceReconciliationScheduler } from "./infrastructure/services/InvoiceReconciliationScheduler.js";
+import { OdooJson2InvoiceGateway } from "./infrastructure/services/OdooJson2InvoiceGateway.js";
+import { ReconcileInvoiceUseCase } from "./application/use-cases/invoices/reconcileInvoice.js";
 import { GeminiVoiceTranscriber } from "./infrastructure/services/GeminiVoiceTranscriber.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
@@ -55,12 +59,36 @@ import { buildVoiceRouter } from "./routes/voice.routes.js";
 export interface AppContext {
   app: express.Express;
   dailyDeliveryNotesReportScheduler: DailyDeliveryNotesReportScheduler;
+  invoiceReconciliationScheduler: InvoiceReconciliationScheduler;
 }
 
 export const createAppContext = (): AppContext => {
   const customerRepository = new PrismaCustomerRepository();
   const deliveryNoteRepository = new PrismaDeliveryNoteRepository();
   const dailyReportUploadRepository = new PrismaDailyDeliveryNotesReportUploadRepository();
+  const invoiceRepository = new PrismaInvoiceRepository();
+  const invoiceGateway = new OdooJson2InvoiceGateway({
+    url: env.ODOO_URL,
+    database: env.ODOO_DB,
+    apiKey: env.ODOO_API_KEY,
+    timeoutMs: env.ODOO_TIMEOUT_MS,
+    taxRate: env.ODOO_TAX_RATE.toString(),
+    maxPdfBytes: env.ODOO_MAX_PDF_BYTES
+  });
+  const reconcileInvoiceUseCase = new ReconcileInvoiceUseCase(
+    invoiceRepository,
+    invoiceGateway,
+    env.ODOO_RECONCILIATION_MAX_ATTEMPTS
+  );
+  const invoiceReconciliationScheduler = new InvoiceReconciliationScheduler(
+    invoiceRepository,
+    reconcileInvoiceUseCase,
+    {
+      enabled: env.ODOO_RECONCILIATION_ENABLED,
+      intervalMs: env.ODOO_RECONCILIATION_INTERVAL_MS,
+      batchSize: 20
+    }
+  );
   const emailNotifier = new NodemailerEmailNotifier({
     enabled: env.EMAIL_NOTIFICATIONS_ENABLED,
     from: env.EMAIL_FROM,
@@ -220,7 +248,8 @@ export const createAppContext = (): AppContext => {
 
   return {
     app,
-    dailyDeliveryNotesReportScheduler
+    dailyDeliveryNotesReportScheduler,
+    invoiceReconciliationScheduler
   };
 };
 

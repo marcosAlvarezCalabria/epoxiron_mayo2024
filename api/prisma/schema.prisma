@@ -31,6 +31,7 @@ model Customer {
   grosorPrecio         Float?
   specialPieces        SpecialPiece[]
   deliveryNotes        DeliveryNote[]
+  invoices             Invoice[]
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 }
@@ -54,6 +55,7 @@ model DeliveryNote {
   totalAmount  Float              @default(0)
   date         DateTime           @default(now())
   items        DeliveryNoteItem[]
+  invoices     InvoiceDeliveryNote[]
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 }
@@ -92,4 +94,91 @@ enum DeliveryNoteStatus {
   DRAFT
   PENDING
   REVIEWED
+  INVOICED
+}
+
+enum InvoiceLocalState {
+  CREATING
+  CREATED_REMOTE
+  LINKED
+  RECONCILING
+  FAILED
+}
+
+enum OdooMoveState {
+  DRAFT
+  POSTED
+  CANCEL
+}
+
+enum VerifactuState {
+  NOT_SENT
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Invoice {
+  id                     String            @id @default(uuid())
+  idempotencyKey         String            @unique
+  remoteReference        String            @unique
+  series                 String?
+  number                 String?
+  customerId             String
+  customer               Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerLegalName      String
+  customerVat            String
+  customerFiscalStreet   String
+  customerFiscalStreet2  String?
+  customerFiscalCity     String
+  customerFiscalZip      String
+  customerProvince       String?
+  customerCountryCode    String
+  paymentTermCode        String?
+  subtotal               Decimal           @db.Decimal(12, 2)
+  taxRate                Decimal           @db.Decimal(5, 2)
+  taxAmount              Decimal           @db.Decimal(12, 2)
+  total                  Decimal           @db.Decimal(12, 2)
+  localState             InvoiceLocalState @default(CREATING)
+  odooMoveState          OdooMoveState?
+  verifactuState         VerifactuState    @default(NOT_SENT)
+  externalInvoiceId      String?
+  verifactuDocumentId    String?
+  verifactuQrValue       String?
+  pdfAvailable           Boolean           @default(false)
+  lastErrorCode          String?
+  lastErrorMessage       String?
+  reconciliationAttempts Int               @default(0)
+  nextReconciliationAt   DateTime?
+  reconciliationLeaseUntil DateTime?
+  lines                  InvoiceLine[]
+  deliveryNotes          InvoiceDeliveryNote[]
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+
+  @@index([localState, nextReconciliationAt])
+  @@index([verifactuState, nextReconciliationAt])
+}
+
+model InvoiceLine {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  description String
+  quantity    Decimal  @db.Decimal(12, 4)
+  unitPrice   Decimal  @db.Decimal(12, 4)
+  subtotal    Decimal  @db.Decimal(12, 2)
+  taxRate     Decimal  @db.Decimal(5, 2)
+  position    Int
+
+  @@unique([invoiceId, position])
+}
+
+model InvoiceDeliveryNote {
+  invoiceId      String
+  deliveryNoteId String   @unique
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  deliveryNote   DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: Restrict)
+
+  @@id([invoiceId, deliveryNoteId])
 }

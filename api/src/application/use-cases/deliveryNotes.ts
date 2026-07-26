@@ -224,6 +224,10 @@ export class UpdateDeliveryNoteUseCase {
       throw new DomainException("Albarán no encontrado", 404);
     }
 
+    if (existing.status === "INVOICED") {
+      throw new DomainException("No se puede editar un albarán facturado", 409);
+    }
+
     const customer = await this.customerRepository.findById(input.customerId);
     if (!customer) {
       throw new DomainException("Cliente no encontrado", 404);
@@ -259,6 +263,10 @@ export class DeleteDeliveryNoteUseCase {
     const deliveryNote = await this.repository.findById(id);
     if (!deliveryNote) {
       throw new DomainException("Albarán no encontrado", 404);
+    }
+
+    if (deliveryNote.status === "INVOICED") {
+      throw new DomainException("No se puede eliminar un albarán facturado", 409);
     }
 
     await this.repository.delete(id);
@@ -317,6 +325,10 @@ export class ChangeDeliveryNoteStatusUseCase {
     const deliveryNote = await this.repository.findById(id);
     if (!deliveryNote) {
       throw new DomainException("Albarán no encontrado", 404);
+    }
+
+    if (deliveryNote.status === "INVOICED") {
+      throw new DomainException("No se puede cambiar el estado de un albarán facturado", 409);
     }
 
     return this.repository.updateStatus(id, status);

@@ -66,7 +66,19 @@ const envSchema = z
     EMAIL_NOTIFICATIONS_ENABLED: booleanStringWithDefaultFalse,
     EMAIL_FROM: z.string().default(""),
     EMAIL_TO: z.string().default(""),
-    EMAIL_APP_PASSWORD: z.string().default("")
+    EMAIL_APP_PASSWORD: z.string().default(""),
+    ODOO_INVOICING_ENABLED: booleanStringWithDefaultFalse,
+    ODOO_URL: z.string().default(""),
+    ODOO_DB: z.string().default(""),
+    ODOO_USER: z.string().default(""),
+    ODOO_API_KEY: z.string().default(""),
+    ODOO_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+    ODOO_TAX_RATE: z.coerce.number().positive().default(21),
+    ODOO_SERIES: z.string().default(""),
+    ODOO_RECONCILIATION_ENABLED: booleanStringWithDefaultFalse,
+    ODOO_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(30000),
+    ODOO_RECONCILIATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(20),
+    ODOO_MAX_PDF_BYTES: z.coerce.number().int().positive().default(10485760)
   })
   .superRefine((value, context) => {
     const resolvedVoiceParserBaseUrl =
@@ -154,6 +166,37 @@ const envSchema = z
       });
     }
 
+    if (value.ODOO_RECONCILIATION_ENABLED && !value.ODOO_INVOICING_ENABLED) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "ODOO_INVOICING_ENABLED debe ser true cuando se activa la reconciliacion",
+        path: ["ODOO_RECONCILIATION_ENABLED"]
+      });
+    }
+
+    if (value.ODOO_INVOICING_ENABLED) {
+      (["ODOO_URL", "ODOO_DB", "ODOO_USER", "ODOO_API_KEY"] as const).forEach((key) => {
+        if (!value[key].trim()) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${key} es obligatorio cuando se activa la facturacion`,
+            path: [key]
+          });
+        }
+      });
+      if (value.ODOO_URL.trim()) {
+        try {
+          new URL(value.ODOO_URL);
+        } catch (_error: unknown) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "ODOO_URL debe ser una URL valida",
+            path: ["ODOO_URL"]
+          });
+        }
+      }
+    }
+
     if (!value.EMAIL_NOTIFICATIONS_ENABLED) {
       return;
     }
@@ -171,4 +214,6 @@ const envSchema = z
     });
   });
 
-export const env = envSchema.parse(process.env);
+export const parseEnv = (source: NodeJS.ProcessEnv) => envSchema.parse(source);
+
+export const env = parseEnv(process.env);

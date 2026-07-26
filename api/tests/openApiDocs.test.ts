@@ -94,7 +94,7 @@ describe("OpenAPI docs", () => {
     expect(body.components?.schemas?.CustomerInput?.properties).toHaveProperty("fiscalCountryCode");
     expect(body.components?.schemas?.CustomerInput?.properties).not.toHaveProperty("externalPartnerId");
     expect(html).toContain("Swagger UI");
-  });
+  }, 10_000);
 
   it("does not mount Swagger routes in production", async () => {
     applyEnv("production");

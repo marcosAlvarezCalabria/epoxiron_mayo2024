@@ -686,6 +686,28 @@ describe("delivery note use cases", () => {
     expect(result.status).toBe("REVIEWED");
   });
 
+  it("blocks edits, deletion and status changes for invoiced delivery notes", async () => {
+    const invoiced = deliveryNoteRepository.notes.find((entry) => entry.id === "note-reviewed")!;
+    invoiced.status = "INVOICED";
+    const updateUseCase = new UpdateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+    const deleteUseCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
+    const statusUseCase = new ChangeDeliveryNoteStatusUseCase(deliveryNoteRepository);
+
+    await expect(updateUseCase.execute(invoiced.id, {
+      customerId: invoiced.customerId,
+      status: "REVIEWED",
+      items: []
+    })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(deleteUseCase.execute(invoiced.id)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(statusUseCase.execute(invoiced.id, "REVIEWED")).rejects.toMatchObject({
+      statusCode: 409
+    });
+  });
+
   it("throws when fetching an unknown delivery note", async () => {
     const useCase = new GetDeliveryNoteUseCase(deliveryNoteRepository);
 
