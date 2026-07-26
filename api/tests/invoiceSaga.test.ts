@@ -261,6 +261,34 @@ describe("invoice saga", () => {
     expect(fakeGateway.ensureCustomer).not.toHaveBeenCalled();
   });
 
+  it("keeps a definitive Odoo customer rejection and does not reconcile it", async () => {
+    const repository = new InMemoryInvoiceRepository([customer()], [note("1")]);
+    const fakeGateway = gateway();
+    const rejection = new Error("remote validation detail");
+    rejection.name = "ODOO_HTTP_400";
+    fakeGateway.ensureCustomer.mockRejectedValueOnce(rejection);
+    const createUseCase = new CreateInvoiceFromDeliveryNotesUseCase(repository, fakeGateway, {
+      enabled: true,
+      taxRate: "21",
+      series: null
+    });
+
+    await expect(createUseCase.execute(["1"])).rejects.toMatchObject({ statusCode: 422 });
+    const saved = [...repository.invoices.values()][0]!;
+
+    expect(saved.localState).toBe("FAILED");
+    expect(saved.lastErrorCode).toBe("ODOO_REJECTED_CUSTOMER_HTTP_400");
+    expect(saved.lastErrorMessage).toContain("datos fiscales del cliente");
+    expect(saved.nextReconciliationAt).toBeNull();
+
+    const reconciled = await new ReconcileInvoiceUseCase(repository, fakeGateway, 5).execute(saved.id);
+
+    expect(reconciled?.lastErrorCode).toBe(saved.lastErrorCode);
+    expect(reconciled?.lastErrorMessage).toBe(saved.lastErrorMessage);
+    expect(reconciled?.reconciliationAttempts).toBe(0);
+    expect(fakeGateway.findInvoiceByReference).not.toHaveBeenCalled();
+  });
+
   it("adopts a remote invoice after a timeout without creating another", async () => {
     const repository = new InMemoryInvoiceRepository([customer()], [note("1")]);
     const fakeGateway = gateway();

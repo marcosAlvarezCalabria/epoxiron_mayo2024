@@ -18,6 +18,13 @@ export class ReconcileInvoiceUseCase {
     const current = await this.repository.findById(invoiceId);
     if (!current) throw new DomainException("Factura no encontrada", 404);
     if (current.verifactuState === "ACCEPTED" || current.verifactuState === "REJECTED") return current;
+    if (
+      current.localState === "FAILED" &&
+      !current.externalInvoiceId &&
+      current.lastErrorCode?.startsWith("ODOO_REJECTED_")
+    ) {
+      return current;
+    }
 
     const now = new Date();
     const leaseToken = await this.repository.acquireReconciliationLease(
@@ -40,8 +47,9 @@ export class ReconcileInvoiceUseCase {
           localState: attempt >= this.maxAttempts ? "FAILED" : "RECONCILING",
           reconciliationAttempts: attempt,
           nextReconciliationAt: attempt >= this.maxAttempts ? null : nextAttemptAt(attempt),
-          lastErrorCode: "REMOTE_INVOICE_NOT_FOUND",
-          lastErrorMessage: "No se encontró todavía la factura remota"
+          lastErrorCode: current.lastErrorCode ?? "REMOTE_INVOICE_NOT_FOUND",
+          lastErrorMessage:
+            current.lastErrorMessage ?? "No se encontró todavía la factura remota"
         });
       }
 

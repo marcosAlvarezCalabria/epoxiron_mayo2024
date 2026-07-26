@@ -19,7 +19,9 @@ export interface Invoice {
   total: string;
   localState: InvoiceLocalState;
   verifactuState: VerifactuState;
+  externalInvoiceId: string | null;
   pdfAvailable: boolean;
+  lastErrorCode: string | null;
   lastErrorMessage: string | null;
   deliveryNoteIds: string[];
   createdAt: string;

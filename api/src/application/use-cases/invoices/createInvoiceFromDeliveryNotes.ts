@@ -4,10 +4,49 @@ import type { InvoiceGateway } from "../../../domain/ports/InvoiceGateway.js";
 import type { InvoiceRepository } from "../../../domain/repositories/InvoiceRepository.js";
 import { buildInvoiceKeys } from "./invoiceKeys.js";
 
-const externalError = (error: unknown): { code: string; message: string } => ({
-  code: error instanceof Error && error.name ? error.name.slice(0, 64) : "INVOICE_EXTERNAL_ERROR",
-  message: "No se pudo completar la factura externa; se reconciliará de forma segura"
-});
+interface SanitizedExternalError {
+  code: string;
+  message: string;
+  recoverable: boolean;
+}
+
+const permanentCustomerErrorCodes = new Set([
+  "ODOO_HTTP_400",
+  "ODOO_HTTP_422",
+  "ODOO_COUNTRY_NOT_FOUND",
+  "ODOO_PROVINCE_AMBIGUOUS",
+  "ODOO_PAYMENT_TERM_NOT_FOUND",
+  "ODOO_PAYMENT_TERM_AMBIGUOUS",
+  "ODOO_PARTNER_AMBIGUOUS"
+]);
+
+const externalError = (
+  error: unknown,
+  remoteInvoiceExists: boolean,
+  customerSyncCompleted: boolean
+): SanitizedExternalError => {
+  const sourceCode =
+    error instanceof Error && error.name
+      ? error.name.slice(0, 64)
+      : "INVOICE_EXTERNAL_ERROR";
+  const isPermanentCustomerError =
+    !remoteInvoiceExists &&
+    !customerSyncCompleted &&
+    permanentCustomerErrorCodes.has(sourceCode);
+
+  return isPermanentCustomerError
+    ? {
+        code: `ODOO_REJECTED_CUSTOMER_${sourceCode.replace(/^ODOO_/, "")}`,
+        message:
+          "Odoo ha rechazado los datos fiscales del cliente. Revisa el NIF y la dirección fiscal antes de reintentar.",
+        recoverable: false
+      }
+    : {
+        code: sourceCode,
+        message: "No se pudo completar la factura externa; se reconciliará de forma segura",
+        recoverable: true
+      };
+};
 
 export class CreateInvoiceFromDeliveryNotesUseCase {
   public constructor(
@@ -36,6 +75,7 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
     });
     let invoice = reservation.invoice;
     let resumeLeaseToken: string | null = null;
+    let customerSyncCompleted = false;
     if (!reservation.created) {
       if (invoice.localState !== "FAILED" || invoice.externalInvoiceId) {
         return { invoice, created: false };
@@ -52,6 +92,7 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
 
     try {
       const partner = await this.gateway.ensureCustomer(invoice.customer);
+      customerSyncCompleted = true;
       if (partner.id !== invoice.customer.externalPartnerId) {
         await this.repository.updateCustomerExternalPartnerId(invoice.customer.customerId, partner.id);
       }
@@ -101,14 +142,22 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
       });
       return { invoice: linked, created: reservation.created };
     } catch (error: unknown) {
-      const sanitized = externalError(error);
+      const sanitized = externalError(
+        error,
+        Boolean(invoice.externalInvoiceId),
+        customerSyncCompleted
+      );
       await this.repository.update(invoice.id, {
-        localState: invoice.externalInvoiceId ? "RECONCILING" : "CREATING",
+        localState: sanitized.recoverable
+          ? invoice.externalInvoiceId
+            ? "RECONCILING"
+            : "CREATING"
+          : "FAILED",
         lastErrorCode: sanitized.code,
         lastErrorMessage: sanitized.message,
-        nextReconciliationAt: new Date(Date.now() + 30_000)
+        nextReconciliationAt: sanitized.recoverable ? new Date(Date.now() + 30_000) : null
       });
-      throw new DomainException(sanitized.message, 502);
+      throw new DomainException(sanitized.message, sanitized.recoverable ? 502 : 422);
     } finally {
       if (resumeLeaseToken) {
         await this.repository.releaseReconciliationLease(invoice.id, resumeLeaseToken);

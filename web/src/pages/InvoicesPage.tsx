@@ -8,6 +8,11 @@ import {
   listInvoices,
   reconcileInvoice
 } from "@/features/invoices/invoiceApi";
+import {
+  invoiceCanReconcile,
+  invoiceHasCustomerDataRejection,
+  invoiceNeedsPolling
+} from "@/features/invoices/invoiceStatus";
 import type { Invoice } from "@/features/invoices/invoiceTypes";
 import { ApiError } from "@/infrastructure/api/apiClient";
 
@@ -26,16 +31,13 @@ const verifactuLabel: Record<Invoice["verifactuState"], string> = {
   REJECTED: "Rechazada"
 };
 
-const isPending = (invoice: Invoice) =>
-  invoice.localState !== "LINKED" || invoice.verifactuState === "PENDING";
-
 export const InvoicesPage = () => {
   const queryClient = useQueryClient();
   const query = useQuery({
     queryKey: ["invoices"],
     queryFn: listInvoices,
     refetchInterval: ({ state }) =>
-      state.data?.invoices.some(isPending) ? 5_000 : false
+      state.data?.invoices.some(invoiceNeedsPolling) ? 5_000 : false
   });
   const reconcile = useMutation({
     mutationFn: reconcileInvoice,
@@ -86,15 +88,22 @@ export const InvoicesPage = () => {
             {invoice.lastErrorMessage ? (
               <p className="mt-3 text-sm text-red-300">{invoice.lastErrorMessage}</p>
             ) : null}
+            {invoiceHasCustomerDataRejection(invoice) ? (
+              <p className="mt-2 text-sm text-[var(--epx-text-muted)]">
+                Corrige la ficha fiscal del cliente y vuelve a facturar los mismos albaranes.
+              </p>
+            ) : null}
             <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm text-white disabled:opacity-40"
-                disabled={reconcile.isPending}
-                onClick={() => reconcile.mutate(invoice.id)}
-                type="button"
-              >
-                <ArrowPathIcon className="h-4 w-4" /> Conciliar
-              </button>
+              {invoiceCanReconcile(invoice) ? (
+                <button
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/15 px-4 py-2 text-sm text-white disabled:opacity-40"
+                  disabled={reconcile.isPending}
+                  onClick={() => reconcile.mutate(invoice.id)}
+                  type="button"
+                >
+                  <ArrowPathIcon className="h-4 w-4" /> Conciliar
+                </button>
+              ) : null}
               <button
                 className="inline-flex items-center gap-2 rounded-xl bg-[var(--epx-accent)] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
                 disabled={!invoice.pdfAvailable}
