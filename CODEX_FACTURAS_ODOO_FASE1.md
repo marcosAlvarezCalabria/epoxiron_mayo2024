@@ -2,9 +2,9 @@
 
 > Plan ejecutable de implementación para Epoxiron.
 > **Fecha:** 2026-07-26
-> **Estado:** Fases 1A–1D validadas en staging; Fase 1E especificada y pendiente de implementación.
+> **Estado:** Fases 1A–1E completadas y validadas en staging; pendiente de revisión humana.
 > **Rama obligatoria:** `feature/facturacion-odoo`.
-> **Fuentes de verdad:** `SPEC_FACTURACION_ODOO.md` v2.5 y
+> **Fuentes de verdad:** `SPEC_FACTURACION_ODOO.md` v2.6 y
 > `deploy/odoo-staging/FASE0B_CONTRATO_ODOO.md`.
 
 ---
@@ -57,6 +57,9 @@ entorno de pruebas de VeriFactu.
 14. No dejar placeholders, `TODO`, código muerto ni rutas parcialmente conectadas.
 15. Cada producto de cada albarán genera una línea visible, ordenada e inmutable en la factura; no se
     agregan líneas ni se exige adjuntar los albaranes al cliente.
+16. Un rechazo fiscal definitivo anterior a la creación remota queda `FAILED`, conserva una causa
+    accionable y no entra en reconciliación; timeouts y errores de red siguen siendo recuperables.
+17. La numeración anual de albaranes se reserva atómicamente en PostgreSQL.
 
 ---
 
@@ -94,8 +97,7 @@ res.partner ensure/sync
 
 ## 3. Entrega incremental obligatoria
 
-Las cuatro primeras entregas están completadas. La nueva necesidad del cliente se implementará como
-una quinta entrega revisable e independiente.
+Las cinco entregas están completadas y permanecen aisladas en `feature/facturacion-odoo`.
 
 ### Fase 1A — Datos fiscales y migración compatible
 
@@ -117,6 +119,8 @@ Objetivo: probar fallos, concurrencia, redondeo y VeriFactu antes de plantear pr
 
 Objetivo: incluir en la factura y su PDF todas las líneas de producto de los albaranes, con información
 comercial suficiente para que no sea necesario enviar los albaranes al cliente.
+
+**Estado:** completada y validada con `INV/2026/00005`, VeriFactu `ACCEPTED` y PDF inspeccionado.
 
 Commits semánticos recomendados:
 
@@ -590,9 +594,11 @@ Una caída después de cada paso debe ser recuperable. Registrar solamente:
 `ReconcileInvoiceUseCase`:
 
 - adquirir un lease/lock lógico por factura para impedir dos reconciliadores;
+- devolver sin cambios un `FAILED` fiscal definitivo que no tenga factura remota;
 - si falta `externalInvoiceId`, buscar por referencia;
 - adoptar el remoto encontrado;
 - nunca crear otra factura desde el reconciliador;
+- no sobrescribir el código ni mensaje original mientras la búsqueda remota no encuentre factura;
 - consultar move, documento, estado, QR e importes;
 - descargar/comprobar PDF solo cuando esté disponible;
 - actualizar `nextReconciliationAt` con backoff acotado;
@@ -982,4 +988,6 @@ La Fase 1 está terminada cuando:
 - staging está validado con VeriFactu en pruebas;
 - no se ha desplegado ni activado nada en producción.
 
-Si alguna condición no se cumple, la fase permanece abierta y no se debe fusionar en `main`.
+**Resultado al 2026-07-26:** Definition of Done técnico cumplido. API `114/114` tests y web `21/21`;
+lint, builds, migración y concurrencia real en PostgreSQL de staging correctos. La rama queda lista
+para revisión humana y no se debe fusionar automáticamente en `main`.

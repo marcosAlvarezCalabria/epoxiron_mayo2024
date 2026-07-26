@@ -38,8 +38,8 @@ las dos líneas, los totales y el QR VeriFactu son legibles y no están recortad
   metros, grosor e imprimación en la descripción inmutable.
 - El test del adaptador verifica el `invoice_line_ids` completo enviado a Odoo.
 
-La suite completa conserva un fallo previo y ajeno a esta fase en
-`parseVoiceAlbaranUseCase.test.ts` sobre `squareMeters`; no afecta a facturación y permanece pendiente
-según la decisión anterior.
+El fallo de voz detectado durante esta validación quedó resuelto en el cierre de Fase 1: las
+dimensiones habladas no inventan M² y la detección de RAL prioriza el color indicado explícitamente.
+La batería final quedó en API `114/114` y web `21/21`.
 
 Producción y `main` no se han modificado.
