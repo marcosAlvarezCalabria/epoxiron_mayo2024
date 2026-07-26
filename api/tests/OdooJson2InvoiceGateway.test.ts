@@ -134,7 +134,7 @@ describe("OdooJson2InvoiceGateway", () => {
     const gateway = new OdooJson2InvoiceGateway(config);
 
     await expect(gateway.findInvoiceByReference("EPOX-abc")).rejects.toMatchObject({
-      name: "OdooGatewayError",
+      name: "ODOO_HTTP_500",
       code: "ODOO_HTTP_500",
       message: "La operación de facturación externa no pudo completarse"
     });

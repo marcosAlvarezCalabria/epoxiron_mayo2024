@@ -19,7 +19,7 @@ type OdooRecord = { id: number; [key: string]: OdooValue };
 export class OdooGatewayError extends Error {
   public constructor(public readonly code: string) {
     super("La operación de facturación externa no pudo completarse");
-    this.name = "OdooGatewayError";
+    this.name = code;
   }
 }
 
