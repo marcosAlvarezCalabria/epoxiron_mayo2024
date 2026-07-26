@@ -20,12 +20,12 @@ export class ReconcileInvoiceUseCase {
     if (current.verifactuState === "ACCEPTED" || current.verifactuState === "REJECTED") return current;
 
     const now = new Date();
-    const acquired = await this.repository.acquireReconciliationLease(
+    const leaseToken = await this.repository.acquireReconciliationLease(
       invoiceId,
       now,
       new Date(now.getTime() + 60_000)
     );
-    if (!acquired) return this.repository.findById(invoiceId);
+    if (!leaseToken) return this.repository.findById(invoiceId);
 
     const attempt = current.reconciliationAttempts + 1;
     try {
@@ -54,7 +54,11 @@ export class ReconcileInvoiceUseCase {
         await this.gateway.sendInvoice(externalInvoiceId);
         status = await this.gateway.getInvoice(externalInvoiceId);
       }
+      const attemptsExhausted =
+        attempt >= this.maxAttempts &&
+        (status.verifactuState === "PENDING" || status.verifactuState === "NOT_SENT");
       return this.repository.markLinked(invoiceId, {
+        localState: attemptsExhausted ? "FAILED" : "LINKED",
         externalInvoiceId,
         number: status.number,
         odooMoveState: status.moveState,
@@ -67,11 +71,18 @@ export class ReconcileInvoiceUseCase {
         pdfAvailable: status.pdfAvailable,
         reconciliationAttempts: attempt,
         nextReconciliationAt:
-          status.verifactuState === "PENDING" || status.verifactuState === "NOT_SENT"
+          !attemptsExhausted &&
+          (status.verifactuState === "PENDING" || status.verifactuState === "NOT_SENT")
             ? nextAttemptAt(attempt)
             : null,
-        lastErrorCode: status.rejectionReason ? "VERIFACTU_REJECTED" : null,
-        lastErrorMessage: status.rejectionReason
+        lastErrorCode: attemptsExhausted
+          ? "RECONCILIATION_ATTEMPTS_EXHAUSTED"
+          : status.rejectionReason
+            ? "VERIFACTU_REJECTED"
+            : null,
+        lastErrorMessage: attemptsExhausted
+          ? "VeriFactu no alcanzó un estado terminal dentro del límite de intentos"
+          : status.rejectionReason
       });
     } catch (_error: unknown) {
       return this.repository.update(invoiceId, {
@@ -82,7 +93,7 @@ export class ReconcileInvoiceUseCase {
         lastErrorMessage: "La reconciliación no pudo completarse"
       });
     } finally {
-      await this.repository.releaseReconciliationLease(invoiceId);
+      await this.repository.releaseReconciliationLease(invoiceId, leaseToken);
     }
   }
 }

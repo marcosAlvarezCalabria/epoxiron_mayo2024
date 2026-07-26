@@ -42,15 +42,7 @@ export interface InvoiceRepository {
   findDueForReconciliation(now: Date, limit: number): Promise<Invoice[]>;
   update(id: string, patch: InvoicePatch): Promise<Invoice>;
   markLinked(id: string, patch: InvoicePatch): Promise<Invoice>;
-  acquireReconciliationLease(id: string, now: Date, leaseUntil: Date): Promise<boolean>;
-  releaseReconciliationLease(id: string): Promise<void>;
+  acquireReconciliationLease(id: string, now: Date, leaseUntil: Date): Promise<string | null>;
+  releaseReconciliationLease(id: string, leaseToken: string): Promise<void>;
   updateCustomerExternalPartnerId(customerId: string, externalPartnerId: string): Promise<void>;
-}
-
-export interface InvoiceSnapshotDraft {
-  customer: FiscalCustomerSnapshot;
-  lines: InvoiceLine[];
-  subtotal: Money;
-  taxAmount: Money;
-  total: Money;
 }

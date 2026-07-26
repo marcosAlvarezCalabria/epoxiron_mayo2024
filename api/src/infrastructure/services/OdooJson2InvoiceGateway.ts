@@ -33,6 +33,7 @@ const numericId = (value: unknown, code: string): number => {
 
 const text = (value: OdooValue | undefined): string | null =>
   typeof value === "string" && value.trim() ? value : null;
+const normalizedVat = (value: string): string => value.replace(/\s+/g, "").toUpperCase();
 const decimal = (value: OdooValue | undefined): string => {
   if (typeof value !== "number" && typeof value !== "string") {
     throw new OdooGatewayError("ODOO_INVALID_AMOUNT");
@@ -124,9 +125,13 @@ export class OdooJson2InvoiceGateway implements InvoiceGateway {
       if (Number.isInteger(id) && id > 0) {
         const records = await this.call<OdooRecord[]>("res.partner", "read", {
           ids: [id],
-          fields: ["id"]
+          fields: ["id", "vat"]
         });
         partner = records[0] ?? null;
+        const remoteVat = partner ? text(partner.vat) : null;
+        if (remoteVat && normalizedVat(remoteVat) !== normalizedVat(input.vat)) {
+          partner = null;
+        }
       }
     }
     partner ??= await this.resolveSingle(

@@ -29,16 +29,16 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
       taxRate: this.config.taxRate
     });
     let invoice = reservation.invoice;
-    let resumeLeaseAcquired = false;
+    let resumeLeaseToken: string | null = null;
     if (!reservation.created) {
       if (invoice.localState !== "FAILED" || invoice.externalInvoiceId) return invoice;
       const now = new Date();
-      resumeLeaseAcquired = await this.repository.acquireReconciliationLease(
+      resumeLeaseToken = await this.repository.acquireReconciliationLease(
         invoice.id,
         now,
         new Date(now.getTime() + 60_000)
       );
-      if (!resumeLeaseAcquired) return invoice;
+      if (!resumeLeaseToken) return invoice;
       invoice = (await this.repository.findById(invoice.id)) ?? invoice;
     }
 
@@ -101,8 +101,8 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
       });
       throw new DomainException(sanitized.message, 502);
     } finally {
-      if (resumeLeaseAcquired) {
-        await this.repository.releaseReconciliationLease(invoice.id);
+      if (resumeLeaseToken) {
+        await this.repository.releaseReconciliationLease(invoice.id, resumeLeaseToken);
       }
     }
   }

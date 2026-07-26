@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { validateFiscalCustomer } from "../../domain/entities/Customer.js";
 import type { Invoice } from "../../domain/entities/Invoice.js";
@@ -125,7 +126,11 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
         if (orderedNotes.some((note) => note.status !== "REVIEWED")) {
           throw new DomainException("Solo se pueden facturar albaranes revisados", 422);
         }
-        if (orderedNotes.some((note) => note.items.length === 0 || note.totalAmount < 0)) {
+        if (orderedNotes.some((note) =>
+          note.items.length === 0 ||
+          note.totalAmount < 0 ||
+          note.items.some((item) => item.quantity <= 0 || item.totalPrice < 0)
+        )) {
           throw new DomainException("Los albaranes deben contener líneas con total no negativo", 422);
         }
 
@@ -235,7 +240,7 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
     return prisma.$transaction(async (transaction) => {
       const record = await transaction.invoice.update({
         where: { id },
-        data: { ...patchToPrisma(patch), localState: "LINKED" },
+        data: { ...patchToPrisma(patch), localState: patch.localState ?? "LINKED" },
         include: invoiceInclude
       });
       await transaction.deliveryNote.updateMany({
@@ -247,20 +252,25 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
   }
 
   public async acquireReconciliationLease(id: string, now: Date, leaseUntil: Date) {
+    const leaseToken = randomUUID();
     const result = await prisma.invoice.updateMany({
       where: {
         id,
         OR: [{ reconciliationLeaseUntil: null }, { reconciliationLeaseUntil: { lt: now } }]
       },
-      data: { reconciliationLeaseUntil: leaseUntil, localState: "RECONCILING" }
+      data: {
+        reconciliationLeaseUntil: leaseUntil,
+        reconciliationLeaseToken: leaseToken,
+        localState: "RECONCILING"
+      }
     });
-    return result.count === 1;
+    return result.count === 1 ? leaseToken : null;
   }
 
-  public async releaseReconciliationLease(id: string) {
-    await prisma.invoice.update({
-      where: { id },
-      data: { reconciliationLeaseUntil: null }
+  public async releaseReconciliationLease(id: string, leaseToken: string) {
+    await prisma.invoice.updateMany({
+      where: { id, reconciliationLeaseToken: leaseToken },
+      data: { reconciliationLeaseUntil: null, reconciliationLeaseToken: null }
     });
   }
 

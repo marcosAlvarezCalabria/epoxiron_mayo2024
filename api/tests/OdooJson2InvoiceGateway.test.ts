@@ -80,6 +80,35 @@ describe("OdooJson2InvoiceGateway", () => {
     });
   });
 
+  it("does not update a cached partner whose VAT belongs to someone else", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([{ id: 9, vat: "B99999999" }]))
+      .mockResolvedValueOnce(jsonResponse([{ id: 10 }]))
+      .mockResolvedValueOnce(jsonResponse([{ id: 34 }]))
+      .mockResolvedValueOnce(jsonResponse(true));
+    vi.stubGlobal("fetch", fetchMock);
+    const gateway = new OdooJson2InvoiceGateway(config);
+
+    const result = await gateway.ensureCustomer({
+      customerId: "customer-1",
+      legalName: "Cliente SL",
+      vat: "B12345678",
+      street: "Calle Mayor 1",
+      street2: null,
+      city: "Madrid",
+      zip: "28001",
+      province: null,
+      countryCode: "ES",
+      paymentTermCode: null,
+      externalPartnerId: "9"
+    });
+
+    const writeRequest = fetchMock.mock.calls[3]?.[1] as RequestInit;
+    expect(result.id).toBe("10");
+    expect(JSON.parse(String(writeRequest.body))).toMatchObject({ ids: [10] });
+  });
+
   it("validates PDF signature and size", async () => {
     vi.stubGlobal(
       "fetch",

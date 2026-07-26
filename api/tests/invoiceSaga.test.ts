@@ -153,6 +153,25 @@ describe("invoice saga", () => {
     expect(result.nextReconciliationAt).toBeInstanceOf(Date);
   });
 
+  it("stops reconciliation after the configured maximum while preserving the remote link", async () => {
+    const repository = new InMemoryInvoiceRepository([customer()], [note("1")]);
+    const fakeGateway = gateway();
+    fakeGateway.getInvoice.mockResolvedValue(remote("PENDING"));
+    const createUseCase = new CreateInvoiceFromDeliveryNotesUseCase(repository, fakeGateway, {
+      enabled: true,
+      taxRate: "21",
+      series: null
+    });
+    const created = await createUseCase.execute(["1"]);
+
+    const result = await new ReconcileInvoiceUseCase(repository, fakeGateway, 1).execute(created.id);
+
+    expect(result?.localState).toBe("FAILED");
+    expect(result?.externalInvoiceId).toBe("101");
+    expect(result?.nextReconciliationAt).toBeNull();
+    expect(result?.lastErrorCode).toBe("RECONCILIATION_ATTEMPTS_EXHAUSTED");
+  });
+
   it("rejects albaranes from different customers before calling Odoo", async () => {
     const repository = new InMemoryInvoiceRepository(
       [customer(), customer("customer-2")],
@@ -166,6 +185,21 @@ describe("invoice saga", () => {
     });
 
     await expect(useCase.execute(["1", "2"])).rejects.toMatchObject({ statusCode: 422 });
+    expect(fakeGateway.ensureCustomer).not.toHaveBeenCalled();
+  });
+
+  it("rejects a historical albaran containing an invalid negative line", async () => {
+    const invalidNote = note("1");
+    invalidNote.items[0]!.totalPrice = -1;
+    const repository = new InMemoryInvoiceRepository([customer()], [invalidNote]);
+    const fakeGateway = gateway();
+    const useCase = new CreateInvoiceFromDeliveryNotesUseCase(repository, fakeGateway, {
+      enabled: true,
+      taxRate: "21",
+      series: null
+    });
+
+    await expect(useCase.execute(["1"])).rejects.toMatchObject({ statusCode: 422 });
     expect(fakeGateway.ensureCustomer).not.toHaveBeenCalled();
   });
 
@@ -245,5 +279,38 @@ describe("invoice saga", () => {
     expect(retried.localState).toBe("LINKED");
     expect(fakeGateway.createDraftInvoice).toHaveBeenCalledTimes(2);
     expect(repository.invoices.size).toBe(1);
+  });
+
+  it("does not let an expired lease owner release a newer lease", async () => {
+    const repository = new InMemoryInvoiceRepository([customer()], [note("1")]);
+    const fakeGateway = gateway();
+    const created = await new CreateInvoiceFromDeliveryNotesUseCase(repository, fakeGateway, {
+      enabled: true,
+      taxRate: "21",
+      series: null
+    }).execute(["1"]);
+    const firstNow = new Date("2026-07-26T10:00:00.000Z");
+    const firstToken = await repository.acquireReconciliationLease(
+      created.id,
+      firstNow,
+      new Date("2026-07-26T10:00:01.000Z")
+    );
+    const secondNow = new Date("2026-07-26T10:00:02.000Z");
+    const secondToken = await repository.acquireReconciliationLease(
+      created.id,
+      secondNow,
+      new Date("2026-07-26T10:01:00.000Z")
+    );
+
+    await repository.releaseReconciliationLease(created.id, firstToken!);
+    const thirdToken = await repository.acquireReconciliationLease(
+      created.id,
+      new Date("2026-07-26T10:00:03.000Z"),
+      new Date("2026-07-26T10:02:00.000Z")
+    );
+
+    expect(firstToken).not.toBeNull();
+    expect(secondToken).not.toBeNull();
+    expect(thirdToken).toBeNull();
   });
 });

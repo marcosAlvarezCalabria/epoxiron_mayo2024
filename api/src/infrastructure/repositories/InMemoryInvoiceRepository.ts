@@ -19,7 +19,7 @@ import {
 export class InMemoryInvoiceRepository implements InvoiceRepository {
   public readonly invoices = new Map<string, Invoice>();
   public readonly externalPartnerIds = new Map<string, string>();
-  private readonly leases = new Map<string, Date>();
+  private readonly leases = new Map<string, { until: Date; token: string }>();
 
   public constructor(
     private readonly customers: Customer[] = [],
@@ -43,7 +43,12 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     if (selected.some((note) => note.customerId !== customerId)) {
       throw new DomainException("Todos los albaranes deben pertenecer al mismo cliente", 422);
     }
-    if (selected.some((note) => note.status !== "REVIEWED" || note.items.length === 0)) {
+    if (selected.some((note) =>
+      note.status !== "REVIEWED" ||
+      note.items.length === 0 ||
+      note.totalAmount < 0 ||
+      note.items.some((item) => item.quantity <= 0 || item.totalPrice < 0)
+    )) {
       throw new DomainException("Solo se pueden facturar albaranes revisados con líneas", 422);
     }
     if ([...this.invoices.values()].some((invoice) =>
@@ -139,7 +144,10 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
   }
 
   public async markLinked(id: string, patch: InvoicePatch) {
-    const updated = await this.update(id, { ...patch, localState: "LINKED" });
+    const updated = await this.update(id, {
+      ...patch,
+      localState: patch.localState ?? "LINKED"
+    });
     this.deliveryNotes.forEach((note) => {
       if (updated.deliveryNoteIds.includes(note.id)) note.status = "INVOICED";
     });
@@ -148,14 +156,17 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
 
   public async acquireReconciliationLease(id: string, now: Date, leaseUntil: Date) {
     const current = this.leases.get(id);
-    if (current && current >= now) return false;
-    this.leases.set(id, leaseUntil);
+    if (current && current.until >= now) return null;
+    const token = randomUUID();
+    this.leases.set(id, { until: leaseUntil, token });
     await this.update(id, { localState: "RECONCILING" });
-    return true;
+    return token;
   }
 
-  public async releaseReconciliationLease(id: string) {
-    this.leases.delete(id);
+  public async releaseReconciliationLease(id: string, leaseToken: string) {
+    if (this.leases.get(id)?.token === leaseToken) {
+      this.leases.delete(id);
+    }
   }
 
   public async updateCustomerExternalPartnerId(customerId: string, externalPartnerId: string) {

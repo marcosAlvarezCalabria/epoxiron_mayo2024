@@ -39,6 +39,7 @@ CREATE TABLE "Invoice" (
   "reconciliationAttempts" INTEGER NOT NULL DEFAULT 0,
   "nextReconciliationAt" TIMESTAMP(3),
   "reconciliationLeaseUntil" TIMESTAMP(3),
+  "reconciliationLeaseToken" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "Invoice_pkey" PRIMARY KEY ("id")

@@ -151,6 +151,7 @@ model Invoice {
   reconciliationAttempts Int               @default(0)
   nextReconciliationAt   DateTime?
   reconciliationLeaseUntil DateTime?
+  reconciliationLeaseToken String?
   lines                  InvoiceLine[]
   deliveryNotes          InvoiceDeliveryNote[]
   createdAt              DateTime          @default(now())
