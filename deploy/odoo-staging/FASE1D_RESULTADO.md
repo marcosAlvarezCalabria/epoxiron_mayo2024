@@ -45,11 +45,12 @@ El caso monetario usa dos bases (`10.03` y `10.04`) cuya suma demuestra el redon
 - Una factura con fixture fiscal inválido llegó a `REJECTED` y no se modificó ni reutilizó.
 - El caso corregido generó una factura nueva y aceptada sin duplicados.
 
-## Hallazgo fuera del núcleo de facturación
+## Hallazgo fuera del núcleo de facturación — RESUELTO
 
-La creación simultánea de dos albaranes puede calcular el mismo número y provocar que una petición
-falle por la restricción única. El ensayo de facturación crea los albaranes secuencialmente y mantiene
-la concurrencia en el endpoint de facturas. Este hallazgo debe resolverse por separado.
+La creación simultánea de dos albaranes podía calcular el mismo número y provocar que una petición
+fallase por la restricción única. El hallazgo quedó resuelto al cerrar la Fase 1 mediante
+`DeliveryNoteNumberSequence`: PostgreSQL reserva e incrementa el contador anual dentro de la misma
+transacción que crea el albarán. La migración inicializa cada contador desde la numeración existente.
 
 ## Seguridad
 

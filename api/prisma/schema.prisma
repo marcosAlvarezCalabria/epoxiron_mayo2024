@@ -60,6 +60,11 @@ model DeliveryNote {
   updatedAt    DateTime           @updatedAt
 }
 
+model DeliveryNoteNumberSequence {
+  year         Int @id
+  lastSequence Int
+}
+
 model DeliveryNoteItem {
   id             String       @id @default(uuid())
   deliveryNoteId String

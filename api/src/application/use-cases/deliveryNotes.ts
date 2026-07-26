@@ -149,19 +149,6 @@ const syncCustomerSpecialPieces = async (
   });
 };
 
-const buildDeliveryNoteNumber = async (
-  repository: DeliveryNoteRepository,
-  date: Date
-): Promise<string> => {
-  const year = date.getFullYear();
-  const latestNumber = await repository.findLatestNumberForYear(year);
-  const lastSequence = latestNumber
-    ? Number.parseInt(latestNumber.split("-").at(-1) ?? "0", 10)
-    : 0;
-
-  return `ALB-${year}-${(lastSequence + 1).toString().padStart(4, "0")}`;
-};
-
 const formatReportDate = (date: Date) => date.toISOString().slice(0, 10);
 
 const resolveLatestUpdatedAt = (notes: DeliveryNote[]) =>
@@ -187,7 +174,6 @@ export class CreateDeliveryNoteUseCase {
     }
 
     const date = input.date ?? new Date();
-    const number = await buildDeliveryNoteNumber(this.deliveryNoteRepository, date);
     const pricedItems = materializeItems(customer, input.items, this.calculatePriceUseCase);
     const customerWithSpecialPieces = await syncCustomerSpecialPieces(
       customer,
@@ -200,10 +186,9 @@ export class CreateDeliveryNoteUseCase {
       input.items,
       this.calculatePriceUseCase
     );
-    return this.deliveryNoteRepository.create({
+    return this.deliveryNoteRepository.createWithNextNumber(date.getFullYear(), {
       ...input,
       date,
-      number,
       customerName: customerWithSpecialPieces.name,
       items,
       totalAmount: sumTotalAmount(items)
