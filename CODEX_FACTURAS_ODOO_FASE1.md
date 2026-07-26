@@ -1,10 +1,10 @@
 # CODEX — Facturación Odoo Fase 1
 
 > Plan ejecutable de implementación para Epoxiron.
-> **Fecha:** 2026-07-25
-> **Estado:** preparado; no iniciado.
+> **Fecha:** 2026-07-26
+> **Estado:** Fases 1A–1D validadas en staging; Fase 1E especificada y pendiente de implementación.
 > **Rama obligatoria:** `feature/facturacion-odoo`.
-> **Fuentes de verdad:** `SPEC_FACTURACION_ODOO.md` v2.4 y
+> **Fuentes de verdad:** `SPEC_FACTURACION_ODOO.md` v2.5 y
 > `deploy/odoo-staging/FASE0B_CONTRATO_ODOO.md`.
 
 ---
@@ -19,6 +19,8 @@ Implementar en Epoxiron el MVP de facturación de ventas con Odoo:
 - crear, contabilizar y enviar la factura mediante Odoo JSON-2;
 - reconciliar el estado VeriFactu hasta `accepted` o `rejected`;
 - conservar una instantánea legal e histórica de cliente, líneas e importes;
+- mostrar en la factura todas las líneas de producto de los albaranes para que el cliente no necesite
+  recibir los albaranes;
 - mostrar estados en la web y servir el PDF mediante la API autenticada.
 
 Quedan fuera de esta fase:
@@ -53,6 +55,8 @@ entorno de pruebas de VeriFactu.
 12. Todo endpoint nuevo bajo `/api/*` permanece detrás de `authMiddleware`.
 13. Cada fase debe compilar y tener tests antes de continuar.
 14. No dejar placeholders, `TODO`, código muerto ni rutas parcialmente conectadas.
+15. Cada producto de cada albarán genera una línea visible, ordenada e inmutable en la factura; no se
+    agregan líneas ni se exige adjuntar los albaranes al cliente.
 
 ---
 
@@ -63,6 +67,7 @@ entorno de pruebas de VeriFactu.
 | Transporte | JSON-2: `POST /json/2/<model>/<method>` |
 | Autenticación | Bearer API key + `X-Odoo-Database` |
 | Agrupación | 1..N albaranes del mismo cliente → 1 factura |
+| Detalle comercial | 1 `DeliveryNoteItem` → 1 línea visible de factura, con albarán de origen |
 | Tarifas | Base imponible, sin IVA incluido |
 | IVA MVP | Únicamente 21 % |
 | Redondeo | Global por impuesto: `round_globally` |
@@ -89,7 +94,8 @@ res.partner ensure/sync
 
 ## 3. Entrega incremental obligatoria
 
-Implementar en cuatro entregas revisables. No mezclar las cuatro en un único commit.
+Las cuatro primeras entregas están completadas. La nueva necesidad del cliente se implementará como
+una quinta entrega revisable e independiente.
 
 ### Fase 1A — Datos fiscales y migración compatible
 
@@ -107,6 +113,11 @@ Objetivo: selección, confirmación explícita, estados, errores y descarga del 
 
 Objetivo: probar fallos, concurrencia, redondeo y VeriFactu antes de plantear producción.
 
+### Fase 1E — Factura autosuficiente para el cliente
+
+Objetivo: incluir en la factura y su PDF todas las líneas de producto de los albaranes, con información
+comercial suficiente para que no sea necesario enviar los albaranes al cliente.
+
 Commits semánticos recomendados:
 
 ```text
@@ -116,6 +127,7 @@ feat: integra facturacion con Odoo JSON-2
 feat: expone API y reconciliacion de facturas
 feat: añade flujo web de facturacion
 test: valida saga y facturacion Odoo en staging
+feat: detalla productos de albaranes en facturas Odoo
 ```
 
 ---
@@ -355,6 +367,15 @@ La factura debe conservar:
 Nunca reconstruir una factura histórica leyendo los valores actuales de `Customer`,
 `DeliveryNote` o `DeliveryNoteItem`.
 
+Cada `DeliveryNoteItem` genera exactamente una `InvoiceLine`, sin consolidar productos repetidos. La
+posición se determina por el orden estable de los albaranes y el orden original de sus productos.
+La descripción comercial guardada debe identificar el albarán de origen y contener, cuando existan,
+producto, color/RAL, textura distinta de `NORMAL`, modalidad de precio, dimensiones o metros,
+espesor e imprimación. No debe contener notas internas ni identificadores técnicos.
+
+La misma descripción inmutable se usa para la API, el payload de Odoo y el PDF. Si no puede generarse
+una descripción comercial completa, devolver `422` antes de cualquier escritura remota.
+
 Con `round_globally` no persistir una cuota fiscal redondeada por línea: podría no sumar la cuota
 global de la factura. La cuota y el total autoritativos se guardan en `Invoice`; cada `InvoiceLine`
 conserva base y tipo de IVA.
@@ -497,6 +518,8 @@ Cachear catálogos estables en memoria con invalidación acotada.
 
 ### 6.5 Factura y VeriFactu
 
+- mapear cada `InvoiceLine` a un comando independiente de `invoice_line_ids`, en el mismo orden;
+- usar en `account.move.line.name` la descripción comercial guardada, sin reagrupar ni resumir;
 - crear líneas con base imponible e impuesto de ventas 21 %;
 - resolver el impuesto por empresa, uso `sale`, porcentaje 21 y activo;
 - después de `action_post`, ejecutar el asistente de envío con correo desactivado;
@@ -635,6 +658,9 @@ Respuestas:
 El PDF:
 
 - requiere factura propia existente y `pdfAvailable=true`;
+- contiene todas las líneas visibles con albarán de origen, descripción, cantidad, precio unitario,
+  IVA y subtotal, de modo que sustituya el envío de los albaranes al cliente;
+- conserva todas las líneas y encabezados comprensibles cuando la tabla ocupa varias páginas;
 - cabeceras `Content-Type: application/pdf`, `Content-Disposition` seguro y `Cache-Control: private`;
 - tamaño máximo configurable;
 - no persiste el PDF en PostgreSQL;
@@ -732,6 +758,8 @@ Cobertura mínima del código nuevo: 80 %. Priorizar ramas críticas, no solo l�
 - elegibilidad por estado;
 - clave idempotente determinista;
 - snapshot inmutable;
+- una línea de factura por cada producto de cada albarán, sin consolidación y en orden estable;
+- descripción comercial completa y ausencia de notas internas;
 - redondeo global 21 % con casos que difieren del redondeo por línea;
 - serialización decimal;
 - mapeo de estados.
@@ -771,6 +799,7 @@ Con `InMemoryInvoiceRepository` y gateway falso:
 ### 10.3 Infraestructura
 
 - requests JSON-2 exactas mediante `fetch` simulado;
+- un comando `invoice_line_ids` por producto, con orden y `name` exactos;
 - `vals_list` obligatorio;
 - cabeceras y timeout;
 - sanitización de errores;
@@ -804,9 +833,13 @@ Usar únicamente VeriFactu en pruebas:
 6. observar `posted`;
 7. observar VeriFactu `accepted`;
 8. comprobar QR y PDF;
-9. comprobar importes al céntimo;
-10. repetir la petición y comprobar idempotencia;
-11. simular timeout/reconciliación sin duplicar.
+9. comprobar visualmente que el PDF contiene todas las líneas de ambos albaranes y permite
+   interpretarlo sin adjuntar los albaranes;
+10. probar una factura multipágina y verificar que no pierde líneas, encabezados ni totales;
+11. comprobar que no aparecen notas internas;
+12. comprobar importes al céntimo;
+13. repetir la petición y comprobar idempotencia;
+14. simular timeout/reconciliación sin duplicar.
 
 No reutilizar las facturas ID 1 y 2 del spike como fixtures modificables.
 
@@ -935,6 +968,8 @@ La Fase 1 está terminada cuando:
 - los clientes pueden almacenar y editar datos fiscales;
 - 1..N albaranes revisados del mismo cliente generan como máximo una factura;
 - la factura conserva snapshots fiscales y monetarios en Decimal;
+- cada producto de los albaranes aparece como una línea visible e inmutable de la factura;
+- el PDF es autosuficiente, soporta varias páginas y no expone notas internas;
 - doble clic, concurrencia y timeout no crean duplicados;
 - Odoo recibe, contabiliza y procesa VeriFactu mediante JSON-2;
 - `accepted` es el único estado mostrado como completado;

@@ -1,8 +1,8 @@
 # SPEC — Facturación con Odoo (sustitución de Sage 50)
 
 > Especificación del módulo de facturación de Epoxiron.
-> **Fecha:** 2026-07-25 · **Versión:** v2.4 (política monetaria de Odoo confirmada)
-> **Estado:** Fase 0A/0B y decisiones del MVP completadas; preparada para especificar la Fase 1.
+> **Fecha:** 2026-07-26 · **Versión:** v2.5 (factura autosuficiente con detalle de albaranes)
+> **Estado:** Fase 1D validada en staging; nueva Fase 1E especificada y pendiente de implementación.
 > **Autor:** Marcos + Claude · Revisión técnica: Codex.
 
 ---
@@ -43,6 +43,7 @@ especializada vive fuera.
 | Flujo fiscal validado | `create` → `action_post` → `account.move.send.wizard.action_send_and_print` |
 | PDF | Lectura API de `invoice_pdf_report_file` en Base64 después del envío |
 | Agrupación | **1..N albaranes → 1 factura** |
+| Contenido de factura | **Cada línea de producto de los albaranes aparece como una línea visible en la factura; no es necesario enviar los albaranes al cliente** |
 | Precios | Tarifas expresadas como **base imponible**, sin IVA incluido |
 | IVA inicial | Solo **21 %**; sin exenciones, intracomunitarias ni recargo de equivalencia |
 | Redondeo fiscal | **Global por impuesto** (`round_globally`), confirmado por API en `res.company` |
@@ -244,7 +245,33 @@ transacción local**, antes de llamar a Odoo. Esto reserva los albaranes frente 
 peticiones concurrentes. Como rectificativas y abonos quedan fuera del MVP, la Fase 1 definirá
 únicamente la recuperación de reservas fallidas; no permitirá cancelar una factura ya emitida.
 
-### 5.5 Endpoints nuevos (API Epoxiron)
+### 5.5 Contrato de líneas de factura autosuficiente
+
+La factura enviada al cliente debe ser comprensible por sí sola. Los albaranes se conservan como
+trazabilidad interna, pero **no se adjuntan ni son necesarios para interpretar la factura**.
+
+Reglas obligatorias:
+
+- cada `DeliveryNoteItem` de los albaranes seleccionados genera exactamente una `InvoiceLine`;
+- no se agrupan ni consolidan líneas aunque coincidan producto, acabado o precio;
+- los albaranes se ordenan de forma determinista y, dentro de cada uno, se conserva el orden original
+  de sus productos;
+- la descripción visible identifica el albarán de origen y el producto e incluye, cuando existan:
+  color/RAL, textura distinta de `NORMAL`, modalidad de precio, dimensiones o metros calculados,
+  espesor e imprimación;
+- cantidad, precio unitario, IVA y subtotal se muestran en las columnas de la factura de Odoo;
+- notas internas, identificadores técnicos y datos operativos no destinados al cliente no se exponen;
+- la descripción visible se genera de forma determinista antes de la escritura remota y se guarda en
+  el snapshot de `InvoiceLine`;
+- la factura histórica nunca reconstruye sus líneas desde los albaranes actuales;
+- si una línea no puede producir una descripción comercial completa, la operación falla con `422`
+  antes de escribir en Odoo.
+
+El adaptador crea un comando `invoice_line_ids` de Odoo por cada `InvoiceLine`, en el mismo orden,
+usando como `name` la descripción comercial guardada. Este requisito no cambia las reglas monetarias,
+de idempotencia ni de confirmación explícita.
+
+### 5.6 Endpoints nuevos (API Epoxiron)
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | POST | `/api/invoices` | Inicia la saga de facturación desde 1..N albaranes (idempotente) |
@@ -320,6 +347,10 @@ type VerifactuResult = {
 ## 8. Contrato del PDF
 
 No exponer al navegador URLs internas de Odoo ni credenciales/sesiones:
+- El PDF contiene todas las líneas de producto definidas en §5.5, con su albarán de origen, cantidad,
+  precio unitario, IVA y subtotal; debe seguir siendo legible cuando ocupe varias páginas.
+- La paginación no puede omitir líneas y debe conservar encabezados de tabla y totales comprensibles.
+- La validación de staging debe inspeccionar el PDF generado, no solo el payload JSON-2.
 - Después de `action_send_and_print`, el adaptador lee `invoice_pdf_report_file` mediante JSON-2,
   decodifica Base64 y valida la cabecera `%PDF`.
 - `GET /api/invoices/:id/pdf` → la **API recupera el PDF server-side** y lo sirve mediante una ruta
@@ -448,6 +479,9 @@ emisor y del cliente, y el corte/migración desde Sage.
 - **Fase 1:** emitir factura real desde albarán, con serie continuada, IVA correcto, cuadre al céntimo,
   agrupando 1..N albaranes y con **QR VeriFactu cuando AEAT la acepte** (posiblemente diferido), con
   la Invoice espejo y todos los albaranes INVOICED; resistente a doble clic/timeout/caída.
+- **Fase 1E:** cada producto de los albaranes aparece en una línea visible, ordenada e inmutable de la
+  factura y el PDF permite enviarla al cliente sin adjuntar los albaranes. Se verifican también
+  facturas multipágina y ausencia de notas internas.
 
 ---
 
@@ -463,8 +497,8 @@ emisor y del cliente, y el corte/migración desde Sage.
 ## 16. Estado y siguiente paso
 
 **Siguiente orden de trabajo:**
-1. Generar `CODEX_FACTURAS_ODOO_FASE1.md` (1A→1D) sobre `feature/facturacion-odoo`.
-2. Implementar y validar la Fase 1 sin tocar `main` ni producción.
+1. Implementar la Fase 1E sobre `feature/facturacion-odoo`, sin tocar `main` ni producción.
+2. Validar en staging el payload Odoo y el contenido visible del PDF, incluida la paginación.
 3. Antes de producción, cerrar serie, datos fiscales y plan de corte/migración completa desde Sage.
 
 La Fase 0 está implementada y documentada únicamente en `feature/facturacion-odoo`. `main` y
