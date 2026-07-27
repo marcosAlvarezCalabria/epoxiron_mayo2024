@@ -85,8 +85,10 @@ en `react-router` y `react-router-dom` 6.30.3:
 - GHSA-wrjc-x8rr-h8h6 — redirección abierta mediante barras invertidas.
 - GHSA-jjmj-jmhj-qwj2 — redirección abierta con posible XSS.
 - GHSA-337j-9hxr-rhxg — inyección de constructor en hidratación SSR.
+- GHSA-qwww-vcr4-c8h2 — bypass CSRF en modo RSC de React Router 7.12.0–8.2.x,
+  detectado al verificar la primera actualización.
 
-- Actualizar `react-router-dom` a una versión 7 parcheada que resuelva los cuatro avisos.
+- Actualizar `react-router-dom` a `>= 8.3.0`, primera versión que resuelve todos los avisos conocidos.
 - Revisar todos los usos de `BrowserRouter`, `Routes`, `Route`, `Navigate`, `Link`, `NavLink`,
   `useNavigate`, `useLocation` y `useSearchParams`.
 - Mantener las mismas rutas, redirecciones y protección de sesión.
