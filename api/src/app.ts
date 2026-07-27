@@ -55,6 +55,10 @@ import { createVoiceAlbaranParser } from "./infrastructure/services/VoiceAlbaran
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import {
+  buildGeneralApiRateLimiter,
+  buildLoginRateLimiter
+} from "./middleware/rateLimiters.js";
 import { buildAuthRouter } from "./routes/auth.routes.js";
 import { buildCustomersRouter } from "./routes/customers.routes.js";
 import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
@@ -239,6 +243,8 @@ export const createAppContext = (): AppContext => {
 
   const app = express();
 
+  // Produccion y staging reciben trafico publico a traves de un unico proxy Nginx.
+  app.set("trust proxy", 1);
   app.use(helmet());
   app.use(
     cors({
@@ -253,6 +259,15 @@ export const createAppContext = (): AppContext => {
     response.json({ status: "ok" });
   });
 
+  app.use(
+    "/api",
+    buildGeneralApiRateLimiter({
+      windowMs: env.API_RATE_LIMIT_WINDOW_MS,
+      max: env.API_RATE_LIMIT_MAX,
+      hermesSharedSecret: env.HERMES_SHARED_SECRET
+    })
+  );
+
   if (env.NODE_ENV !== "production") {
     const openApiDocument = buildOpenApiDocument();
 
@@ -262,7 +277,14 @@ export const createAppContext = (): AppContext => {
     app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
   }
 
-  app.use("/api/auth", buildAuthRouter(authenticateWithGoogleUseCase));
+  app.use(
+    "/api/auth",
+    buildLoginRateLimiter({
+      windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MS,
+      max: env.LOGIN_RATE_LIMIT_MAX
+    }),
+    buildAuthRouter(authenticateWithGoogleUseCase)
+  );
   app.use("/api", authMiddleware);
   app.use("/api/customers", buildCustomersRouter(customersController));
   app.use("/api/delivery-notes", buildDeliveryNotesRouter(deliveryNotesController));
