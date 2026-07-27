@@ -25,6 +25,7 @@ const buildCustomer = (name: string): Customer => ({
   fiscalCountryCode: null,
   paymentTermCode: null,
   externalPartnerId: null,
+  active: true,
   pricePerLinearMeter: 1,
   pricePerSquareMeter: 1,
   minimumRate: 1,
@@ -36,12 +37,11 @@ const buildCustomer = (name: string): Customer => ({
 
 const buildRepository = (customers: Customer[]): CustomerRepository => ({
   create: vi.fn(),
-  delete: vi.fn(),
   findAll: vi.fn().mockResolvedValue(customers),
   findByEmail: vi.fn(),
   findById: vi.fn(),
   findByName: vi.fn(),
-  hasDeliveryNotes: vi.fn(),
+  setActive: vi.fn(),
   update: vi.fn()
 });
 

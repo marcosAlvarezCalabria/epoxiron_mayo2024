@@ -126,6 +126,90 @@ describe("OdooJson2InvoiceGateway", () => {
     expect(JSON.parse(String(writeRequest.body))).toMatchObject({ ids: [10] });
   });
 
+  it("creates a customer in Odoo and maps its contact data", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([]))
+      .mockResolvedValueOnce(jsonResponse([{ id: 34 }]))
+      .mockResolvedValueOnce(jsonResponse([41]));
+    vi.stubGlobal("fetch", fetchMock);
+    const gateway = new OdooJson2InvoiceGateway(config);
+
+    await expect(
+      gateway.syncCustomer({
+        name: "Cliente comercial",
+        legalName: "Cliente Fiscal SL",
+        vat: "B12345678",
+        email: "cliente@example.com",
+        phone: "910000000",
+        fiscalStreet: "Calle Mayor 1",
+        fiscalCity: "Madrid",
+        fiscalZip: "28001",
+        fiscalCountryCode: "ES",
+        pricePerLinearMeter: 10,
+        pricePerSquareMeter: 20,
+        minimumRate: 15,
+        specialPieces: []
+      })
+    ).resolves.toBe("41");
+
+    const createRequest = fetchMock.mock.calls[2]?.[1] as RequestInit;
+    expect(JSON.parse(String(createRequest.body))).toMatchObject({
+      vals_list: [{
+        name: "Cliente Fiscal SL",
+        vat: "B12345678",
+        email: "cliente@example.com",
+        phone: "910000000",
+        country_id: 34,
+        is_company: true,
+        customer_rank: 1,
+        active: true
+      }]
+    });
+  });
+
+  it("archives an existing Odoo customer instead of deleting it", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse([{ id: 41, vat: "B12345678" }]))
+      .mockResolvedValueOnce(jsonResponse(true));
+    vi.stubGlobal("fetch", fetchMock);
+    const gateway = new OdooJson2InvoiceGateway(config);
+
+    await gateway.setCustomerActive({
+      id: "customer-1",
+      name: "Cliente",
+      email: null,
+      phone: null,
+      address: null,
+      notes: null,
+      vat: "B12345678",
+      legalName: "Cliente SL",
+      fiscalStreet: "Calle Mayor 1",
+      fiscalStreet2: null,
+      fiscalCity: "Madrid",
+      fiscalZip: "28001",
+      fiscalProvince: null,
+      fiscalCountryCode: "ES",
+      paymentTermCode: null,
+      externalPartnerId: "41",
+      active: true,
+      pricePerLinearMeter: 10,
+      pricePerSquareMeter: 20,
+      minimumRate: 15,
+      grosorPrecio: null,
+      specialPieces: [],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }, false);
+
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body))).toEqual({
+      ids: [41],
+      vals: { active: false }
+    });
+    expect(fetchMock.mock.calls.every(([url]) => !String(url).endsWith("/unlink"))).toBe(true);
+  });
+
   it("validates PDF signature and size", async () => {
     vi.stubGlobal(
       "fetch",

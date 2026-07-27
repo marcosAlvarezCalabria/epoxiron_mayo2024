@@ -3,16 +3,19 @@ import type { CustomerRepository } from "../../domain/repositories/CustomerRepos
 import { prisma } from "../prisma/client.js";
 
 export class PrismaCustomerRepository implements CustomerRepository {
-  public async findAll(search?: string) {
+  public async findAll(search?: string, includeInactive = false) {
     return prisma.customer.findMany({
-      where: search
-        ? {
+      where: {
+        active: includeInactive ? undefined : true,
+        ...(search
+          ? {
             name: {
               contains: search,
               mode: "insensitive"
             }
           }
-        : undefined,
+          : {})
+      },
       include: {
         specialPieces: true
       },
@@ -89,17 +92,13 @@ export class PrismaCustomerRepository implements CustomerRepository {
     });
   }
 
-  public async delete(id: string) {
-    await prisma.customer.delete({
-      where: { id }
+  public async setActive(id: string, active: boolean) {
+    return prisma.customer.update({
+      where: { id },
+      data: { active },
+      include: {
+        specialPieces: true
+      }
     });
-  }
-
-  public async hasDeliveryNotes(id: string) {
-    const count = await prisma.deliveryNote.count({
-      where: { customerId: id }
-    });
-
-    return count > 0;
   }
 }

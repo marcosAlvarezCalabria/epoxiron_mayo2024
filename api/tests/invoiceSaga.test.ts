@@ -27,6 +27,7 @@ const customer = (id = "customer-1"): Customer => ({
   fiscalCountryCode: "ES",
   paymentTermCode: "30D",
   externalPartnerId: null,
+  active: true,
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 5,

@@ -24,6 +24,7 @@ model Customer {
   fiscalCountryCode    String?        @default("ES")
   paymentTermCode      String?
   externalPartnerId    String?
+  active               Boolean        @default(true)
   pricePerLinearMeter  Float          @default(0)
   pricePerSquareMeter  Float          @default(0)
   minimumRate          Float          @default(0)

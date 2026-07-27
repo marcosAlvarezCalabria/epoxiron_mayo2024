@@ -72,12 +72,12 @@ class InMemoryCustomerRepository {
     throw new Error("not implemented");
   }
 
-  public async delete() {
-    throw new Error("not implemented");
-  }
-
-  public async hasDeliveryNotes() {
-    return false;
+  public async setActive(id: string, active: boolean) {
+    const customer = this.customers.find((item) => item.id === id);
+    if (!customer) throw new Error("customer not found");
+    const updated = { ...customer, active };
+    this.customers = this.customers.map((item) => (item.id === id ? updated : item));
+    return updated;
   }
 }
 
@@ -463,6 +463,7 @@ const buildCustomer = (): Customer => ({
       fiscalCountryCode: null,
       paymentTermCode: null,
       externalPartnerId: null,
+      active: true,
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,

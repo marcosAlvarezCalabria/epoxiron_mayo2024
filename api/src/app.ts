@@ -9,6 +9,7 @@ import {
   DeleteCustomerUseCase,
   GetCustomerUseCase,
   GetCustomersUseCase,
+  RestoreCustomerUseCase,
   UpdateCustomerUseCase
 } from "./application/use-cases/customers.js";
 import {
@@ -152,9 +153,27 @@ export const createAppContext = (): AppContext => {
 
   const getCustomersUseCase = new GetCustomersUseCase(customerRepository);
   const getCustomerUseCase = new GetCustomerUseCase(customerRepository);
-  const createCustomerUseCase = new CreateCustomerUseCase(customerRepository);
-  const updateCustomerUseCase = new UpdateCustomerUseCase(customerRepository);
-  const deleteCustomerUseCase = new DeleteCustomerUseCase(customerRepository);
+  const customerSyncConfig = { enabled: env.ODOO_CUSTOMER_SYNC_ENABLED };
+  const createCustomerUseCase = new CreateCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
+  const updateCustomerUseCase = new UpdateCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
+  const deleteCustomerUseCase = new DeleteCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
+  const restoreCustomerUseCase = new RestoreCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
 
   const getDeliveryNotesUseCase = new GetDeliveryNotesUseCase(deliveryNoteRepository);
   const getDeliveryNoteUseCase = new GetDeliveryNoteUseCase(deliveryNoteRepository);
@@ -216,7 +235,8 @@ export const createAppContext = (): AppContext => {
     getCustomerUseCase,
     createCustomerUseCase,
     updateCustomerUseCase,
-    deleteCustomerUseCase
+    deleteCustomerUseCase,
+    restoreCustomerUseCase
   );
 
   const deliveryNotesController = new DeliveryNotesController(

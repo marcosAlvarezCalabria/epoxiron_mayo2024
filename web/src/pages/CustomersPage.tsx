@@ -552,13 +552,13 @@ export const CustomersPage = () => {
                   <button
                     className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200"
                     onClick={() => {
-                      if (window.confirm(`Eliminar a ${selectedCustomer.name}?`)) {
+                      if (window.confirm(`¿Archivar a ${selectedCustomer.name}? Se conservará su historial.`)) {
                         deleteMutation.mutate(selectedCustomer.id);
                       }
                     }}
                     type="button"
                   >
-                    Eliminar
+                    Archivar
                   </button>
                 </div>
               </div>

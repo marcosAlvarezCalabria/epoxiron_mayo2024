@@ -1,7 +1,7 @@
 # SPEC — Facturación con Odoo (sustitución de Sage 50)
 
 > Especificación del módulo de facturación de Epoxiron.
-> **Fecha:** 2026-07-26 · **Versión:** v2.6 (Fase 1 implementada y validada en staging)
+> **Fecha:** 2026-07-27 · **Versión:** v2.8 (sincronización de clientes implementada; validación en staging pendiente)
 > **Estado:** Fases 1A–1E completadas; rama preparada para revisión humana, sin merge ni producción.
 > **Autor:** Marcos + Claude · Revisión técnica: Codex.
 
@@ -39,6 +39,7 @@ especializada vive fuera.
 | Estrategia | **Poco a poco**, validando en una **base de pruebas de Odoo Cloud** antes de producción |
 | Git | Rama **`feature/facturacion-odoo`** (aislada de `main`/producción) |
 | Fuente de la verdad de clientes | **Epoxiron** (sincroniza `res.partner` hacia Odoo) |
+| Ciclo de vida de clientes | Alta y edición sincronizadas inmediatamente; la baja archiva el contacto en Odoo y la restauración lo reactiva |
 | Módulo fiscal | `l10n_es_edi_verifactu` (nativo Enterprise) |
 | API de integración | **JSON-2**; XML-RPC validado solo como referencia de compatibilidad |
 | Flujo fiscal validado | `create` → `action_post` → `account.move.send.wizard.action_send_and_print` |
@@ -178,6 +179,38 @@ legalName?: string;         // razón social
 > `vat` **no** se marca único sin confirmar antes sucursales, duplicados y contactos relacionados.
 > La completitud fiscal **no se persiste**: se calcula en dominio a partir de NIF, razón social y
 > domicilio para evitar que un indicador almacenado quede desactualizado.
+
+#### 5.1.1 Sincronización del ciclo de vida con Odoo
+
+Epoxiron es la fuente de la verdad de los clientes. La sincronización con `res.partner` no queda
+limitada al momento de facturar:
+
+- al crear un cliente en Epoxiron, la API crea o adopta el contacto correspondiente en Odoo y guarda
+  su `externalPartnerId`;
+- al editarlo, la API actualiza el mismo `res.partner`;
+- al darlo de baja, la API lo archiva en Odoo mediante `active=false`; nunca lo elimina físicamente,
+  porque puede tener facturas, asientos u otros documentos contables relacionados;
+- al restaurarlo, la API reactiva el contacto mediante `active=true`;
+- la web nunca llama directamente a Odoo: todas las operaciones pasan por la API de Epoxiron y por
+  un puerto de aplicación dedicado.
+
+Reglas obligatorias:
+
+- resolver primero por `externalPartnerId` y comprobar que el NIF remoto coincide antes de escribir;
+- si no existe una referencia válida, buscar por NIF normalizado antes de crear para evitar duplicados;
+- si la búsqueda por NIF devuelve más de un contacto, detener la operación como ambigua y solicitar
+  revisión humana;
+- nunca modificar, archivar ni reactivar un contacto cuyo NIF pertenezca a otro cliente;
+- guardar `externalPartnerId` únicamente después de que Odoo confirme la operación;
+- si Odoo rechaza el alta o la edición, no confirmar el cambio local como sincronizado y devolver un
+  error accionable sin exponer credenciales, payloads sensibles ni trazas;
+- los reintentos deben ser idempotentes y no pueden crear contactos adicionales;
+- `ensureCustomer` durante la facturación se mantiene como red de seguridad y reconciliación, no como
+  mecanismo principal de alta.
+
+La importación inicial desde Sage reutilizará este mismo servicio de aplicación para crear o adoptar
+los clientes en Odoo y persistir la relación, en lugar de escribir directamente en ninguna base de
+datos. Se ejecutará primero en staging, por lotes controlados y con informe de duplicados y errores.
 
 ### 5.2 Nueva entidad `Invoice` — importes en `Decimal`, no `Float`
 ```ts

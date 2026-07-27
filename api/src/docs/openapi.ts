@@ -73,6 +73,7 @@ const customerComponent = registry.register(
   "Customer",
   customerInputSchema.extend({
     id: idSchema,
+    active: z.boolean(),
     createdAt: dateTimeStringSchema,
     updatedAt: dateTimeStringSchema
   })
@@ -338,7 +339,8 @@ registry.registerPath({
   security: bearerOrHermesSecurity,
   request: {
     query: z.object({
-      search: z.string().optional()
+      search: z.string().optional(),
+      includeInactive: z.boolean().optional()
     })
   },
   responses: {
@@ -469,7 +471,40 @@ registry.registerPath({
   },
   responses: {
     204: {
-      description: "Cliente eliminado"
+      description: "Cliente archivado en Epoxiron y Odoo"
+    },
+    401: commonErrorResponses[401],
+    404: {
+      description: "Cliente no encontrado",
+      content: {
+        "application/json": {
+          schema: errorResponseSchema
+        }
+      }
+    },
+    500: commonErrorResponses[500],
+    503: commonErrorResponses[503]
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/customers/{id}/restore",
+  tags: ["Customers"],
+  security: bearerOrHermesSecurity,
+  request: {
+    params: z.object({
+      id: idSchema
+    })
+  },
+  responses: {
+    200: {
+      description: "Cliente restaurado en Epoxiron y Odoo",
+      content: {
+        "application/json": {
+          schema: customerResponseSchema
+        }
+      }
     },
     401: commonErrorResponses[401],
     404: {

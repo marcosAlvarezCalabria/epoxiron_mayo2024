@@ -10,6 +10,8 @@ import type {
   RemoteInvoiceDraft,
   RemoteInvoiceStatus
 } from "../../domain/ports/InvoiceGateway.js";
+import type { Customer, CustomerInput } from "../../domain/entities/Customer.js";
+import type { CustomerSyncGateway } from "../../domain/ports/CustomerSyncGateway.js";
 import { canonicalDecimal } from "../../domain/services/invoiceMoney.js";
 
 type OdooPrimitive = string | number | boolean | null;
@@ -63,7 +65,7 @@ export interface OdooJson2Config {
   maxPdfBytes: number;
 }
 
-export class OdooJson2InvoiceGateway implements InvoiceGateway {
+export class OdooJson2InvoiceGateway implements InvoiceGateway, CustomerSyncGateway {
   private taxId: number | null = null;
   private companyId: number | null = null;
 
@@ -108,39 +110,124 @@ export class OdooJson2InvoiceGateway implements InvoiceGateway {
     model: string,
     domain: OdooValue[],
     fields: string[],
-    code: string
+    code: string,
+    includeInactive = false
   ): Promise<OdooRecord | null> {
     const records = await this.call<OdooRecord[]>(model, "search_read", {
       domain,
       fields,
-      limit: 2
+      limit: 2,
+      ...(includeInactive ? { context: { active_test: false } } : {})
     });
     if (records.length > 1) throw new OdooGatewayError(`${code}_AMBIGUOUS`);
     return records[0] ?? null;
   }
 
-  public async ensureCustomer(input: FiscalCustomerSnapshot): Promise<ExternalPartnerRef> {
+  private async resolvePartner(
+    externalPartnerId: string | null | undefined,
+    vat: string | null | undefined
+  ): Promise<OdooRecord | null> {
     let partner: OdooRecord | null = null;
-    if (input.externalPartnerId) {
-      const id = Number(input.externalPartnerId);
+    if (externalPartnerId) {
+      const id = Number(externalPartnerId);
       if (Number.isInteger(id) && id > 0) {
         const records = await this.call<OdooRecord[]>("res.partner", "read", {
           ids: [id],
-          fields: ["id", "vat"]
+          fields: ["id", "vat"],
+          context: { active_test: false }
         });
         partner = records[0] ?? null;
         const remoteVat = partner ? text(partner.vat) : null;
-        if (remoteVat && normalizedVat(remoteVat) !== normalizedVat(input.vat)) {
+        if (remoteVat && vat && normalizedVat(remoteVat) !== normalizedVat(vat)) {
           partner = null;
         }
       }
     }
-    partner ??= await this.resolveSingle(
-      "res.partner",
-      [["vat", "=", input.vat]],
-      ["id"],
-      "ODOO_PARTNER"
-    );
+    if (!partner && vat) {
+      partner = await this.resolveSingle(
+        "res.partner",
+        [["vat", "=", vat]],
+        ["id", "vat"],
+        "ODOO_PARTNER",
+        true
+      );
+    }
+    return partner;
+  }
+
+  public async syncCustomer(
+    input: CustomerInput,
+    externalPartnerId?: string | null
+  ): Promise<string> {
+    const partner = await this.resolvePartner(externalPartnerId, input.vat);
+    const values: Record<string, OdooValue> = {
+      name: input.legalName?.trim() || input.name.trim(),
+      vat: input.vat?.trim() || false,
+      street: input.fiscalStreet?.trim() || input.address?.trim() || false,
+      street2: input.fiscalStreet2?.trim() || false,
+      city: input.fiscalCity?.trim() || false,
+      zip: input.fiscalZip?.trim() || false,
+      email: input.email?.trim() || false,
+      phone: input.phone?.trim() || false,
+      is_company: true,
+      customer_rank: 1,
+      active: input.active ?? true
+    };
+
+    if (input.fiscalCountryCode) {
+      const country = await this.resolveSingle(
+        "res.country",
+        [["code", "=", input.fiscalCountryCode]],
+        ["id"],
+        "ODOO_COUNTRY"
+      );
+      if (!country) throw new OdooGatewayError("ODOO_COUNTRY_NOT_FOUND");
+      values.country_id = country.id;
+
+      if (input.fiscalProvince) {
+        const province = await this.resolveSingle(
+          "res.country.state",
+          [["name", "ilike", input.fiscalProvince], ["country_id", "=", country.id]],
+          ["id"],
+          "ODOO_PROVINCE"
+        );
+        values.state_id = province?.id ?? false;
+      } else {
+        values.state_id = false;
+      }
+    }
+
+    if (input.paymentTermCode) {
+      const term = await this.resolveSingle(
+        "account.payment.term",
+        [["name", "ilike", input.paymentTermCode]],
+        ["id"],
+        "ODOO_PAYMENT_TERM"
+      );
+      if (!term) throw new OdooGatewayError("ODOO_PAYMENT_TERM_NOT_FOUND");
+      values.property_payment_term_id = term.id;
+    } else {
+      values.property_payment_term_id = false;
+    }
+
+    if (partner) {
+      await this.call<boolean>("res.partner", "write", { ids: [partner.id], vals: values });
+      return String(partner.id);
+    }
+    return String(await this.create("res.partner", values));
+  }
+
+  public async setCustomerActive(customer: Customer, active: boolean): Promise<void> {
+    const partner = await this.resolvePartner(customer.externalPartnerId, customer.vat);
+    if (!partner) throw new OdooGatewayError("ODOO_PARTNER_NOT_FOUND");
+    await this.call<boolean>("res.partner", "write", {
+      ids: [partner.id],
+      vals: { active }
+    });
+  }
+
+  public async ensureCustomer(input: FiscalCustomerSnapshot): Promise<ExternalPartnerRef> {
+    const partner = await this.resolvePartner(input.externalPartnerId, input.vat);
 
     const country = await this.resolveSingle(
       "res.country",

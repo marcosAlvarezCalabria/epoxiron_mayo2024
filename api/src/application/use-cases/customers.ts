@@ -1,6 +1,41 @@
 import type { CustomerInput } from "../../domain/entities/Customer.js";
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
+import type { CustomerSyncGateway } from "../../domain/ports/CustomerSyncGateway.js";
+
+interface CustomerSyncConfig {
+  enabled: boolean;
+}
+
+const syncFailure = () =>
+  new DomainException(
+    "No se pudo sincronizar el cliente con Odoo. No se ha aplicado el cambio en Epoxiron.",
+    502
+  );
+
+const syncCustomer = async (
+  gateway: CustomerSyncGateway,
+  input: CustomerInput,
+  externalPartnerId?: string | null
+): Promise<string> => {
+  try {
+    return await gateway.syncCustomer(input, externalPartnerId);
+  } catch (_error: unknown) {
+    throw syncFailure();
+  }
+};
+
+const setRemoteCustomerActive = async (
+  gateway: CustomerSyncGateway,
+  customer: Parameters<CustomerSyncGateway["setCustomerActive"]>[0],
+  active: boolean
+): Promise<void> => {
+  try {
+    await gateway.setCustomerActive(customer, active);
+  } catch (_error: unknown) {
+    throw syncFailure();
+  }
+};
 
 const normalizeText = (value: string) => value.trim().toLowerCase();
 const normalizeOptionalText = (value: string | null | undefined): string | null => {
@@ -78,18 +113,30 @@ const ensureUniqueCustomer = async (
 };
 
 export class CreateCustomerUseCase {
-  public constructor(private readonly repository: CustomerRepository) {}
+  public constructor(
+    private readonly repository: CustomerRepository,
+    private readonly syncGateway?: CustomerSyncGateway,
+    private readonly syncConfig: CustomerSyncConfig = { enabled: false }
+  ) {}
 
   public async execute(input: CustomerInput) {
     const normalizedInput = normalizeCustomerInput(input);
     ensureUniqueSpecialPieceNames(normalizedInput);
     await ensureUniqueCustomer(this.repository, normalizedInput);
-    return this.repository.create(normalizedInput);
+    const externalPartnerId =
+      this.syncConfig.enabled && this.syncGateway
+        ? await syncCustomer(this.syncGateway, normalizedInput)
+        : null;
+    return this.repository.create({ ...normalizedInput, externalPartnerId, active: true });
   }
 }
 
 export class UpdateCustomerUseCase {
-  public constructor(private readonly repository: CustomerRepository) {}
+  public constructor(
+    private readonly repository: CustomerRepository,
+    private readonly syncGateway?: CustomerSyncGateway,
+    private readonly syncConfig: CustomerSyncConfig = { enabled: false }
+  ) {}
 
   public async execute(id: string, input: CustomerInput) {
     const current = await this.repository.findById(id);
@@ -100,12 +147,28 @@ export class UpdateCustomerUseCase {
     const normalizedInput = normalizeCustomerInput(input);
     ensureUniqueSpecialPieceNames(normalizedInput);
     await ensureUniqueCustomer(this.repository, normalizedInput, current.id);
-    return this.repository.update(id, normalizedInput);
+    const externalPartnerId =
+      this.syncConfig.enabled && this.syncGateway
+        ? await syncCustomer(
+            this.syncGateway,
+            { ...normalizedInput, active: current.active !== false },
+            current.externalPartnerId
+          )
+        : current.externalPartnerId;
+    return this.repository.update(id, {
+      ...normalizedInput,
+      externalPartnerId,
+      active: current.active !== false
+    });
   }
 }
 
 export class DeleteCustomerUseCase {
-  public constructor(private readonly repository: CustomerRepository) {}
+  public constructor(
+    private readonly repository: CustomerRepository,
+    private readonly syncGateway?: CustomerSyncGateway,
+    private readonly syncConfig: CustomerSyncConfig = { enabled: false }
+  ) {}
 
   public async execute(id: string) {
     const current = await this.repository.findById(id);
@@ -113,20 +176,45 @@ export class DeleteCustomerUseCase {
       throw new DomainException("Cliente no encontrado", 404);
     }
 
-    const hasDeliveryNotes = await this.repository.hasDeliveryNotes(id);
-    if (hasDeliveryNotes) {
-      throw new DomainException("No se puede eliminar un cliente con albaranes asociados", 409);
+    if (current.active === false) {
+      return;
     }
 
-    await this.repository.delete(id);
+    if (this.syncConfig.enabled && this.syncGateway) {
+      await setRemoteCustomerActive(this.syncGateway, current, false);
+    }
+    await this.repository.setActive(id, false);
+  }
+}
+
+export class RestoreCustomerUseCase {
+  public constructor(
+    private readonly repository: CustomerRepository,
+    private readonly syncGateway?: CustomerSyncGateway,
+    private readonly syncConfig: CustomerSyncConfig = { enabled: false }
+  ) {}
+
+  public async execute(id: string) {
+    const current = await this.repository.findById(id);
+    if (!current) {
+      throw new DomainException("Cliente no encontrado", 404);
+    }
+    if (current.active !== false) {
+      return current;
+    }
+
+    if (this.syncConfig.enabled && this.syncGateway) {
+      await setRemoteCustomerActive(this.syncGateway, current, true);
+    }
+    return this.repository.setActive(id, true);
   }
 }
 
 export class GetCustomersUseCase {
   public constructor(private readonly repository: CustomerRepository) {}
 
-  public async execute(search?: string) {
-    return this.repository.findAll(search);
+  public async execute(search?: string, includeInactive = false) {
+    return this.repository.findAll(search, includeInactive);
   }
 }
 

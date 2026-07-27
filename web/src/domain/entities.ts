@@ -21,6 +21,7 @@ export interface Customer {
   fiscalCountryCode?: string | null;
   paymentTermCode?: string | null;
   externalPartnerId?: string | null;
+  active?: boolean;
   pricePerLinearMeter: number;
   pricePerSquareMeter: number;
   minimumRate: number;

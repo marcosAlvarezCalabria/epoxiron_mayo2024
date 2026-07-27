@@ -19,6 +19,7 @@ const customer: Customer = {
   fiscalCountryCode: null,
   paymentTermCode: null,
   externalPartnerId: null,
+  active: true,
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,

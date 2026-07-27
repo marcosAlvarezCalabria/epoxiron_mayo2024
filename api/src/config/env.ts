@@ -72,6 +72,7 @@ const envSchema = z
     EMAIL_TO: z.string().default(""),
     EMAIL_APP_PASSWORD: z.string().default(""),
     ODOO_INVOICING_ENABLED: booleanStringWithDefaultFalse,
+    ODOO_CUSTOMER_SYNC_ENABLED: booleanStringWithDefaultFalse,
     ODOO_URL: z.string().default(""),
     ODOO_DB: z.string().default(""),
     ODOO_USER: z.string().default(""),
@@ -179,7 +180,7 @@ const envSchema = z
       });
     }
 
-    if (value.ODOO_INVOICING_ENABLED) {
+    if (value.ODOO_INVOICING_ENABLED || value.ODOO_CUSTOMER_SYNC_ENABLED) {
       (["ODOO_URL", "ODOO_DB", "ODOO_USER", "ODOO_API_KEY"] as const).forEach((key) => {
         if (!value[key].trim()) {
           context.addIssue({
