@@ -46,7 +46,7 @@ const envSchema = z
     VOICE_TRANSCRIBER_LANGUAGE: z.string().trim().min(2).optional(),
     GOOGLE_CLIENT_ID: z.string().min(1),
     JWT_SECRET: z.string().min(1),
-    JWT_EXPIRES_IN: z.string().min(1).default("7d"),
+    JWT_EXPIRES_IN: z.string().min(1).default("1d"),
     ALLOWED_EMAILS: z
       .string()
       .transform((value) =>
