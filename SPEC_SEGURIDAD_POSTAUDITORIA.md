@@ -2,7 +2,7 @@
 
 > Plan ejecutable de implementación para Epoxiron.
 > **Fecha:** 2026-07-26
-> **Estado:** preparado; no iniciado.
+> **Estado:** en ejecución.
 > **Rama obligatoria:** `feature/facturacion-odoo`.
 > **Origen:** auditoría de seguridad de solo lectura del 2026-07-26 sobre el estado de cierre de Fase 1.
 
@@ -37,7 +37,7 @@ En `api/`:
 - `morgan` 1.2.0–1.10.1 — GHSA-4vj7-5mj6-jm8m (log forging). Actualizar a la versión parcheada.
 
 Criterio de aceptación: `npm audit --omit=dev` en `api/` sin vulnerabilidades altas ni moderadas.
-La web no requiere cambios (auditoría limpia).
+La web estaba limpia en la auditoría inicial; el hallazgo posterior queda registrado en 1.6.
 
 ### 1.2 Rate limiting (prioridad media)
 
@@ -76,6 +76,25 @@ Ante `PrismaClientInitializationError` y `PrismaClientKnownRequestError P1001` s
 - Sin cambios de código salvo que algo asuma 7 días.
 - La revocación de tokens queda fuera de esta spec.
 
+### 1.6 React Router vulnerable (hallazgo posterior, prioridad media)
+
+El audit repetido el 2026-07-27 detectó avisos moderados publicados después de la auditoría inicial
+en `react-router` y `react-router-dom` 6.30.3:
+
+- GHSA-2j2x-hqr9-3h42 — redirección abierta mediante rutas que empiezan por `//`.
+- GHSA-wrjc-x8rr-h8h6 — redirección abierta mediante barras invertidas.
+- GHSA-jjmj-jmhj-qwj2 — redirección abierta con posible XSS.
+- GHSA-337j-9hxr-rhxg — inyección de constructor en hidratación SSR.
+
+- Actualizar `react-router-dom` a una versión 7 parcheada que resuelva los cuatro avisos.
+- Revisar todos los usos de `BrowserRouter`, `Routes`, `Route`, `Navigate`, `Link`, `NavLink`,
+  `useNavigate`, `useLocation` y `useSearchParams`.
+- Mantener las mismas rutas, redirecciones y protección de sesión.
+- No introducir SSR ni cambiar el comportamiento funcional de la web.
+
+Criterio de aceptación: audit de producción sin vulnerabilidades altas ni moderadas en la web,
+lint, tests y build web en verde.
+
 ---
 
 ## 2. Estrategia de pruebas
@@ -85,6 +104,8 @@ Ante `PrismaClientInitializationError` y `PrismaClientKnownRequestError P1001` s
 - Tests nuevos para el errorHandler: los errores de base de datos no exponen `error.message`.
 - Test existente de `authMiddleware` ampliado para la comparación timing-safe
   (secreto correcto, incorrecto y de longitud distinta).
+- Tests web existentes en verde tras la migración de React Router; añadir pruebas únicamente si
+  la compatibilidad exige cambiar lógica de navegación.
 - Suites completas de api y web en verde.
 
 ---
@@ -99,6 +120,7 @@ pnpm --dir web lint
 pnpm --dir web test
 pnpm --dir web build
 npm --prefix api audit --omit=dev
+pnpm audit --prod
 git diff --check
 git status --short
 ```
@@ -125,6 +147,7 @@ git status --short
 - Comparaciones de secretos timing-safe.
 - Errores de base de datos sin detalle interno en las respuestas.
 - `JWT_EXPIRES_IN=1d` documentado como valor por defecto.
+- React Router actualizado sin vulnerabilidades altas ni moderadas en producción.
 - Lint, tests y build de api y web en verde.
 - Staging validado según la sección 4 y resultado documentado en `deploy/`.
 - `main` intacto; nada desplegado ni activado en producción.
