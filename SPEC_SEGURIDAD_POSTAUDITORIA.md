@@ -88,14 +88,18 @@ en `react-router` y `react-router-dom` 6.30.3:
 - GHSA-qwww-vcr4-c8h2 — bypass CSRF en modo RSC de React Router 7.12.0–8.2.x,
   detectado al verificar la primera actualización.
 
-- Actualizar `react-router-dom` a `>= 8.3.0`, primera versión que resuelve todos los avisos conocidos.
+- Actualizar `react-router-dom` a `7.18.1` para resolver los cuatro avisos aplicables a la SPA.
 - Revisar todos los usos de `BrowserRouter`, `Routes`, `Route`, `Navigate`, `Link`, `NavLink`,
   `useNavigate`, `useLocation` y `useSearchParams`.
 - Mantener las mismas rutas, redirecciones y protección de sesión.
 - No introducir SSR ni cambiar el comportamiento funcional de la web.
+- Aceptar temporalmente GHSA-qwww-vcr4-c8h2 porque afecta exclusivamente al modo RSC, que
+  Epoxiron no utiliza. La excepción debe quedar registrada en `docs/SECURITY_EXCEPTIONS.md`.
+- Prohibir la activación de RSC, Framework Mode y acciones de servidor sin una nueva revisión de
+  seguridad y la retirada previa de esta excepción.
 
-Criterio de aceptación: audit de producción sin vulnerabilidades altas ni moderadas en la web,
-lint, tests y build web en verde.
+Criterio de aceptación: sin vulnerabilidades altas ni moderadas aplicables a la arquitectura SPA;
+GHSA-qwww-vcr4-c8h2 es la única excepción admitida, lint, tests y build web en verde.
 
 ---
 
@@ -122,7 +126,7 @@ pnpm --dir web lint
 pnpm --dir web test
 pnpm --dir web build
 npm --prefix api audit --omit=dev
-pnpm audit --prod
+pnpm audit --prod # solo se admite GHSA-qwww-vcr4-c8h2 según la excepción documentada
 git diff --check
 git status --short
 ```
@@ -149,7 +153,8 @@ git status --short
 - Comparaciones de secretos timing-safe.
 - Errores de base de datos sin detalle interno en las respuestas.
 - `JWT_EXPIRES_IN=1d` documentado como valor por defecto.
-- React Router actualizado sin vulnerabilidades altas ni moderadas en producción.
+- React Router actualizado sin vulnerabilidades altas ni moderadas aplicables; se admite únicamente
+  GHSA-qwww-vcr4-c8h2 mientras RSC permanezca fuera de la arquitectura.
 - Lint, tests y build de api y web en verde.
 - Staging validado según la sección 4 y resultado documentado en `deploy/`.
 - `main` intacto; nada desplegado ni activado en producción.
