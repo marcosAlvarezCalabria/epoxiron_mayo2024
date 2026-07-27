@@ -61,6 +61,42 @@ describe("authMiddleware", () => {
     expect(response.status).not.toHaveBeenCalled();
   });
 
+  it("rejects an incorrect Hermes secret of the same length", async () => {
+    const { authMiddleware } = await import("../src/middleware/authMiddleware.js");
+    const next = vi.fn() as NextFunction;
+    const response = buildResponse();
+
+    authMiddleware(
+      buildRequest({
+        "x-hermes-secret": "wrong-hermes-token"
+      }),
+      response,
+      next
+    );
+
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ error: "No autorizado" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects an incorrect Hermes secret of a different length", async () => {
+    const { authMiddleware } = await import("../src/middleware/authMiddleware.js");
+    const next = vi.fn() as NextFunction;
+    const response = buildResponse();
+
+    authMiddleware(
+      buildRequest({
+        "x-hermes-secret": "short"
+      }),
+      response,
+      next
+    );
+
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ error: "No autorizado" });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it("rejects requests without a bearer token", async () => {
     const { authMiddleware } = await import("../src/middleware/authMiddleware.js");
     const next = vi.fn() as NextFunction;

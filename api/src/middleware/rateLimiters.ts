@@ -1,4 +1,5 @@
 import rateLimit from "express-rate-limit";
+import { secureSecretEquals } from "../security/secureSecretEquals.js";
 
 interface RateLimiterConfig {
   windowMs: number;
@@ -33,7 +34,7 @@ export const buildGeneralApiRateLimiter = ({
         request.header("x-hermes-secret") ??
         request.header("x-epoxiron-hermes-secret");
 
-      return suppliedSecret === hermesSharedSecret;
+      return secureSecretEquals(suppliedSecret, hermesSharedSecret);
     }
   });
 

@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
 import { JwtAccessTokenIssuer } from "../infrastructure/services/JwtAccessTokenIssuer.js";
+import { secureSecretEquals } from "../security/secureSecretEquals.js";
 
 const getHermesSecret = (request: Request) =>
   request.header("x-hermes-secret") ?? request.header("x-epoxiron-hermes-secret");
@@ -8,7 +9,7 @@ const jwtAccessTokenIssuer = new JwtAccessTokenIssuer(env.JWT_SECRET, env.JWT_EX
 
 export const authMiddleware = (request: Request, response: Response, next: NextFunction) => {
   const hermesSecret = getHermesSecret(request);
-  if (hermesSecret && hermesSecret === env.HERMES_SHARED_SECRET) {
+  if (secureSecretEquals(hermesSecret, env.HERMES_SHARED_SECRET)) {
     next();
     return;
   }

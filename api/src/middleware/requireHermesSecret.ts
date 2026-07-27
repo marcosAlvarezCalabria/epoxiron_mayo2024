@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
+import { secureSecretEquals } from "../security/secureSecretEquals.js";
 
 export const requireHermesSecret = (
   request: Request,
@@ -7,7 +8,7 @@ export const requireHermesSecret = (
   next: NextFunction
 ) => {
   const secret = request.header("x-hermes-secret") ?? request.header("x-epoxiron-hermes-secret");
-  if (secret !== env.HERMES_SHARED_SECRET) {
+  if (!secureSecretEquals(secret, env.HERMES_SHARED_SECRET)) {
     response.status(401).json({ error: "No autorizado" });
     return;
   }
