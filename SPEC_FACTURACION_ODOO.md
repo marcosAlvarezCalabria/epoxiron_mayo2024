@@ -222,8 +222,8 @@ datos. Se ejecutará primero en staging, por lotes controlados y con informe de 
 - el comportamiento está cubierto por tests unitarios y de integración;
 - `ODOO_CUSTOMER_SYNC_ENABLED=true` está activo únicamente en staging;
 - el E2E de facturación validó la reconciliación del cliente mediante `ensureCustomer`;
-- queda como comprobación operativa separada ejecutar y observar en Odoo un ciclo manual completo
-  de alta → edición → archivo → restauración antes de producción.
+- el usuario completó y verificó en staging el ciclo manual
+  alta → edición → archivo → restauración contra Odoo.
 
 ### 5.2 Nueva entidad `Invoice` — importes en `Decimal`, no `Float`
 ```ts
@@ -526,7 +526,7 @@ ambos transportes autenticados y dos facturas de prueba aceptadas con documento,
 | Factura completada | VeriFactu/AEAT en estado `accepted` | ✅ Cerrado y validado | MVP |
 | Datos fiscales del emisor | Pendientes de carga y validación definitivas en Odoo | ⏳ Producción | Antes de emitir |
 | Datos fiscales de clientes | Campos web implementados; backfill de clientes reales pendiente | ⚠️ Parcial | Antes de producción |
-| Sincronización de clientes | Implementada, testeada y desplegada en staging; ciclo CRUD remoto manual pendiente | ⚠️ Parcial | Antes de producción |
+| Sincronización de clientes | Alta, edición, archivo y restauración validados manualmente en staging | ✅ Cerrado y validado | MVP |
 | Handoff gestoría | Irrelevante para el MVP; posible PDF inicialmente | ⏳ Aplazado | Operación posterior |
 | Alcance de Odoo | Sustitución completa de Sage 50 | ✅ Cerrado | Plan de migración separado |
 
@@ -561,10 +561,9 @@ emisor y del cliente, y el corte/migración desde Sage.
 
 **Siguiente orden de trabajo:**
 1. Revisión humana de `feature/facturacion-odoo`; no fusionar automáticamente.
-2. Completar en staging la comprobación manual del ciclo de vida de un cliente contra `res.partner`.
-3. Si se aprueba, preparar el merge controlado a `main` manteniendo
+2. Si se aprueba, preparar el merge controlado a `main` manteniendo
    `ODOO_INVOICING_ENABLED=false` y `ODOO_CUSTOMER_SYNC_ENABLED=false`.
-4. Antes de producción, cerrar serie y último número, datos fiscales del emisor, backfill de clientes,
+3. Antes de producción, cerrar serie y último número, datos fiscales del emisor, backfill de clientes,
    fecha de corte de Sage, plan de migración con la gestoría y aprobación final.
 
 Las Fases 0 y 1 están implementadas y documentadas únicamente en `feature/facturacion-odoo`.
