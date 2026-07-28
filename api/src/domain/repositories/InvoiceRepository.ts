@@ -15,6 +15,24 @@ export interface ReserveInvoiceInput {
   remoteReference: string;
   series: string | null;
   taxRate: string;
+  expectedSnapshotHash?: string;
+}
+
+export interface InvoicePreviewLine extends InvoiceLine {
+  deliveryNoteId: string;
+  deliveryNoteNumber: string;
+}
+
+export interface InvoicePreviewSnapshot {
+  customer: FiscalCustomerSnapshot;
+  deliveryNotes: Array<{ id: string; number: string; date: Date }>;
+  lines: InvoicePreviewLine[];
+  subtotal: Money;
+  taxRate: string;
+  taxAmount: Money;
+  total: Money;
+  series: string | null;
+  snapshotHash: string;
 }
 
 export interface InvoicePatch {
@@ -44,6 +62,7 @@ export interface InvoiceFilters {
 }
 
 export interface InvoiceRepository {
+  preparePreview(deliveryNoteIds: string[], taxRate: string, series: string | null): Promise<InvoicePreviewSnapshot>;
   reserve(input: ReserveInvoiceInput): Promise<ReservedInvoice>;
   findById(id: string): Promise<Invoice | null>;
   findByIdempotencyKey(key: string): Promise<Invoice | null>;

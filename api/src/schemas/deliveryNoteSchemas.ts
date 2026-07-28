@@ -15,7 +15,7 @@ export const deliveryNoteItemDraftSchema = z.object({
   thickness: z.coerce.number().positive().nullable().optional(),
   primer: z.boolean().optional(),
   saveAsSpecialPiece: z.boolean().optional(),
-  quantity: z.coerce.number().int().positive()
+  quantity: z.coerce.number().int().min(1).max(200)
 });
 
 export const deliveryNoteInputSchema = z.object({

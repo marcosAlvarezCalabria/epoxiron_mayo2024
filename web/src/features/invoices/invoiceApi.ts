@@ -1,13 +1,25 @@
 import { apiBlob, apiClient } from "@/infrastructure/api/apiClient";
-import type { Invoice, InvoiceListResponse } from "./invoiceTypes";
+import type { Invoice, InvoiceListResponse, InvoicePreviewResponse } from "./invoiceTypes";
 
 export const listInvoices = async (): Promise<InvoiceListResponse> =>
   apiClient<InvoiceListResponse>("/api/invoices");
 
-export const createInvoice = async (deliveryNoteIds: string[]) =>
+export const previewInvoice = async (deliveryNoteIds: string[]) =>
+  apiClient<InvoicePreviewResponse>("/api/invoices/preview", {
+    method: "POST",
+    body: JSON.stringify({ deliveryNoteIds })
+  });
+
+export const createInvoice = async ({
+  deliveryNoteIds,
+  previewToken
+}: {
+  deliveryNoteIds: string[];
+  previewToken: string;
+}) =>
   apiClient<{ invoice: Invoice; created: boolean }>("/api/invoices", {
     method: "POST",
-    body: JSON.stringify({ deliveryNoteIds, confirmed: true })
+    body: JSON.stringify({ deliveryNoteIds, confirmed: true, previewToken })
   });
 
 export const reconcileInvoice = async (id: string) =>

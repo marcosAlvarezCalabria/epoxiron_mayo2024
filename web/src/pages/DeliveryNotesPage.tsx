@@ -24,6 +24,7 @@ import {
   updateDeliveryNoteStatus
 } from "@/application/use-cases";
 import { ApiErrorState } from "@/components/ApiErrorState";
+import { InvoicePreviewDialog } from "@/components/invoices/InvoicePreviewDialog";
 import { VoiceAlbaranButton } from "@/components/VoiceAlbaranButton";
 import {
   ItemFormSheet,
@@ -43,7 +44,8 @@ import {
   type ParsedVoiceAlbaranData
 } from "@/features/voice/voiceAlbaran";
 import { ApiError } from "@/infrastructure/api/apiClient";
-import { createInvoice } from "@/features/invoices/invoiceApi";
+import { createInvoice, previewInvoice } from "@/features/invoices/invoiceApi";
+import type { InvoicePreviewResponse } from "@/features/invoices/invoiceTypes";
 import {
   buildDeliveryNoteItemDescription,
   normalizeDeliveryNoteDescriptionInput
@@ -86,6 +88,7 @@ const statusLabel: Record<DeliveryNoteStatus, string> = {
 };
 
 const emptyItem = (): DeliveryNoteItemFormState => ({
+  clientId: crypto.randomUUID(),
   hasThickness: false,
   hasPrimer: false,
   saveAsSpecialPiece: false,
@@ -110,6 +113,7 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
   customerId: note.customerId,
   date: note.date.slice(0, 10),
   items: note.items.map((item) => ({
+    clientId: item.id ?? crypto.randomUUID(),
     hasThickness: item.thickness != null,
     hasPrimer: item.primer ?? false,
     saveAsSpecialPiece: false,
@@ -189,6 +193,7 @@ export const DeliveryNotesPage = () => {
   const [searchParams] = useSearchParams();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [invoiceSelection, setInvoiceSelection] = useState<string[]>([]);
+  const [invoicePreviewData, setInvoicePreviewData] = useState<InvoicePreviewResponse | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
@@ -201,10 +206,10 @@ export const DeliveryNotesPage = () => {
   const [weekOnly, setWeekOnly] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
-  const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
+  const [previews, setPreviews] = useState<Record<string, PricePreviewState>>({});
   const [isNotesOpen, setIsNotesOpen] = useState(false);
-  const [sheetState, setSheetState] = useState<{ index: number | null; mode: "create" | "edit"; open: boolean }>({
-    index: null,
+  const [sheetState, setSheetState] = useState<{ itemId: string | null; mode: "create" | "edit"; open: boolean }>({
+    itemId: null,
     mode: "create",
     open: false
   });
@@ -373,7 +378,7 @@ export const DeliveryNotesPage = () => {
     }
 
     const activeEntries = form.items
-      .map((item, index) => ({ index, item }))
+      .map((item) => ({ itemId: item.clientId, item }))
       .filter(({ item }) => isItemComplete(item));
 
     if (activeEntries.length === 0) {
@@ -386,13 +391,13 @@ export const DeliveryNotesPage = () => {
       const requestId = previewsRequestIdRef.current + 1;
       previewsRequestIdRef.current = requestId;
       void Promise.all(
-        activeEntries.map(async ({ index, item }) => {
+        activeEntries.map(async ({ itemId, item }) => {
           const fallbackPricing = resolvedCustomer
             ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
             : null;
           const result = await calculatePricePreview(form.customerId, normalizeItem(item));
           return {
-            index,
+            itemId,
             pricing: resolvePricePreview(result.pricing, fallbackPricing)
           };
         })
@@ -402,9 +407,9 @@ export const DeliveryNotesPage = () => {
             return;
           }
           setPreviews(
-            results.reduce<Record<number, PricePreviewState>>((accumulator, result) => {
+            results.reduce<Record<string, PricePreviewState>>((accumulator, result) => {
               if (result.pricing) {
-                accumulator[result.index] = result.pricing;
+                accumulator[result.itemId] = result.pricing;
               }
               return accumulator;
             }, {})
@@ -420,8 +425,8 @@ export const DeliveryNotesPage = () => {
           }
 
           setPreviews(
-            activeEntries.reduce<Record<number, PricePreviewState>>((accumulator, { index, item }) => {
-              accumulator[index] = estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer);
+            activeEntries.reduce<Record<string, PricePreviewState>>((accumulator, { itemId, item }) => {
+              accumulator[itemId] = estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer);
               return accumulator;
             }, {})
           );
@@ -491,6 +496,10 @@ export const DeliveryNotesPage = () => {
       window.location.assign(`/invoices#${invoice.id}`);
     }
   });
+  const invoicePreviewMutation = useMutation({
+    mutationFn: previewInvoice,
+    onSuccess: setInvoicePreviewData
+  });
 
   const mutationError = useMemo(() => {
     const error =
@@ -500,12 +509,12 @@ export const DeliveryNotesPage = () => {
 
   const liveTotal = useMemo(
     () =>
-      form.items.reduce((sum, item, index) => {
+      form.items.reduce((sum, item) => {
         const fallbackPreview =
           resolvedCustomer && isItemComplete(item)
             ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
             : null;
-        const preview = resolvePricePreview(previews[index] ?? null, fallbackPreview);
+        const preview = resolvePricePreview(previews[item.clientId] ?? null, fallbackPreview);
         if (preview) {
           return sum + preview.totalPrice;
         }
@@ -516,7 +525,9 @@ export const DeliveryNotesPage = () => {
   );
 
   const currentSheetItem =
-    sheetState.index != null ? form.items[sheetState.index] ?? emptyItem() : emptyItem();
+    sheetState.itemId != null
+      ? form.items.find((item) => item.clientId === sheetState.itemId) ?? emptyItem()
+      : emptyItem();
 
   const customerStepReady = Boolean(form.customerId);
   const itemsStepReady = form.items.length > 0 && form.items.every(isItemComplete);
@@ -530,7 +541,7 @@ export const DeliveryNotesPage = () => {
     setVoiceFeedback(null);
     setCustomerSearch("");
     setIsComposerOpen(false);
-    setSheetState({ index: null, mode: "create", open: false });
+    setSheetState({ itemId: null, mode: "create", open: false });
   };
 
   const openNewComposer = () => {
@@ -558,7 +569,10 @@ export const DeliveryNotesPage = () => {
   const handleVoiceDataExtracted = (data: ParsedVoiceAlbaranData) => {
     const customers = customersQuery.data?.customers ?? [];
     const matchedCustomer = findCustomerByVoiceName(customers, data.customerName);
-    const nextItems = data.items.map((item) => mapParsedVoiceItemToFormState(item, matchedCustomer));
+    const nextItems = data.items.map((item) => ({
+      ...mapParsedVoiceItemToFormState(item, matchedCustomer),
+      clientId: crypto.randomUUID()
+    }));
 
     setForm((current) => ({
       customerId: matchedCustomer?.id ?? current.customerId,
@@ -604,60 +618,54 @@ export const DeliveryNotesPage = () => {
   };
 
   const handleSheetSave = (item: DeliveryNoteItemFormState) => {
+    const commercialItem = {
+      ...item,
+      description: item.description.trim().toLocaleUpperCase("es-ES"),
+      color: item.color.trim().toLocaleUpperCase("es-ES")
+    };
     const fallbackPreview =
-      resolvedCustomer && isItemComplete(item)
-        ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
+      resolvedCustomer && isItemComplete(commercialItem)
+        ? estimateDeliveryNoteItemPrice(normalizeItem(commercialItem), resolvedCustomer)
         : null;
 
     setForm((current) => {
-      if (sheetState.mode === "edit" && sheetState.index != null) {
+      if (sheetState.mode === "edit" && sheetState.itemId != null) {
         return {
           ...current,
-          items: current.items.map((entry, index) => (index === sheetState.index ? item : entry))
+          items: current.items.map((entry) =>
+            entry.clientId === sheetState.itemId ? commercialItem : entry
+          )
         };
       }
 
       return {
         ...current,
-        items: [...current.items, item]
+        items: [...current.items, commercialItem]
       };
     });
 
     if (fallbackPreview) {
       setPreviews((current) => {
-        if (sheetState.mode === "edit" && sheetState.index != null) {
-          return {
-            ...current,
-            [sheetState.index]: fallbackPreview
-          };
-        }
-
         return {
           ...current,
-          [form.items.length]: fallbackPreview
+          [commercialItem.clientId]: fallbackPreview
         };
       });
     }
 
-    setSheetState({ index: null, mode: "create", open: false });
+    setSheetState({ itemId: null, mode: "create", open: false });
   };
 
-  const removeItem = (index: number) => {
+  const removeItem = (itemId: string) => {
     setForm((current) => ({
       ...current,
-      items: current.items.filter((_, itemIndex) => itemIndex !== index)
+      items: current.items.filter((item) => item.clientId !== itemId)
     }));
-    setPreviews((current) =>
-      Object.entries(current).reduce<Record<number, PricePreviewState>>((accumulator, [key, value]) => {
-        const numericIndex = Number.parseInt(key, 10);
-        if (numericIndex === index) {
-          return accumulator;
-        }
-
-        accumulator[numericIndex > index ? numericIndex - 1 : numericIndex] = value;
-        return accumulator;
-      }, {})
-    );
+    setPreviews((current) => {
+      const next = { ...current };
+      delete next[itemId];
+      return next;
+    });
   };
 
   const getStatusAction = (note: DeliveryNote) => {
@@ -681,6 +689,8 @@ export const DeliveryNotesPage = () => {
   ) ?? [];
   const invoiceSelectionCustomerId = selectedForInvoice[0]?.customerId;
   const toggleInvoiceSelection = (note: DeliveryNote) => {
+    setInvoicePreviewData(null);
+    invoicePreviewMutation.reset();
     if (invoiceSelection.includes(note.id)) {
       setInvoiceSelection((current) => current.filter((id) => id !== note.id));
       return;
@@ -693,24 +703,15 @@ export const DeliveryNotesPage = () => {
     setInvoiceSelection((current) => [...current, note.id]);
   };
 
-  const confirmInvoice = () => {
-    const total = selectedForInvoice.reduce((sum, note) => sum + note.totalAmount, 0);
-    const accepted = window.confirm(
-      `Vas a crear una factura irreversible en Odoo con ${selectedForInvoice.length} albarán(es).\n` +
-      `Base estimada: ${formatCurrency(total)}\nIVA estimado (21%): ${formatCurrency(total * 0.21)}\n` +
-      `Total estimado: ${formatCurrency(total * 1.21)}\n\n¿Confirmas la creación?`
-    );
-    if (accepted) invoiceMutation.mutate(invoiceSelection);
-  };
+  const confirmInvoice = () => invoicePreviewMutation.mutate(invoiceSelection);
 
   const getItemPreview = (
     item: DeliveryNoteItemFormState,
-    index: number,
     customer: Customer | null
   ) => {
     const fallbackPreview =
       customer && isItemComplete(item) ? estimateDeliveryNoteItemPrice(normalizeItem(item), customer) : null;
-    return resolvePricePreview(previews[index] ?? null, fallbackPreview);
+    return resolvePricePreview(previews[item.clientId] ?? null, fallbackPreview);
   };
 
   return (
@@ -846,16 +847,16 @@ export const DeliveryNotesPage = () => {
               <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
                 Base estimada: {formatCurrency(selectedForInvoice.reduce((sum, note) => sum + note.totalAmount, 0))}
               </p>
-              {invoiceMutation.error instanceof ApiError ? (
-                <p className="mt-2 text-sm text-red-300">{invoiceMutation.error.message}</p>
+              {invoicePreviewMutation.error instanceof ApiError ? (
+                <p className="mt-2 text-sm text-red-300">{invoicePreviewMutation.error.message}</p>
               ) : null}
               <button
                 className="mt-3 bg-[var(--epx-accent)] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
-                disabled={invoiceMutation.isPending}
+                disabled={invoicePreviewMutation.isPending}
                 onClick={confirmInvoice}
                 type="button"
               >
-                {invoiceMutation.isPending ? "Creando factura…" : "Revisar y crear factura"}
+                {invoicePreviewMutation.isPending ? "Preparando factura…" : "Revisar factura"}
               </button>
             </div>
           ) : null}
@@ -1374,7 +1375,7 @@ export const DeliveryNotesPage = () => {
                       <button
                         className="inline-flex items-center gap-1 bg-[var(--epx-accent)] px-2 py-1.5 text-[11px] font-semibold text-[#131313] disabled:cursor-not-allowed disabled:opacity-45"
                         disabled={!selectedCustomer}
-                        onClick={() => setSheetState({ index: null, mode: "create", open: true })}
+                        onClick={() => setSheetState({ itemId: null, mode: "create", open: true })}
                         type="button"
                       >
                         <PlusIcon className="h-3.5 w-3.5" />
@@ -1387,7 +1388,7 @@ export const DeliveryNotesPage = () => {
                         form.items.map((item, index) => (
                           <article
                             className="border border-neutral-300 bg-white p-2.5 sm:p-3"
-                            key={`draft-item-${index}`}
+                            key={item.clientId}
                           >
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
@@ -1479,8 +1480,8 @@ export const DeliveryNotesPage = () => {
                                 </span>
                               </span>
                               <span className="shrink-0 text-[10px] font-semibold text-[var(--epx-accent)] sm:text-xs">
-                                {getItemPreview(item, index, selectedCustomer)
-                                  ? formatCurrency(getItemPreview(item, index, selectedCustomer)!.totalPrice)
+                                {getItemPreview(item, selectedCustomer)
+                                  ? formatCurrency(getItemPreview(item, selectedCustomer)!.totalPrice)
                                   : "—"}
                               </span>
                             </div>
@@ -1506,7 +1507,9 @@ export const DeliveryNotesPage = () => {
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button
                                 className="inline-flex items-center gap-1.5 border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700"
-                                onClick={() => setSheetState({ index, mode: "edit", open: true })}
+                                onClick={() =>
+                                  setSheetState({ itemId: item.clientId, mode: "edit", open: true })
+                                }
                                 type="button"
                               >
                                 <PencilSquareIcon className="h-3.5 w-3.5" />
@@ -1514,7 +1517,7 @@ export const DeliveryNotesPage = () => {
                               </button>
                               <button
                                 className="inline-flex items-center gap-1.5 border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-xs font-semibold text-red-200"
-                                onClick={() => removeItem(index)}
+                                onClick={() => removeItem(item.clientId)}
                                 type="button"
                               >
                                 <TrashIcon className="h-3.5 w-3.5" />
@@ -1595,9 +1598,25 @@ export const DeliveryNotesPage = () => {
         initialItem={currentSheetItem}
         isOpen={sheetState.open}
         mode={sheetState.mode}
-        onClose={() => setSheetState({ index: null, mode: "create", open: false })}
+        onClose={() => setSheetState({ itemId: null, mode: "create", open: false })}
         onSave={handleSheetSave}
       />
+      {invoicePreviewData ? (
+        <InvoicePreviewDialog
+          data={invoicePreviewData}
+          error={invoiceMutation.error instanceof ApiError ? invoiceMutation.error.message : null}
+          isSubmitting={invoiceMutation.isPending}
+          onClose={() => {
+            if (!invoiceMutation.isPending) setInvoicePreviewData(null);
+          }}
+          onConfirm={() =>
+            invoiceMutation.mutate({
+              deliveryNoteIds: invoiceSelection,
+              previewToken: invoicePreviewData.previewToken
+            })
+          }
+        />
+      ) : null}
     </section>
   );
 };

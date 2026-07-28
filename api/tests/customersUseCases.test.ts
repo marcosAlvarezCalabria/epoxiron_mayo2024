@@ -234,7 +234,7 @@ describe("customer use cases", () => {
       specialPieces: [{ name: "Barandilla", price: 40 }]
     });
 
-    expect(result.name).toBe("Pinturas Lopez Premium");
+    expect(result.name).toBe("PINTURAS LOPEZ PREMIUM");
     expect(repository.update).toHaveBeenCalledOnce();
     expect(result.specialPieces).toHaveLength(1);
   });
@@ -316,7 +316,7 @@ describe("customer use cases", () => {
       specialPieces: []
     });
     expect(gateway.syncCustomer).toHaveBeenLastCalledWith(
-      expect.objectContaining({ name: "Cliente sincronizado SL", active: true }),
+      expect.objectContaining({ name: "CLIENTE SINCRONIZADO SL", active: true }),
       "41"
     );
 
@@ -389,9 +389,9 @@ describe("customer use cases", () => {
     });
 
     expect(normalized).toMatchObject({
-      name: "Taller Norte",
+      name: "TALLER NORTE",
       vat: "B12345678",
-      legalName: "Taller Norte SL",
+      legalName: "TALLER NORTE SL",
       fiscalCountryCode: "ES",
       fiscalStreet2: null
     });

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Customer } from "../../domain/entities/Customer.js";
 import { validateFiscalCustomer } from "../../domain/entities/Customer.js";
 import type { DeliveryNote } from "../../domain/entities/DeliveryNote.js";
@@ -28,11 +28,79 @@ export class InMemoryInvoiceRepository implements InvoiceRepository {
     private readonly deliveryNotes: DeliveryNote[] = []
   ) {}
 
+  public async preparePreview(deliveryNoteIds: string[], taxRate: string, series: string | null) {
+    const ids = [...deliveryNoteIds].sort();
+    if (ids.length < 1 || ids.length > 100 || new Set(ids).size !== ids.length) {
+      throw new DomainException("Selección de albaranes inválida", 422);
+    }
+    const selected = ids.map((id) => this.deliveryNotes.find((note) => note.id === id));
+    if (selected.some((note) => !note)) throw new DomainException("Uno o más albaranes no existen", 422);
+    const notes = selected as DeliveryNote[];
+    const customerId = notes[0]!.customerId;
+    if (notes.some((note) => note.customerId !== customerId || note.status !== "REVIEWED")) {
+      throw new DomainException("Solo se pueden agrupar albaranes revisados del mismo cliente", 422);
+    }
+    const customer = this.customers.find((entry) => entry.id === customerId);
+    if (!customer) throw new DomainException("Cliente no encontrado", 422);
+    const issues = validateFiscalCustomer(customer);
+    if (issues.length) throw new DomainException(`Ficha fiscal incompleta: ${issues.join(",")}`, 422);
+    let position = 0;
+    const lines = notes.flatMap((note) =>
+      note.items.map((item) => {
+        const subtotal = moneyFromNumber(item.totalPrice);
+        return {
+          deliveryNoteId: note.id,
+          deliveryNoteNumber: note.number,
+          description: buildInvoiceLineDescription(note.number, item),
+          quantity: canonicalDecimal(item.quantity.toString(), 4),
+          unitPrice: unitPriceFromSubtotal(subtotal, item.quantity),
+          subtotal,
+          taxRate: canonicalDecimal(taxRate, 2),
+          position: position++
+        };
+      })
+    );
+    if (lines.some((line) => !line.description)) {
+      throw new DomainException("Una línea no tiene descripción comercial completa", 422);
+    }
+    const amounts = calculateInvoiceAmounts(lines.map((line) => line.subtotal), taxRate);
+    const snapshot = {
+      customer: {
+        customerId,
+        legalName: customer.legalName!,
+        vat: customer.vat!,
+        street: customer.fiscalStreet!,
+        street2: customer.fiscalStreet2,
+        city: customer.fiscalCity!,
+        zip: customer.fiscalZip!,
+        province: customer.fiscalProvince,
+        countryCode: customer.fiscalCountryCode!,
+        paymentTermCode: customer.paymentTermCode,
+        externalPartnerId: customer.externalPartnerId
+      },
+      deliveryNotes: notes.map((note) => ({ id: note.id, number: note.number, date: note.date })),
+      lines,
+      ...amounts,
+      taxRate: canonicalDecimal(taxRate, 2),
+      series
+    };
+    return {
+      ...snapshot,
+      snapshotHash: createHash("sha256").update(JSON.stringify(snapshot)).digest("hex")
+    };
+  }
+
   public async reserve(input: ReserveInvoiceInput) {
     const existing = [...this.invoices.values()].find(
       (invoice) => invoice.idempotencyKey === input.idempotencyKey
     );
     if (existing) return { invoice: structuredClone(existing), created: false };
+    if (input.expectedSnapshotHash) {
+      const current = await this.preparePreview(input.deliveryNoteIds, input.taxRate, input.series);
+      if (current.snapshotHash !== input.expectedSnapshotHash) {
+        throw new DomainException("Los albaranes han cambiado; revisa de nuevo la factura", 409);
+      }
+    }
 
     const ids = [...input.deliveryNoteIds].sort();
     if (ids.length < 1 || ids.length > 100 || new Set(ids).size !== ids.length) {

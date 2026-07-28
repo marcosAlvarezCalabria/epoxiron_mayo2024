@@ -17,7 +17,18 @@ export const verifactuStateSchema = z.enum([
 export const createInvoiceSchema = z
   .object({
     deliveryNoteIds: z.array(z.string().uuid()).min(1).max(100),
-    confirmed: z.literal(true)
+    confirmed: z.literal(true),
+    previewToken: z.string().min(64).max(4096)
+  })
+  .strict()
+  .refine((value) => new Set(value.deliveryNoteIds).size === value.deliveryNoteIds.length, {
+    message: "No se permiten albaranes duplicados",
+    path: ["deliveryNoteIds"]
+  });
+
+export const previewInvoiceSchema = z
+  .object({
+    deliveryNoteIds: z.array(z.string().uuid()).min(1).max(100)
   })
   .strict()
   .refine((value) => new Set(value.deliveryNoteIds).size === value.deliveryNoteIds.length, {

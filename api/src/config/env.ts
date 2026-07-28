@@ -84,7 +84,8 @@ const envSchema = z
     ODOO_RECONCILIATION_ENABLED: booleanStringWithDefaultFalse,
     ODOO_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(30000),
     ODOO_RECONCILIATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(20),
-    ODOO_MAX_PDF_BYTES: z.coerce.number().int().positive().default(10485760)
+    ODOO_MAX_PDF_BYTES: z.coerce.number().int().positive().default(10485760),
+    ODOO_INVOICE_PREVIEW_TTL_MS: z.coerce.number().int().min(60000).max(3600000).default(900000)
   })
   .superRefine((value, context) => {
     const resolvedVoiceParserBaseUrl =

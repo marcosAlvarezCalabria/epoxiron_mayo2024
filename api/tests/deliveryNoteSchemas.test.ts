@@ -14,4 +14,17 @@ describe("deliveryNoteItemDraftSchema", () => {
 
     expect(result.description).toBe(`PAPELERA 510X510X2+510X1120X4 ${middleDot} 9003`);
   });
+
+  it("accepts quantities from 1 to 200 and rejects values outside the shared range", () => {
+    const base = {
+      description: "Pieza",
+      color: "RAL 9003",
+      pricingMode: "UNIT" as const
+    };
+
+    expect(deliveryNoteItemDraftSchema.safeParse({ ...base, quantity: 1 }).success).toBe(true);
+    expect(deliveryNoteItemDraftSchema.safeParse({ ...base, quantity: 200 }).success).toBe(true);
+    expect(deliveryNoteItemDraftSchema.safeParse({ ...base, quantity: 0 }).success).toBe(false);
+    expect(deliveryNoteItemDraftSchema.safeParse({ ...base, quantity: 201 }).success).toBe(false);
+  });
 });

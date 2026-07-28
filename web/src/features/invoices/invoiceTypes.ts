@@ -36,3 +36,25 @@ export interface InvoiceListResponse {
     hasMore: boolean;
   };
 }
+
+export interface InvoicePreview {
+  issuer: { legalName: string; vat: string; street: string; city: string; zip: string; province: string; countryCode: string };
+  customer: { customerId: string; legalName: string; vat: string; street: string; street2: string | null; city: string; zip: string; province: string | null; countryCode: string; paymentTermCode: string | null };
+  deliveryNotes: Array<{ id: string; number: string; date: string }>;
+  lines: Array<{ deliveryNoteId: string; deliveryNoteNumber: string; description: string; quantity: string; unitPrice: string; subtotal: string; taxRate: string; total: string; position: number }>;
+  issueDate: string;
+  deliveryNoteCount: number;
+  lineCount: number;
+  warnings: string[];
+  subtotal: string;
+  taxRate: string;
+  taxAmount: string;
+  total: string;
+  series: string | null;
+}
+
+export interface InvoicePreviewResponse {
+  preview: InvoicePreview;
+  previewToken: string;
+  expiresAt: string;
+}

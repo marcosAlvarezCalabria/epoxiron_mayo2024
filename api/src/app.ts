@@ -66,6 +66,7 @@ import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
 import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
 import { buildVoiceRouter } from "./routes/voice.routes.js";
 import { buildInvoicesRouter } from "./routes/invoices.routes.js";
+import { PreviewInvoiceUseCase } from "./application/use-cases/invoices/previewInvoice.js";
 
 export interface AppContext {
   app: express.Express;
@@ -92,6 +93,13 @@ export const createAppContext = (): AppContext => {
     invoiceGateway,
     env.ODOO_RECONCILIATION_MAX_ATTEMPTS
   );
+  const previewInvoiceUseCase = new PreviewInvoiceUseCase(invoiceRepository, {
+    enabled: env.ODOO_INVOICING_ENABLED,
+    taxRate: env.ODOO_TAX_RATE.toString(),
+    series: env.ODOO_SERIES.trim() || null,
+    tokenSecret: env.JWT_SECRET,
+    ttlMs: env.ODOO_INVOICE_PREVIEW_TTL_MS
+  });
   const createInvoiceUseCase = new CreateInvoiceFromDeliveryNotesUseCase(
     invoiceRepository,
     invoiceGateway,
@@ -99,7 +107,8 @@ export const createAppContext = (): AppContext => {
       enabled: env.ODOO_INVOICING_ENABLED,
       taxRate: env.ODOO_TAX_RATE.toString(),
       series: env.ODOO_SERIES.trim() || null
-    }
+    },
+    previewInvoiceUseCase
   );
   const getInvoiceUseCase = new GetInvoiceUseCase(invoiceRepository);
   const listInvoicesUseCase = new ListInvoicesUseCase(invoiceRepository);
@@ -258,7 +267,8 @@ export const createAppContext = (): AppContext => {
     getInvoiceUseCase,
     listInvoicesUseCase,
     reconcileInvoiceUseCase,
-    getInvoicePdfUseCase
+    getInvoicePdfUseCase,
+    previewInvoiceUseCase
   );
 
   const app = express();

@@ -4,6 +4,7 @@ import type { GetInvoiceUseCase } from "../application/use-cases/invoices/getInv
 import type { GetInvoicePdfUseCase } from "../application/use-cases/invoices/getInvoicePdf.js";
 import type { ListInvoicesUseCase } from "../application/use-cases/invoices/listInvoices.js";
 import type { ReconcileInvoiceUseCase } from "../application/use-cases/invoices/reconcileInvoice.js";
+import type { PreviewInvoiceUseCase } from "../application/use-cases/invoices/previewInvoice.js";
 import { listInvoicesQuerySchema } from "../schemas/invoiceSchemas.js";
 import { getRouteParam } from "./requestParsers.js";
 
@@ -18,12 +19,26 @@ export class InvoicesController {
     private readonly getInvoiceUseCase: GetInvoiceUseCase,
     private readonly listInvoicesUseCase: ListInvoicesUseCase,
     private readonly reconcileInvoiceUseCase: ReconcileInvoiceUseCase,
-    private readonly getInvoicePdfUseCase: GetInvoicePdfUseCase
+    private readonly getInvoicePdfUseCase: GetInvoicePdfUseCase,
+    private readonly previewInvoiceUseCase: PreviewInvoiceUseCase
   ) {}
 
   public create = async (request: Request, response: Response) => {
-    const result = await this.createInvoiceUseCase.executeWithResult(request.body.deliveryNoteIds);
+    const result = await this.createInvoiceUseCase.executeWithResult(
+      request.body.deliveryNoteIds,
+      request.body.previewToken,
+      response.locals.authenticatedActor as string
+    );
     response.status(result.created ? 201 : 200).json(result);
+  };
+
+  public preview = async (request: Request, response: Response) => {
+    response.json(
+      await this.previewInvoiceUseCase.execute(
+        request.body.deliveryNoteIds,
+        response.locals.authenticatedActor as string
+      )
+    );
   };
 
   public list = async (request: Request, response: Response) => {

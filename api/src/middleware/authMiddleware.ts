@@ -8,8 +8,10 @@ const getHermesSecret = (request: Request) =>
 const jwtAccessTokenIssuer = new JwtAccessTokenIssuer(env.JWT_SECRET, env.JWT_EXPIRES_IN);
 
 export const authMiddleware = (request: Request, response: Response, next: NextFunction) => {
+  response.locals ??= {};
   const hermesSecret = getHermesSecret(request);
   if (secureSecretEquals(hermesSecret, env.HERMES_SHARED_SECRET)) {
+    response.locals.authenticatedActor = "hermes";
     next();
     return;
   }
@@ -23,7 +25,8 @@ export const authMiddleware = (request: Request, response: Response, next: NextF
   const token = authHeader.slice("Bearer ".length);
 
   try {
-    jwtAccessTokenIssuer.verify(token);
+    const user = jwtAccessTokenIssuer.verify(token);
+    response.locals.authenticatedActor = user.email.toLowerCase();
     next();
   } catch {
     response.status(401).json({ error: "Token invalido o expirado" });

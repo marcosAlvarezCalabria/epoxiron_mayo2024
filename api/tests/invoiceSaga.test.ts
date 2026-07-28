@@ -8,6 +8,7 @@ import type {
 } from "../src/domain/ports/InvoiceGateway.js";
 import { CreateInvoiceFromDeliveryNotesUseCase } from "../src/application/use-cases/invoices/createInvoiceFromDeliveryNotes.js";
 import { ReconcileInvoiceUseCase } from "../src/application/use-cases/invoices/reconcileInvoice.js";
+import { PreviewInvoiceUseCase } from "../src/application/use-cases/invoices/previewInvoice.js";
 import { InMemoryInvoiceRepository } from "../src/infrastructure/repositories/InMemoryInvoiceRepository.js";
 
 const customer = (id = "customer-1"): Customer => ({
@@ -399,5 +400,58 @@ describe("invoice saga", () => {
     expect(firstToken).not.toBeNull();
     expect(secondToken).not.toBeNull();
     expect(thirdToken).toBeNull();
+  });
+
+  it("previews every delivery note line and requires the matching snapshot to emit", async () => {
+    const notes = [note("1"), note("2")];
+    const repository = new InMemoryInvoiceRepository([customer()], notes);
+    const previewUseCase = new PreviewInvoiceUseCase(repository, {
+      enabled: true,
+      taxRate: "21",
+      series: "F",
+      tokenSecret: "test-secret-with-enough-entropy",
+      ttlMs: 900_000
+    });
+    const preview = await previewUseCase.execute(["2", "1"]);
+    const createUseCase = new CreateInvoiceFromDeliveryNotesUseCase(
+      repository,
+      gateway(),
+      { enabled: true, taxRate: "21", series: "F" },
+      previewUseCase
+    );
+
+    expect(preview.preview.lines.map((line) => line.deliveryNoteNumber)).toEqual([
+      "ALB-1",
+      "ALB-2"
+    ]);
+    expect(preview.preview.total).toBe("24.20");
+    await expect(
+      createUseCase.executeWithResult(["1", "2"], preview.previewToken)
+    ).resolves.toMatchObject({ created: true });
+  });
+
+  it("rejects emission when a line changed after preview", async () => {
+    const selectedNote = note("1");
+    const repository = new InMemoryInvoiceRepository([customer()], [selectedNote]);
+    const previewUseCase = new PreviewInvoiceUseCase(repository, {
+      enabled: true,
+      taxRate: "21",
+      series: null,
+      tokenSecret: "test-secret-with-enough-entropy",
+      ttlMs: 900_000
+    });
+    const preview = await previewUseCase.execute(["1"]);
+    selectedNote.items[0]!.totalPrice = 20;
+    const createUseCase = new CreateInvoiceFromDeliveryNotesUseCase(
+      repository,
+      gateway(),
+      { enabled: true, taxRate: "21", series: null },
+      previewUseCase
+    );
+
+    await expect(
+      createUseCase.executeWithResult(["1"], preview.previewToken)
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(repository.invoices.size).toBe(0);
   });
 });

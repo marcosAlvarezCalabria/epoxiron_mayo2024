@@ -2,6 +2,10 @@ import type { CustomerInput } from "../../domain/entities/Customer.js";
 import { DomainException } from "../../domain/exceptions/DomainException.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
 import type { CustomerSyncGateway } from "../../domain/ports/CustomerSyncGateway.js";
+import {
+  normalizeCommercialText,
+  normalizeOptionalCommercialText
+} from "../../domain/services/commercialText.js";
 
 interface CustomerSyncConfig {
   enabled: boolean;
@@ -45,23 +49,27 @@ const normalizeOptionalText = (value: string | null | undefined): string | null 
 
 export const normalizeCustomerInput = (input: CustomerInput): CustomerInput => ({
   ...input,
-  name: input.name.trim(),
+  name: normalizeCommercialText(input.name),
   email: normalizeOptionalText(input.email),
   phone: normalizeOptionalText(input.phone),
-  address: normalizeOptionalText(input.address),
+  address: normalizeOptionalCommercialText(input.address),
   notes: normalizeOptionalText(input.notes),
   vat: normalizeOptionalText(input.vat)?.toUpperCase() ?? null,
-  legalName: normalizeOptionalText(input.legalName),
-  fiscalStreet: normalizeOptionalText(input.fiscalStreet),
-  fiscalStreet2: normalizeOptionalText(input.fiscalStreet2),
-  fiscalCity: normalizeOptionalText(input.fiscalCity),
+  legalName: normalizeOptionalCommercialText(input.legalName),
+  fiscalStreet: normalizeOptionalCommercialText(input.fiscalStreet),
+  fiscalStreet2: normalizeOptionalCommercialText(input.fiscalStreet2),
+  fiscalCity: normalizeOptionalCommercialText(input.fiscalCity),
   fiscalZip: normalizeOptionalText(input.fiscalZip),
-  fiscalProvince: normalizeOptionalText(input.fiscalProvince),
+  fiscalProvince: normalizeOptionalCommercialText(input.fiscalProvince),
   fiscalCountryCode:
     input.fiscalCountryCode === undefined
       ? undefined
       : normalizeOptionalText(input.fiscalCountryCode)?.toUpperCase() ?? null,
-  paymentTermCode: normalizeOptionalText(input.paymentTermCode),
+  paymentTermCode: normalizeOptionalCommercialText(input.paymentTermCode),
+  specialPieces: input.specialPieces.map((piece) => ({
+    ...piece,
+    name: normalizeCommercialText(piece.name)
+  })),
   externalPartnerId:
     input.externalPartnerId === undefined ? undefined : normalizeOptionalText(input.externalPartnerId)
 });

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { validateFiscalCustomer } from "../../domain/entities/Customer.js";
 import type { Invoice } from "../../domain/entities/Invoice.js";
@@ -93,6 +93,70 @@ const patchToPrisma = (patch: InvoicePatch): Prisma.InvoiceUpdateInput => ({
 });
 
 export class PrismaInvoiceRepository implements InvoiceRepository {
+  public async preparePreview(deliveryNoteIds: string[], taxRate: string, series: string | null) {
+    const sortedIds = [...deliveryNoteIds].sort();
+    if (sortedIds.length < 1 || sortedIds.length > 100 || new Set(sortedIds).size !== sortedIds.length) {
+      throw new DomainException("La factura debe incluir entre 1 y 100 albaranes sin duplicados", 422);
+    }
+    const notes = await prisma.deliveryNote.findMany({
+      where: { id: { in: sortedIds } },
+      include: { items: true, customer: { include: { specialPieces: true } } }
+    });
+    if (notes.length !== sortedIds.length) throw new DomainException("Uno o más albaranes no existen", 422);
+    const byId = new Map(notes.map((note) => [note.id, note]));
+    const ordered = sortedIds.map((id) => byId.get(id)!);
+    const customerId = ordered[0]!.customerId;
+    if (ordered.some((note) => note.customerId !== customerId || note.status !== "REVIEWED")) {
+      throw new DomainException("Solo se pueden agrupar albaranes revisados del mismo cliente", 422);
+    }
+    const customer = ordered[0]!.customer;
+    const issues = validateFiscalCustomer(customer);
+    if (issues.length) throw new DomainException(`Ficha fiscal incompleta: ${issues.join(",")}`, 422);
+    let position = 0;
+    const lines = ordered.flatMap((note) =>
+      note.items.map((item) => {
+        const subtotal = moneyFromNumber(item.totalPrice);
+        const description = buildInvoiceLineDescription(note.number, item);
+        if (!description) throw new DomainException("Una línea no tiene descripción comercial completa", 422);
+        return {
+          deliveryNoteId: note.id,
+          deliveryNoteNumber: note.number,
+          description,
+          quantity: canonicalDecimal(item.quantity.toString(), 4),
+          unitPrice: unitPriceFromSubtotal(subtotal, item.quantity),
+          subtotal,
+          taxRate: canonicalDecimal(taxRate, 2),
+          position: position++
+        };
+      })
+    );
+    const amounts = calculateInvoiceAmounts(lines.map((line) => line.subtotal), taxRate);
+    const snapshot = {
+      customer: {
+        customerId,
+        legalName: customer.legalName!,
+        vat: customer.vat!,
+        street: customer.fiscalStreet!,
+        street2: customer.fiscalStreet2,
+        city: customer.fiscalCity!,
+        zip: customer.fiscalZip!,
+        province: customer.fiscalProvince,
+        countryCode: customer.fiscalCountryCode!,
+        paymentTermCode: customer.paymentTermCode,
+        externalPartnerId: customer.externalPartnerId
+      },
+      deliveryNotes: ordered.map((note) => ({ id: note.id, number: note.number, date: note.date })),
+      lines,
+      ...amounts,
+      taxRate: canonicalDecimal(taxRate, 2),
+      series
+    };
+    return {
+      ...snapshot,
+      snapshotHash: createHash("sha256").update(JSON.stringify(snapshot)).digest("hex")
+    };
+  }
+
   public async reserve(input: ReserveInvoiceInput) {
     if (input.deliveryNoteIds.length < 1 || input.deliveryNoteIds.length > 100) {
       throw new DomainException("La factura debe incluir entre 1 y 100 albaranes", 422);
@@ -143,7 +207,7 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
         }
 
         let position = 0;
-        const lines = orderedNotes.flatMap((note) =>
+        const previewLines = orderedNotes.flatMap((note) =>
           note.items.map((item) => {
             const subtotal = moneyFromNumber(item.totalPrice);
             const description = buildInvoiceLineDescription(note.number, item);
@@ -151,6 +215,8 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
               throw new DomainException("Una línea no tiene descripción comercial completa", 422);
             }
             return {
+              deliveryNoteId: note.id,
+              deliveryNoteNumber: note.number,
               description,
               quantity: canonicalDecimal(item.quantity.toString(), 4),
               unitPrice: unitPriceFromSubtotal(subtotal, item.quantity),
@@ -160,10 +226,43 @@ export class PrismaInvoiceRepository implements InvoiceRepository {
             };
           })
         );
+        const lines = previewLines.map(({ deliveryNoteId: _deliveryNoteId, deliveryNoteNumber: _deliveryNoteNumber, ...line }) => line);
         const amounts = calculateInvoiceAmounts(
           lines.map((line) => line.subtotal),
           input.taxRate
         );
+        if (input.expectedSnapshotHash) {
+          const previewSnapshot = {
+            customer: {
+              customerId,
+              legalName: customer.legalName!,
+              vat: customer.vat!,
+              street: customer.fiscalStreet!,
+              street2: customer.fiscalStreet2,
+              city: customer.fiscalCity!,
+              zip: customer.fiscalZip!,
+              province: customer.fiscalProvince,
+              countryCode: customer.fiscalCountryCode!,
+              paymentTermCode: customer.paymentTermCode,
+              externalPartnerId: customer.externalPartnerId
+            },
+            deliveryNotes: orderedNotes.map((note) => ({
+              id: note.id,
+              number: note.number,
+              date: note.date
+            })),
+            lines: previewLines,
+            ...amounts,
+            taxRate: canonicalDecimal(input.taxRate, 2),
+            series: input.series
+          };
+          const currentHash = createHash("sha256")
+            .update(JSON.stringify(previewSnapshot))
+            .digest("hex");
+          if (currentHash !== input.expectedSnapshotHash) {
+            throw new DomainException("Los albaranes han cambiado; revisa de nuevo la factura", 409);
+          }
+        }
 
         const created = await transaction.invoice.create({
           data: {

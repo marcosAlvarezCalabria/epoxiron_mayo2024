@@ -3,6 +3,7 @@ import { DomainException } from "../../../domain/exceptions/DomainException.js";
 import type { InvoiceGateway } from "../../../domain/ports/InvoiceGateway.js";
 import type { InvoiceRepository } from "../../../domain/repositories/InvoiceRepository.js";
 import { buildInvoiceKeys } from "./invoiceKeys.js";
+import type { PreviewInvoiceUseCase } from "./previewInvoice.js";
 
 interface SanitizedExternalError {
   code: string;
@@ -52,7 +53,8 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
   public constructor(
     private readonly repository: InvoiceRepository,
     private readonly gateway: InvoiceGateway,
-    private readonly config: { enabled: boolean; taxRate: string; series: string | null }
+    private readonly config: { enabled: boolean; taxRate: string; series: string | null },
+    private readonly previewInvoiceUseCase?: PreviewInvoiceUseCase
   ) {}
 
   public async execute(deliveryNoteIds: string[]): Promise<Invoice> {
@@ -60,18 +62,27 @@ export class CreateInvoiceFromDeliveryNotesUseCase {
   }
 
   public async executeWithResult(
-    deliveryNoteIds: string[]
+    deliveryNoteIds: string[],
+    previewToken?: string,
+    requester = "system"
   ): Promise<{ invoice: Invoice; created: boolean }> {
     if (!this.config.enabled) {
       throw new DomainException("La facturación Odoo está desactivada", 503);
     }
 
+    if (this.previewInvoiceUseCase && !previewToken) {
+      throw new DomainException("Debes revisar la factura antes de emitirla", 409);
+    }
+    const expectedSnapshotHash = previewToken
+      ? this.previewInvoiceUseCase?.verify(previewToken, deliveryNoteIds, requester)
+      : undefined;
     const keys = buildInvoiceKeys(deliveryNoteIds);
     const reservation = await this.repository.reserve({
       deliveryNoteIds,
       ...keys,
       series: this.config.series,
-      taxRate: this.config.taxRate
+      taxRate: this.config.taxRate,
+      expectedSnapshotHash
     });
     let invoice = reservation.invoice;
     let resumeLeaseToken: string | null = null;

@@ -16,6 +16,7 @@ import {
 import {
   createInvoiceSchema,
   invoiceLocalStateSchema,
+  previewInvoiceSchema,
   verifactuStateSchema
 } from "../schemas/invoiceSchemas.js";
 
@@ -302,6 +303,61 @@ const commonErrorResponses = {
     }
   }
 } as const;
+
+registry.registerPath({
+  method: "post",
+  path: "/api/invoices/preview",
+  tags: ["Invoices"],
+  security: bearerOrHermesSecurity,
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: previewInvoiceSchema } }
+    }
+  },
+  responses: {
+    200: {
+      description: "Previsualización autoritativa previa a la emisión",
+      content: {
+        "application/json": {
+          schema: z.object({
+            preview: z.object({
+              issuer: z.record(z.string()),
+              customer: z.record(z.union([z.string(), z.null()])),
+              deliveryNotes: z.array(z.object({ id: z.string(), number: z.string(), date: z.string().datetime() })),
+              lines: z.array(z.object({
+                deliveryNoteId: z.string(),
+                deliveryNoteNumber: z.string(),
+                description: z.string(),
+                quantity: z.string(),
+                unitPrice: z.string(),
+                subtotal: z.string(),
+                taxRate: z.string(),
+                total: z.string(),
+                position: z.number().int()
+              })),
+              issueDate: z.string().datetime(),
+              deliveryNoteCount: z.number().int(),
+              lineCount: z.number().int(),
+              warnings: z.array(z.string()),
+              subtotal: z.string(),
+              taxRate: z.string(),
+              taxAmount: z.string(),
+              total: z.string(),
+              series: z.string().nullable()
+            }),
+            previewToken: z.string(),
+            expiresAt: z.string().datetime()
+          })
+        }
+      }
+    },
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+    409: commonErrorResponses[500],
+    503: commonErrorResponses[503]
+  }
+});
 
 registry.registerPath({
   method: "post",

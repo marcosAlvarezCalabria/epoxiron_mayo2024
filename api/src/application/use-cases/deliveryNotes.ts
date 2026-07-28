@@ -20,6 +20,7 @@ import type {
   DailyDeliveryNotesReportUploader
 } from "../../domain/services/DailyDeliveryNotesReportUploader.js";
 import { normalizeSpecialPieceName } from "../../domain/services/deliveryNoteItemDescription.js";
+import { normalizeCommercialText } from "../../domain/services/commercialText.js";
 
 export interface PriceCalculationResult {
   unitPrice: number;
@@ -101,6 +102,8 @@ const materializeItems = (
 
     return {
       ...persistedItem,
+      description: normalizeCommercialText(persistedItem.description),
+      color: normalizeCommercialText(persistedItem.color),
       pricingMode: item.pricingMode ?? "DIMENSIONS",
       customUnitPrice: item.customUnitPrice ?? null,
       texture: item.texture ?? "NORMAL",

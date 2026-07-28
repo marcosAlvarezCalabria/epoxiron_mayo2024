@@ -475,7 +475,7 @@ export const buildVoiceDraftPreview = (transcript: string): VoiceDraftPreview =>
 export const mapParsedVoiceItemToFormState = (
   item: ParsedVoiceAlbaranItem,
   customer?: Customer | null
-): DeliveryNoteItemFormState => ({
+): Omit<DeliveryNoteItemFormState, "clientId"> => ({
   ...(() => {
     const matchedSpecialPiece = findMatchingCustomerSpecialPiece(customer, item);
 
