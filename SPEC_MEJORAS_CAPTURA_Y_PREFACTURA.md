@@ -2,7 +2,7 @@
 
 > **Fecha:** 2026-07-27
 > **Versión:** v1.0
-> **Estado:** Implementación local completada; validación E2E y despliegue en staging pendientes.
+> **Estado:** Implementada y validada en staging; pendiente de aprobación humana para `main`.
 > **Ámbito:** Web y API de Epoxiron. No modifica facturas ya emitidas.
 
 ---
@@ -380,3 +380,19 @@ No se despliega una fase si fallan lint, tests o build de API o web.
 - Lint, tests y build completos de API y web.
 - Despliegue inicial únicamente en staging.
 - Aprobación humana antes de merge a `main` o activación en producción.
+
+---
+
+## 8. Resultado de validación en staging
+
+Validación realizada el 2026-07-28 sobre `feature/facturacion-odoo`:
+
+- tres albaranes y cinco líneas mostrados por la previsualización autoritativa;
+- modificación posterior de unidades rechazada con `409`;
+- doble emisión concurrente resuelta con respuestas `201` y `200` sobre una única factura;
+- factura de prueba `INV/2026/00011`;
+- Odoo `POSTED` y VeriFactu `ACCEPTED`;
+- base `84,08 €`, IVA `17,66 €` y total `101,74 €`;
+- PDF disponible, descargado con HTTP `200` y cabecera `%PDF` válida.
+
+No se ha modificado ni fusionado `main`, ni se ha activado esta funcionalidad en producción.
