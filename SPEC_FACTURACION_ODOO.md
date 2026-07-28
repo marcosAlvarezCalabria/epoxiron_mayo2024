@@ -1,8 +1,8 @@
 # SPEC — Facturación con Odoo (sustitución de Sage 50)
 
 > Especificación del módulo de facturación de Epoxiron.
-> **Fecha:** 2026-07-27 · **Versión:** v2.8 (sincronización de clientes implementada; validación en staging pendiente)
-> **Estado:** Fases 1A–1E completadas; rama preparada para revisión humana, sin merge ni producción.
+> **Fecha:** 2026-07-28 · **Versión:** v2.9
+> **Estado:** Fases 1A–1E y previsualización fiscal desplegadas y validadas en staging; sin merge ni producción.
 > **Autor:** Marcos + Claude · Revisión técnica: Codex.
 
 ---
@@ -211,6 +211,19 @@ Reglas obligatorias:
 La importación inicial desde Sage reutilizará este mismo servicio de aplicación para crear o adoptar
 los clientes en Odoo y persistir la relación, en lugar de escribir directamente en ninguna base de
 datos. Se ejecutará primero en staging, por lotes controlados y con informe de duplicados y errores.
+
+**Estado de implementación a 2026-07-28:**
+
+- alta, edición, archivo y restauración están implementados en
+  `api/src/application/use-cases/customers.ts`;
+- el adaptador JSON-2 crea o adopta por NIF, valida el contacto asociado y actualiza `active`;
+- `externalPartnerId` se persiste únicamente tras una respuesta correcta de Odoo;
+- un rechazo remoto impide confirmar el cambio local y devuelve un error seguro;
+- el comportamiento está cubierto por tests unitarios y de integración;
+- `ODOO_CUSTOMER_SYNC_ENABLED=true` está activo únicamente en staging;
+- el E2E de facturación validó la reconciliación del cliente mediante `ensureCustomer`;
+- queda como comprobación operativa separada ejecutar y observar en Odoo un ciclo manual completo
+  de alta → edición → archivo → restauración antes de producción.
 
 ### 5.2 Nueva entidad `Invoice` — importes en `Decimal`, no `Float`
 ```ts
@@ -513,6 +526,7 @@ ambos transportes autenticados y dos facturas de prueba aceptadas con documento,
 | Factura completada | VeriFactu/AEAT en estado `accepted` | ✅ Cerrado y validado | MVP |
 | Datos fiscales del emisor | Pendientes de carga y validación definitivas en Odoo | ⏳ Producción | Antes de emitir |
 | Datos fiscales de clientes | Campos web implementados; backfill de clientes reales pendiente | ⚠️ Parcial | Antes de producción |
+| Sincronización de clientes | Implementada, testeada y desplegada en staging; ciclo CRUD remoto manual pendiente | ⚠️ Parcial | Antes de producción |
 | Handoff gestoría | Irrelevante para el MVP; posible PDF inicialmente | ⏳ Aplazado | Operación posterior |
 | Alcance de Odoo | Sustitución completa de Sage 50 | ✅ Cerrado | Plan de migración separado |
 
@@ -547,8 +561,10 @@ emisor y del cliente, y el corte/migración desde Sage.
 
 **Siguiente orden de trabajo:**
 1. Revisión humana de `feature/facturacion-odoo`; no fusionar automáticamente.
-2. Si se aprueba, preparar el merge controlado a `main` manteniendo `ODOO_INVOICING_ENABLED=false`.
-3. Antes de producción, cerrar serie y último número, datos fiscales del emisor, backfill de clientes,
+2. Completar en staging la comprobación manual del ciclo de vida de un cliente contra `res.partner`.
+3. Si se aprueba, preparar el merge controlado a `main` manteniendo
+   `ODOO_INVOICING_ENABLED=false` y `ODOO_CUSTOMER_SYNC_ENABLED=false`.
+4. Antes de producción, cerrar serie y último número, datos fiscales del emisor, backfill de clientes,
    fecha de corte de Sage, plan de migración con la gestoría y aprobación final.
 
 Las Fases 0 y 1 están implementadas y documentadas únicamente en `feature/facturacion-odoo`.

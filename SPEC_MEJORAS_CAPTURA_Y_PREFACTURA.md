@@ -394,5 +394,10 @@ Validación realizada el 2026-07-28 sobre `feature/facturacion-odoo`:
 - Odoo `POSTED` y VeriFactu `ACCEPTED`;
 - base `84,08 €`, IVA `17,66 €` y total `101,74 €`;
 - PDF disponible, descargado con HTTP `200` y cabecera `%PDF` válida.
+- la selección para facturar no altera el ancho de la lista de albaranes;
+- una barra flotante compacta mantiene `Revisar factura` accesible mientras se siguen seleccionando
+  albaranes y permite vaciar la selección;
+- el flujo móvil fue comprobado y aprobado manualmente por el usuario sobre staging;
+- commit funcional inicial `25b76fb`, evidencia `e7aaa73` y ajuste móvil `553536c`.
 
 No se ha modificado ni fusionado `main`, ni se ha activado esta funcionalidad en producción.
