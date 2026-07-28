@@ -735,7 +735,11 @@ export const DeliveryNotesPage = () => {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
-        <div className={`${mobilePane === "detail" ? "hidden xl:block" : "block"} space-y-4`}>
+        <div
+          className={`${mobilePane === "detail" ? "hidden xl:block" : "block"} ${
+            invoiceSelection.length > 0 ? "pb-28 md:pb-24" : ""
+          } min-w-0 space-y-4`}
+        >
           <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-4">
             <div className="grid gap-3">
               <div className="flex flex-wrap gap-2">
@@ -837,28 +841,6 @@ export const DeliveryNotesPage = () => {
               message={deliveryNotesQuery.error.message}
               title="Error al cargar albaranes"
             />
-          ) : null}
-
-          {invoiceSelection.length > 0 ? (
-            <div className="border border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.12)] p-4">
-              <p className="font-semibold text-white">
-                {invoiceSelection.length} albarán(es) seleccionados
-              </p>
-              <p className="mt-1 text-sm text-[var(--epx-text-muted)]">
-                Base estimada: {formatCurrency(selectedForInvoice.reduce((sum, note) => sum + note.totalAmount, 0))}
-              </p>
-              {invoicePreviewMutation.error instanceof ApiError ? (
-                <p className="mt-2 text-sm text-red-300">{invoicePreviewMutation.error.message}</p>
-              ) : null}
-              <button
-                className="mt-3 bg-[var(--epx-accent)] px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
-                disabled={invoicePreviewMutation.isPending}
-                onClick={confirmInvoice}
-                type="button"
-              >
-                {invoicePreviewMutation.isPending ? "Preparando factura…" : "Revisar factura"}
-              </button>
-            </div>
           ) : null}
 
           <div className="space-y-3">
@@ -1589,6 +1571,55 @@ export const DeliveryNotesPage = () => {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {invoiceSelection.length > 0 && !invoicePreviewData ? (
+        <aside
+          aria-live="polite"
+          className="fixed inset-x-3 bottom-[5.75rem] z-40 mx-auto max-w-xl border border-[var(--epx-accent)]/60 bg-[#24211e] shadow-[0_16px_36px_rgba(0,0,0,0.42)] md:bottom-4"
+        >
+          <div className="flex min-w-0 items-center gap-2 p-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+              <span className="flex h-9 min-w-9 shrink-0 items-center justify-center bg-[var(--epx-accent)] px-2 text-sm font-bold text-[#131313]">
+                {invoiceSelection.length}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">
+                  {invoiceSelection.length === 1
+                    ? "1 albarán seleccionado"
+                    : `${invoiceSelection.length} albaranes seleccionados`}
+                </p>
+                <p className="truncate text-xs text-[#d7c8b7]">
+                  Puedes seguir añadiendo desde la lista
+                </p>
+              </div>
+            </div>
+            <button
+              aria-label="Vaciar selección de factura"
+              className="flex h-11 w-11 shrink-0 items-center justify-center border border-white/15 text-[#d7c8b7] transition-colors hover:border-white/30 hover:text-white"
+              disabled={invoicePreviewMutation.isPending}
+              onClick={() => setInvoiceSelection([])}
+              type="button"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+            <button
+              className="min-h-11 shrink-0 bg-[var(--epx-accent)] px-3 text-sm font-bold text-[#131313] disabled:cursor-wait disabled:opacity-60 sm:px-4"
+              disabled={invoicePreviewMutation.isPending}
+              onClick={confirmInvoice}
+              type="button"
+            >
+              {invoicePreviewMutation.isPending ? "Preparando…" : "Revisar factura"}
+            </button>
+          </div>
+          {invoicePreviewMutation.error instanceof ApiError ? (
+            <div className="border-t border-red-400/20 bg-red-500/10 px-3 py-2">
+              <p className="text-sm text-red-200" role="alert">
+                {invoicePreviewMutation.error.message}
+              </p>
+            </div>
+          ) : null}
+        </aside>
       ) : null}
 
       <ItemFormSheet
