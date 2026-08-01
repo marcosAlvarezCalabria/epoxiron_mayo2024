@@ -125,7 +125,6 @@ pnpm --dir api build
 pnpm --dir web lint
 pnpm --dir web test
 pnpm --dir web build
-npm --prefix api audit --omit=dev
 pnpm audit --prod # solo se admite GHSA-qwww-vcr4-c8h2 según la excepción documentada
 git diff --check
 git status --short
@@ -148,7 +147,7 @@ git status --short
 
 ## 5. Definition of Done
 
-- `npm audit --omit=dev` en `api/` sin altas ni moderadas.
+- `pnpm audit --prod` sin vulnerabilidades altas ni moderadas aplicables.
 - Rate limiting activo, configurable y con tests.
 - Comparaciones de secretos timing-safe.
 - Errores de base de datos sin detalle interno en las respuestas.

@@ -130,7 +130,6 @@ pnpm --dir api build
 pnpm --dir web lint
 pnpm --dir web test
 pnpm --dir web build
-npm --prefix api audit --omit=dev
 pnpm audit --prod
 git diff --check
 git status --short
@@ -143,6 +142,9 @@ git status --short
 - API sin vulnerabilidades altas o moderadas.
 - En web solo se admite la excepción RSC documentada en `docs/SECURITY_EXCEPTIONS.md` mientras la
   aplicación siga siendo una SPA sin RSC.
+- La auditoría se ejecuta con `pnpm`, gestor y fuente de verdad del monorepo. No usar `npm audit`
+  contra `node_modules`, porque puede leer metadatos residuales de instalaciones anteriores y reportar
+  versiones distintas de las fijadas en `pnpm-lock.yaml`.
 - `git diff --check` sin errores.
 - árbol de trabajo limpio al terminar.
 
