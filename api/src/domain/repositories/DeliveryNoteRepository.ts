@@ -10,10 +10,9 @@ export interface DeliveryNoteRepository {
   findDistinctDatesInRange(from: Date, to: Date): Promise<Date[]>;
   count(filters: DeliveryNoteFilters): Promise<number>;
   findById(id: string): Promise<DeliveryNote | null>;
-  findLatestNumberForYear(year: number): Promise<string | null>;
-  create(
+  createWithNextNumber(
+    year: number,
     input: DeliveryNoteInput & {
-      number: string;
       customerName: string;
       totalAmount: number;
       items: DeliveryNote["items"];

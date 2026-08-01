@@ -20,6 +20,7 @@ import type {
   DailyDeliveryNotesReportUploader
 } from "../../domain/services/DailyDeliveryNotesReportUploader.js";
 import { normalizeSpecialPieceName } from "../../domain/services/deliveryNoteItemDescription.js";
+import { normalizeCommercialText } from "../../domain/services/commercialText.js";
 
 export interface PriceCalculationResult {
   unitPrice: number;
@@ -101,6 +102,8 @@ const materializeItems = (
 
     return {
       ...persistedItem,
+      description: normalizeCommercialText(persistedItem.description),
+      color: normalizeCommercialText(persistedItem.color),
       pricingMode: item.pricingMode ?? "DIMENSIONS",
       customUnitPrice: item.customUnitPrice ?? null,
       texture: item.texture ?? "NORMAL",
@@ -149,19 +152,6 @@ const syncCustomerSpecialPieces = async (
   });
 };
 
-const buildDeliveryNoteNumber = async (
-  repository: DeliveryNoteRepository,
-  date: Date
-): Promise<string> => {
-  const year = date.getFullYear();
-  const latestNumber = await repository.findLatestNumberForYear(year);
-  const lastSequence = latestNumber
-    ? Number.parseInt(latestNumber.split("-").at(-1) ?? "0", 10)
-    : 0;
-
-  return `ALB-${year}-${(lastSequence + 1).toString().padStart(4, "0")}`;
-};
-
 const formatReportDate = (date: Date) => date.toISOString().slice(0, 10);
 
 const resolveLatestUpdatedAt = (notes: DeliveryNote[]) =>
@@ -187,7 +177,6 @@ export class CreateDeliveryNoteUseCase {
     }
 
     const date = input.date ?? new Date();
-    const number = await buildDeliveryNoteNumber(this.deliveryNoteRepository, date);
     const pricedItems = materializeItems(customer, input.items, this.calculatePriceUseCase);
     const customerWithSpecialPieces = await syncCustomerSpecialPieces(
       customer,
@@ -200,10 +189,9 @@ export class CreateDeliveryNoteUseCase {
       input.items,
       this.calculatePriceUseCase
     );
-    return this.deliveryNoteRepository.create({
+    return this.deliveryNoteRepository.createWithNextNumber(date.getFullYear(), {
       ...input,
       date,
-      number,
       customerName: customerWithSpecialPieces.name,
       items,
       totalAmount: sumTotalAmount(items)
@@ -222,6 +210,10 @@ export class UpdateDeliveryNoteUseCase {
     const existing = await this.deliveryNoteRepository.findById(id);
     if (!existing) {
       throw new DomainException("Albarán no encontrado", 404);
+    }
+
+    if (existing.status === "INVOICED") {
+      throw new DomainException("No se puede editar un albarán facturado", 409);
     }
 
     const customer = await this.customerRepository.findById(input.customerId);
@@ -259,6 +251,10 @@ export class DeleteDeliveryNoteUseCase {
     const deliveryNote = await this.repository.findById(id);
     if (!deliveryNote) {
       throw new DomainException("Albarán no encontrado", 404);
+    }
+
+    if (deliveryNote.status === "INVOICED") {
+      throw new DomainException("No se puede eliminar un albarán facturado", 409);
     }
 
     await this.repository.delete(id);
@@ -317,6 +313,10 @@ export class ChangeDeliveryNoteStatusUseCase {
     const deliveryNote = await this.repository.findById(id);
     if (!deliveryNote) {
       throw new DomainException("Albarán no encontrado", 404);
+    }
+
+    if (deliveryNote.status === "INVOICED") {
+      throw new DomainException("No se puede cambiar el estado de un albarán facturado", 409);
     }
 
     return this.repository.updateStatus(id, status);

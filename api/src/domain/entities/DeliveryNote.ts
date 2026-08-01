@@ -1,4 +1,4 @@
-export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED";
+export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED" | "INVOICED";
 export type DeliveryNoteTexture = "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO";
 export type DeliveryNotePricingMode = "DIMENSIONS" | "UNIT";
 

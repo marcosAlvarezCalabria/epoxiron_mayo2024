@@ -12,6 +12,15 @@ export interface CustomerFormState {
   phone: string;
   address: string;
   notes: string;
+  vat: string;
+  legalName: string;
+  fiscalStreet: string;
+  fiscalStreet2: string;
+  fiscalCity: string;
+  fiscalZip: string;
+  fiscalProvince: string;
+  fiscalCountryCode: string;
+  paymentTermCode: string;
   pricePerLinearMeter: string;
   pricePerSquareMeter: string;
   minimumRate: string;
@@ -47,8 +56,9 @@ interface CustomerFormStepperProps {
 
 const steps = [
   { id: 0, label: "Contacto" },
-  { id: 1, label: "Tarifas" },
-  { id: 2, label: "Piezas" }
+  { id: 1, label: "Fiscal" },
+  { id: 2, label: "Tarifas" },
+  { id: 3, label: "Piezas" }
 ] as const;
 
 const specialPieceDuplicateMessage = "No puede haber piezas especiales con el mismo nombre.";
@@ -91,7 +101,7 @@ export const CustomerFormStepper = ({
       }
     }
 
-    if (stepIndex === 1) {
+    if (stepIndex === 2) {
       if (!form.pricePerLinearMeter.trim()) {
         nextErrors.pricePerLinearMeter = "La tarifa por metro lineal es obligatoria.";
       }
@@ -105,7 +115,7 @@ export const CustomerFormStepper = ({
       }
     }
 
-    if (stepIndex === 2 && duplicatedSpecialPieceIndexes.size > 0) {
+    if (stepIndex === 3 && duplicatedSpecialPieceIndexes.size > 0) {
       nextErrors.specialPieces = specialPieceDuplicateMessage;
       onToggleSpecialPiecesEditor(true);
     }
@@ -309,6 +319,41 @@ export const CustomerFormStepper = ({
 
         {step === 1 ? (
           <div className="space-y-4">
+            <div className="border border-neutral-300 bg-neutral-50 p-4">
+              <p className="text-sm font-semibold text-neutral-900">Datos para facturación</p>
+              <p className="mt-1 text-sm text-neutral-600">
+                Puedes completarlos gradualmente. Solo serán obligatorios al emitir una factura.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                ["legalName", "Razón social"],
+                ["vat", "NIF / CIF"],
+                ["fiscalStreet", "Calle fiscal"],
+                ["fiscalStreet2", "Segunda línea"],
+                ["fiscalZip", "Código postal"],
+                ["fiscalCity", "Ciudad"],
+                ["fiscalProvince", "Provincia"],
+                ["fiscalCountryCode", "País (código ISO)"],
+                ["paymentTermCode", "Condición de pago"]
+              ] as const).map(([field, placeholder]) => (
+                <input
+                  className="border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+                  key={field}
+                  maxLength={field === "fiscalCountryCode" ? 2 : 255}
+                  onChange={(event) =>
+                    onFormChange((current) => ({ ...current, [field]: event.target.value }))
+                  }
+                  placeholder={placeholder}
+                  value={form[field]}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {step === 2 ? (
+          <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
               {([
                 { key: "pricePerLinearMeter", label: "Tarifa por metro lineal", suffix: "€/ml" },
@@ -373,7 +418,7 @@ export const CustomerFormStepper = ({
           </div>
         ) : null}
 
-        {step === 2 ? (
+        {step === 3 ? (
           <div className="space-y-4">
             <div className="border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] p-4">
               <div className="flex items-start justify-between gap-3">

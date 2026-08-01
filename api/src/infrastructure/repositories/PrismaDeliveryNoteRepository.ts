@@ -200,45 +200,38 @@ export class PrismaDeliveryNoteRepository implements DeliveryNoteRepository {
     return note ? toDomainNote(note) : null;
   }
 
-  public async findLatestNumberForYear(year: number) {
-    const latest = await prisma.deliveryNote.findFirst({
-      where: {
-        number: {
-          startsWith: `ALB-${year}-`
-        }
-      },
-      orderBy: {
-        number: "desc"
-      }
-    });
-
-    return latest?.number ?? null;
-  }
-
-  public async create(input: {
+  public async createWithNextNumber(year: number, input: {
     customerId: string;
     customerName: string;
     date?: Date;
     items: DeliveryNote["items"];
     notes?: string | null;
-    number: string;
     status: DeliveryNoteStatus;
     totalAmount: number;
   }) {
-    const note = await prisma.deliveryNote.create({
-      data: {
-        ...input,
-        date: input.date ?? new Date(),
-        items: {
-          create: input.items
+    return prisma.$transaction(async (transaction) => {
+      const sequence = await transaction.deliveryNoteNumberSequence.upsert({
+        where: { year },
+        create: { year, lastSequence: 1 },
+        update: { lastSequence: { increment: 1 } }
+      });
+      const number = `ALB-${year}-${sequence.lastSequence.toString().padStart(4, "0")}`;
+      const note = await transaction.deliveryNote.create({
+        data: {
+          ...input,
+          number,
+          date: input.date ?? new Date(),
+          items: {
+            create: input.items
+          }
+        },
+        include: {
+          items: true
         }
-      },
-      include: {
-        items: true
-      }
-    });
+      });
 
-    return toDomainNote(note);
+      return toDomainNote(note);
+    });
   }
 
   public async update(

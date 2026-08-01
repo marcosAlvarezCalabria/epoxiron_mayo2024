@@ -5,12 +5,30 @@ export const specialPieceSchema = z.object({
   price: z.coerce.number().nonnegative()
 });
 
+const optionalTextSchema = z.string().max(255).nullable().optional();
+const countryCodeSchema = z
+  .string()
+  .trim()
+  .length(2)
+  .regex(/^[A-Za-z]{2}$/)
+  .nullable()
+  .optional();
+
 export const customerInputSchema = z.object({
   name: z.string().min(1),
   email: z.string().email().nullable().optional(),
   phone: z.string().nullable().optional(),
   address: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  vat: optionalTextSchema,
+  legalName: optionalTextSchema,
+  fiscalStreet: optionalTextSchema,
+  fiscalStreet2: optionalTextSchema,
+  fiscalCity: optionalTextSchema,
+  fiscalZip: optionalTextSchema,
+  fiscalProvince: optionalTextSchema,
+  fiscalCountryCode: countryCodeSchema,
+  paymentTermCode: optionalTextSchema,
   pricePerLinearMeter: z.coerce.number().nonnegative(),
   pricePerSquareMeter: z.coerce.number().nonnegative(),
   minimumRate: z.coerce.number().nonnegative(),

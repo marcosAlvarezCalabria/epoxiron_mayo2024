@@ -5,14 +5,20 @@ import {
   DeleteCustomerUseCase,
   GetCustomerUseCase,
   GetCustomersUseCase,
+  normalizeCustomerInput,
+  RestoreCustomerUseCase,
   UpdateCustomerUseCase
 } from "../src/application/use-cases/customers.js";
+import { validateFiscalCustomer } from "../src/domain/entities/Customer.js";
+import type { CustomerSyncGateway } from "../src/domain/ports/CustomerSyncGateway.js";
 
 class InMemoryCustomerRepository {
   public customers: Customer[] = [];
-  public deliveryNotesByCustomerId = new Set<string>();
-  public delete = vi.fn(async (id: string) => {
-    this.customers = this.customers.filter((customer) => customer.id !== id);
+  public setActive = vi.fn(async (id: string, active: boolean) => {
+    const current = this.customers.find((customer) => customer.id === id)!;
+    const updated = { ...current, active, updatedAt: new Date() };
+    this.customers = this.customers.map((customer) => (customer.id === id ? updated : customer));
+    return updated;
   });
   public update = vi.fn(async (id: string, input: CustomerInput) => {
     const current = this.customers.find((customer) => customer.id === id)!;
@@ -23,6 +29,18 @@ class InMemoryCustomerRepository {
       phone: input.phone ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
+      vat: input.vat ?? null,
+      legalName: input.legalName ?? null,
+      fiscalStreet: input.fiscalStreet ?? null,
+      fiscalStreet2: input.fiscalStreet2 ?? null,
+      fiscalCity: input.fiscalCity ?? null,
+      fiscalZip: input.fiscalZip ?? null,
+      fiscalProvince: input.fiscalProvince ?? null,
+      fiscalCountryCode:
+        input.fiscalCountryCode === undefined ? current.fiscalCountryCode : input.fiscalCountryCode,
+      paymentTermCode: input.paymentTermCode ?? null,
+      externalPartnerId: input.externalPartnerId ?? current.externalPartnerId,
+      active: input.active ?? current.active ?? true,
       grosorPrecio: input.grosorPrecio ?? null,
       updatedAt: new Date()
     };
@@ -67,6 +85,17 @@ class InMemoryCustomerRepository {
       phone: input.phone ?? null,
       address: input.address ?? null,
       notes: input.notes ?? null,
+      vat: input.vat ?? null,
+      legalName: input.legalName ?? null,
+      fiscalStreet: input.fiscalStreet ?? null,
+      fiscalStreet2: input.fiscalStreet2 ?? null,
+      fiscalCity: input.fiscalCity ?? null,
+      fiscalZip: input.fiscalZip ?? null,
+      fiscalProvince: input.fiscalProvince ?? null,
+      fiscalCountryCode: input.fiscalCountryCode ?? "ES",
+      paymentTermCode: input.paymentTermCode ?? null,
+      externalPartnerId: input.externalPartnerId ?? null,
+      active: input.active ?? true,
       grosorPrecio: input.grosorPrecio ?? null,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -75,9 +104,6 @@ class InMemoryCustomerRepository {
     return created;
   }
 
-  public async hasDeliveryNotes(id: string) {
-    return this.deliveryNotesByCustomerId.has(id);
-  }
 }
 
 const buildCustomer = (id: string, name: string): Customer => ({
@@ -87,6 +113,17 @@ const buildCustomer = (id: string, name: string): Customer => ({
   phone: null,
   address: null,
   notes: null,
+  vat: null,
+  legalName: null,
+  fiscalStreet: null,
+  fiscalStreet2: null,
+  fiscalCity: null,
+  fiscalZip: null,
+  fiscalProvince: null,
+  fiscalCountryCode: null,
+  paymentTermCode: null,
+  externalPartnerId: null,
+  active: true,
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,
@@ -197,7 +234,7 @@ describe("customer use cases", () => {
       specialPieces: [{ name: "Barandilla", price: 40 }]
     });
 
-    expect(result.name).toBe("Pinturas Lopez Premium");
+    expect(result.name).toBe("PINTURAS LOPEZ PREMIUM");
     expect(repository.update).toHaveBeenCalledOnce();
     expect(result.specialPieces).toHaveLength(1);
   });
@@ -243,23 +280,145 @@ describe("customer use cases", () => {
     });
   });
 
-  it("blocks deleting a customer with delivery notes", async () => {
-    const useCase = new DeleteCustomerUseCase(repository);
-    repository.deliveryNotesByCustomerId.add("customer-1");
-
-    await expect(useCase.execute("customer-1")).rejects.toMatchObject({
-      message: "No se puede eliminar un cliente con albaranes asociados",
-      statusCode: 409
-    });
-    expect(repository.delete).not.toHaveBeenCalled();
-  });
-
-  it("deletes a customer without delivery notes", async () => {
+  it("archives a customer without deleting its history", async () => {
     const useCase = new DeleteCustomerUseCase(repository);
 
     await useCase.execute("customer-2");
 
-    expect(repository.delete).toHaveBeenCalledWith("customer-2");
-    expect(repository.customers.find((customer) => customer.id === "customer-2")).toBeUndefined();
+    expect(repository.setActive).toHaveBeenCalledWith("customer-2", false);
+    expect(repository.customers.find((customer) => customer.id === "customer-2")?.active).toBe(false);
+  });
+
+  it("synchronizes creation, update, archive and restore with Odoo", async () => {
+    const gateway: CustomerSyncGateway = {
+      syncCustomer: vi.fn().mockResolvedValueOnce("41").mockResolvedValueOnce("41"),
+      setCustomerActive: vi.fn().mockResolvedValue(undefined)
+    };
+    const config = { enabled: true };
+    const createUseCase = new CreateCustomerUseCase(repository, gateway, config);
+    const created = await createUseCase.execute({
+      name: "Cliente sincronizado",
+      vat: "B12345678",
+      pricePerLinearMeter: 10,
+      pricePerSquareMeter: 20,
+      minimumRate: 15,
+      specialPieces: []
+    });
+    expect(created.externalPartnerId).toBe("41");
+
+    const updateUseCase = new UpdateCustomerUseCase(repository, gateway, config);
+    const updated = await updateUseCase.execute(created.id, {
+      name: "Cliente sincronizado SL",
+      vat: "B12345678",
+      pricePerLinearMeter: 11,
+      pricePerSquareMeter: 21,
+      minimumRate: 16,
+      specialPieces: []
+    });
+    expect(gateway.syncCustomer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: "CLIENTE SINCRONIZADO SL", active: true }),
+      "41"
+    );
+
+    await new DeleteCustomerUseCase(repository, gateway, config).execute(updated.id);
+    expect(gateway.setCustomerActive).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: updated.id }),
+      false
+    );
+
+    const restored = await new RestoreCustomerUseCase(repository, gateway, config).execute(updated.id);
+    expect(gateway.setCustomerActive).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: updated.id }),
+      true
+    );
+    expect(restored.active).toBe(true);
+  });
+
+  it("does not persist a customer when Odoo rejects the creation", async () => {
+    const gateway: CustomerSyncGateway = {
+      syncCustomer: vi.fn().mockRejectedValue(new Error("Odoo unavailable")),
+      setCustomerActive: vi.fn()
+    };
+    const useCase = new CreateCustomerUseCase(repository, gateway, { enabled: true });
+
+    await expect(
+      useCase.execute({
+        name: "Cliente fallido",
+        pricePerLinearMeter: 10,
+        pricePerSquareMeter: 20,
+        minimumRate: 15,
+        specialPieces: []
+      })
+    ).rejects.toMatchObject({
+      message: "No se pudo sincronizar el cliente con Odoo. No se ha aplicado el cambio en Epoxiron.",
+      statusCode: 502
+    });
+    expect(repository.customers.some((customer) => customer.name === "Cliente fallido")).toBe(false);
+  });
+
+  it("keeps a historical customer without fiscal data readable and editable", async () => {
+    const getUseCase = new GetCustomerUseCase(repository);
+    const updateUseCase = new UpdateCustomerUseCase(repository);
+
+    expect((await getUseCase.execute("customer-1")).vat).toBeNull();
+
+    const updated = await updateUseCase.execute("customer-1", {
+      name: "Pinturas Lopez",
+      pricePerLinearMeter: 10,
+      pricePerSquareMeter: 20,
+      minimumRate: 15,
+      grosorPrecio: 5,
+      specialPieces: []
+    });
+
+    expect(updated.vat).toBeNull();
+    expect(updated.fiscalCountryCode).toBeNull();
+  });
+
+  it("normalizes VAT, country and optional fiscal text", () => {
+    const normalized = normalizeCustomerInput({
+      name: "  Taller Norte  ",
+      vat: "  b12345678  ",
+      legalName: "  Taller Norte SL  ",
+      fiscalCountryCode: " es ",
+      fiscalStreet2: "   ",
+      pricePerLinearMeter: 10,
+      pricePerSquareMeter: 20,
+      minimumRate: 15,
+      specialPieces: []
+    });
+
+    expect(normalized).toMatchObject({
+      name: "TALLER NORTE",
+      vat: "B12345678",
+      legalName: "TALLER NORTE SL",
+      fiscalCountryCode: "ES",
+      fiscalStreet2: null
+    });
+  });
+
+  it("reports every missing fiscal field without persisting a completeness flag", () => {
+    expect(validateFiscalCustomer(buildCustomer("customer-3", "Cliente histórico"))).toEqual([
+      "MISSING_LEGAL_NAME",
+      "MISSING_VAT",
+      "MISSING_STREET",
+      "MISSING_CITY",
+      "MISSING_ZIP",
+      "MISSING_COUNTRY"
+    ]);
+  });
+
+  it("accepts a complete fiscal customer", () => {
+    const customer: Customer = {
+      ...buildCustomer("customer-3", "Cliente fiscal"),
+      legalName: "Cliente Fiscal SL",
+      vat: "B12345678",
+      fiscalStreet: "Calle Mayor 1",
+      fiscalCity: "Madrid",
+      fiscalZip: "28001",
+      fiscalCountryCode: "ES"
+    };
+
+    expect(validateFiscalCustomer(customer)).toEqual([]);
   });
 });

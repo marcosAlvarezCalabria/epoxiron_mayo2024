@@ -1,0 +1,5 @@
+.env
+spike/node_modules/
+spike/dist/
+spike/coverage/
+spike/output/

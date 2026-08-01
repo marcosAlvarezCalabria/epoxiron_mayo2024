@@ -1,0 +1,77 @@
+import type {
+  FiscalCustomerSnapshot,
+  Invoice,
+  InvoiceLine,
+  InvoiceLocalState,
+  OdooMoveState,
+  ReservedInvoice,
+  VerifactuState
+} from "../entities/Invoice.js";
+import type { Money } from "../services/invoiceMoney.js";
+
+export interface ReserveInvoiceInput {
+  deliveryNoteIds: string[];
+  idempotencyKey: string;
+  remoteReference: string;
+  series: string | null;
+  taxRate: string;
+  expectedSnapshotHash?: string;
+}
+
+export interface InvoicePreviewLine extends InvoiceLine {
+  deliveryNoteId: string;
+  deliveryNoteNumber: string;
+}
+
+export interface InvoicePreviewSnapshot {
+  customer: FiscalCustomerSnapshot;
+  deliveryNotes: Array<{ id: string; number: string; date: Date }>;
+  lines: InvoicePreviewLine[];
+  subtotal: Money;
+  taxRate: string;
+  taxAmount: Money;
+  total: Money;
+  series: string | null;
+  snapshotHash: string;
+}
+
+export interface InvoicePatch {
+  localState?: InvoiceLocalState;
+  odooMoveState?: OdooMoveState | null;
+  verifactuState?: VerifactuState;
+  externalInvoiceId?: string | null;
+  number?: string | null;
+  subtotal?: Money;
+  taxAmount?: Money;
+  total?: Money;
+  verifactuDocumentId?: string | null;
+  verifactuQrValue?: string | null;
+  pdfAvailable?: boolean;
+  lastErrorCode?: string | null;
+  lastErrorMessage?: string | null;
+  reconciliationAttempts?: number;
+  nextReconciliationAt?: Date | null;
+}
+
+export interface InvoiceFilters {
+  customerId?: string;
+  localState?: InvoiceLocalState;
+  verifactuState?: VerifactuState;
+  limit: number;
+  offset: number;
+}
+
+export interface InvoiceRepository {
+  preparePreview(deliveryNoteIds: string[], taxRate: string, series: string | null): Promise<InvoicePreviewSnapshot>;
+  reserve(input: ReserveInvoiceInput): Promise<ReservedInvoice>;
+  findById(id: string): Promise<Invoice | null>;
+  findByIdempotencyKey(key: string): Promise<Invoice | null>;
+  findAll(filters: InvoiceFilters): Promise<Invoice[]>;
+  count(filters: Omit<InvoiceFilters, "limit" | "offset">): Promise<number>;
+  findDueForReconciliation(now: Date, limit: number): Promise<Invoice[]>;
+  update(id: string, patch: InvoicePatch): Promise<Invoice>;
+  markLinked(id: string, patch: InvoicePatch): Promise<Invoice>;
+  acquireReconciliationLease(id: string, now: Date, leaseUntil: Date): Promise<string | null>;
+  releaseReconciliationLease(id: string, leaseToken: string): Promise<void>;
+  updateCustomerExternalPartnerId(customerId: string, externalPartnerId: string): Promise<void>;
+}

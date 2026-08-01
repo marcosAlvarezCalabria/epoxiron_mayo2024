@@ -13,6 +13,12 @@ import {
   parseVoiceAlbaranRequestSchema,
   parsedVoiceAlbaranResponseSchema
 } from "../schemas/voiceSchemas.js";
+import {
+  createInvoiceSchema,
+  invoiceLocalStateSchema,
+  previewInvoiceSchema,
+  verifactuStateSchema
+} from "../schemas/invoiceSchemas.js";
 
 extendZodWithOpenApi(z);
 
@@ -68,6 +74,7 @@ const customerComponent = registry.register(
   "Customer",
   customerInputSchema.extend({
     id: idSchema,
+    active: z.boolean(),
     createdAt: dateTimeStringSchema,
     updatedAt: dateTimeStringSchema
   })
@@ -114,6 +121,56 @@ const deliveryNoteComponent = registry.register(
 const parsedVoiceAlbaranComponent = registry.register(
   "ParsedVoiceAlbaran",
   parsedVoiceAlbaranResponseSchema
+);
+const invoiceComponent = registry.register(
+  "Invoice",
+  z.object({
+    id: idSchema,
+    idempotencyKey: z.string(),
+    remoteReference: z.string(),
+    series: z.string().nullable(),
+    number: z.string().nullable(),
+    customer: z.object({
+      customerId: idSchema,
+      legalName: z.string(),
+      vat: z.string(),
+      street: z.string(),
+      street2: z.string().nullable(),
+      city: z.string(),
+      zip: z.string(),
+      province: z.string().nullable(),
+      countryCode: z.string(),
+      paymentTermCode: z.string().nullable(),
+      externalPartnerId: z.string().nullable()
+    }),
+    subtotal: z.string(),
+    taxRate: z.string(),
+    taxAmount: z.string(),
+    total: z.string(),
+    localState: invoiceLocalStateSchema,
+    odooMoveState: z.enum(["DRAFT", "POSTED", "CANCEL"]).nullable(),
+    verifactuState: verifactuStateSchema,
+    externalInvoiceId: z.string().nullable(),
+    verifactuDocumentId: z.string().nullable(),
+    verifactuQrValue: z.string().nullable(),
+    pdfAvailable: z.boolean(),
+    lastErrorCode: z.string().nullable(),
+    lastErrorMessage: z.string().nullable(),
+    reconciliationAttempts: z.number().int(),
+    nextReconciliationAt: dateTimeStringSchema.nullable(),
+    lines: z.array(z.object({
+      id: idSchema.optional(),
+      description: z.string(),
+      quantity: z.string(),
+      unitPrice: z.string(),
+      subtotal: z.string(),
+      taxRate: z.string(),
+      position: z.number().int()
+    })),
+    deliveryNoteIds: z.array(idSchema),
+    createdAt: dateTimeStringSchema,
+    updatedAt: dateTimeStringSchema
+  })
 );
 const loginResponseSchema = registry.register(
   "GoogleLoginResponse",
@@ -249,6 +306,61 @@ const commonErrorResponses = {
 
 registry.registerPath({
   method: "post",
+  path: "/api/invoices/preview",
+  tags: ["Invoices"],
+  security: bearerOrHermesSecurity,
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: previewInvoiceSchema } }
+    }
+  },
+  responses: {
+    200: {
+      description: "Previsualización autoritativa previa a la emisión",
+      content: {
+        "application/json": {
+          schema: z.object({
+            preview: z.object({
+              issuer: z.record(z.string()),
+              customer: z.record(z.union([z.string(), z.null()])),
+              deliveryNotes: z.array(z.object({ id: z.string(), number: z.string(), date: z.string().datetime() })),
+              lines: z.array(z.object({
+                deliveryNoteId: z.string(),
+                deliveryNoteNumber: z.string(),
+                description: z.string(),
+                quantity: z.string(),
+                unitPrice: z.string(),
+                subtotal: z.string(),
+                taxRate: z.string(),
+                total: z.string(),
+                position: z.number().int()
+              })),
+              issueDate: z.string().datetime(),
+              deliveryNoteCount: z.number().int(),
+              lineCount: z.number().int(),
+              warnings: z.array(z.string()),
+              subtotal: z.string(),
+              taxRate: z.string(),
+              taxAmount: z.string(),
+              total: z.string(),
+              series: z.string().nullable()
+            }),
+            previewToken: z.string(),
+            expiresAt: z.string().datetime()
+          })
+        }
+      }
+    },
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+    409: commonErrorResponses[500],
+    503: commonErrorResponses[503]
+  }
+});
+
+registry.registerPath({
+  method: "post",
   path: "/api/auth/login/google",
   tags: ["Auth"],
   request: {
@@ -283,7 +395,8 @@ registry.registerPath({
   security: bearerOrHermesSecurity,
   request: {
     query: z.object({
-      search: z.string().optional()
+      search: z.string().optional(),
+      includeInactive: z.boolean().optional()
     })
   },
   responses: {
@@ -414,7 +527,40 @@ registry.registerPath({
   },
   responses: {
     204: {
-      description: "Cliente eliminado"
+      description: "Cliente archivado en Epoxiron y Odoo"
+    },
+    401: commonErrorResponses[401],
+    404: {
+      description: "Cliente no encontrado",
+      content: {
+        "application/json": {
+          schema: errorResponseSchema
+        }
+      }
+    },
+    500: commonErrorResponses[500],
+    503: commonErrorResponses[503]
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/customers/{id}/restore",
+  tags: ["Customers"],
+  security: bearerOrHermesSecurity,
+  request: {
+    params: z.object({
+      id: idSchema
+    })
+  },
+  responses: {
+    200: {
+      description: "Cliente restaurado en Epoxiron y Odoo",
+      content: {
+        "application/json": {
+          schema: customerResponseSchema
+        }
+      }
     },
     401: commonErrorResponses[401],
     404: {
@@ -1107,6 +1253,116 @@ registry.registerPath({
       }
     },
     401: commonErrorResponses[401],
+    500: commonErrorResponses[500],
+    503: commonErrorResponses[503]
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/invoices",
+  tags: ["Invoices"],
+  security: bearerOrHermesSecurity,
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: createInvoiceSchema } }
+    }
+  },
+  responses: {
+    201: {
+      description: "Factura creada",
+      content: { "application/json": { schema: z.object({ invoice: invoiceComponent, created: z.literal(true) }) } }
+    },
+    200: {
+      description: "Operación idempotente: factura ya existente",
+      content: { "application/json": { schema: z.object({ invoice: invoiceComponent, created: z.literal(false) }) } }
+    },
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+    500: commonErrorResponses[500],
+    503: commonErrorResponses[503]
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/invoices",
+  tags: ["Invoices"],
+  security: bearerOrHermesSecurity,
+  request: {
+    query: z.object({
+      customerId: idSchema.optional(),
+      localState: invoiceLocalStateSchema.optional(),
+      verifactuState: verifactuStateSchema.optional(),
+      limit: z.coerce.number().int().positive().max(100).optional(),
+      offset: z.coerce.number().int().nonnegative().optional()
+    })
+  },
+  responses: {
+    200: {
+      description: "Listado de facturas",
+      content: {
+        "application/json": {
+          schema: z.object({ invoices: z.array(invoiceComponent), pagination: paginationSchema })
+        }
+      }
+    },
+    400: commonErrorResponses[400],
+    401: commonErrorResponses[401],
+    500: commonErrorResponses[500]
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/invoices/{id}",
+  tags: ["Invoices"],
+  security: bearerOrHermesSecurity,
+  request: { params: z.object({ id: idSchema }) },
+  responses: {
+    200: {
+      description: "Detalle de factura",
+      content: { "application/json": { schema: z.object({ invoice: invoiceComponent }) } }
+    },
+    401: commonErrorResponses[401],
+    404: commonErrorResponses[500],
+    500: commonErrorResponses[500]
+  }
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/invoices/{id}/reconcile",
+  tags: ["Invoices"],
+  security: bearerOrHermesSecurity,
+  request: { params: z.object({ id: idSchema }) },
+  responses: {
+    200: {
+      description: "Factura conciliada",
+      content: { "application/json": { schema: z.object({ invoice: invoiceComponent }) } }
+    },
+    401: commonErrorResponses[401],
+    404: commonErrorResponses[500],
+    500: commonErrorResponses[500],
+    503: commonErrorResponses[503]
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/invoices/{id}/pdf",
+  tags: ["Invoices"],
+  security: bearerOrHermesSecurity,
+  request: { params: z.object({ id: idSchema }) },
+  responses: {
+    200: {
+      description: "PDF privado de la factura",
+      content: { "application/pdf": { schema: z.string().openapi({ format: "binary" }) } }
+    },
+    401: commonErrorResponses[401],
+    404: commonErrorResponses[500],
+    409: commonErrorResponses[500],
     500: commonErrorResponses[500],
     503: commonErrorResponses[503]
   }

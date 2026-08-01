@@ -25,6 +25,7 @@ export const buildCustomersRouter = (controller: CustomersController) => {
     }
   }, asyncHandler(controller.update));
   router.delete("/:id", asyncHandler(controller.delete));
+  router.post("/:id/restore", asyncHandler(controller.restore));
 
   return router;
 };

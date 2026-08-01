@@ -241,11 +241,15 @@ const extractTextureGuess = (text: string): DeliveryNoteTexture | null => {
 };
 
 const extractRalGuess = (text: string): string | null => {
+  const explicitRalDigits = text
+    .match(/\bral\s*(\d(?:[\d\s.,]*\d)?)/i)?.[1]
+    ?.replace(/\D/g, "");
   const groupedMatches = Array.from(text.matchAll(/\d(?:[\d\s.,]*\d)?/g))
     .map((match) => match[0]?.replace(/\D/g, "") ?? "")
     .filter(Boolean);
 
   const preferredDigits =
+    (explicitRalDigits && explicitRalDigits.length >= 4 ? explicitRalDigits : null) ??
     groupedMatches.find((digits) => digits.length === 4) ??
     groupedMatches.find((digits) => digits.length === 5 && digits[1] === "0") ??
     groupedMatches[0] ??
@@ -471,7 +475,7 @@ export const buildVoiceDraftPreview = (transcript: string): VoiceDraftPreview =>
 export const mapParsedVoiceItemToFormState = (
   item: ParsedVoiceAlbaranItem,
   customer?: Customer | null
-): DeliveryNoteItemFormState => ({
+): Omit<DeliveryNoteItemFormState, "clientId"> => ({
   ...(() => {
     const matchedSpecialPiece = findMatchingCustomerSpecialPiece(customer, item);
 

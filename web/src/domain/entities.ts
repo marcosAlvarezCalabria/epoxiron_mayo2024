@@ -11,6 +11,17 @@ export interface Customer {
   phone: string | null;
   address: string | null;
   notes: string | null;
+  vat?: string | null;
+  legalName?: string | null;
+  fiscalStreet?: string | null;
+  fiscalStreet2?: string | null;
+  fiscalCity?: string | null;
+  fiscalZip?: string | null;
+  fiscalProvince?: string | null;
+  fiscalCountryCode?: string | null;
+  paymentTermCode?: string | null;
+  externalPartnerId?: string | null;
+  active?: boolean;
   pricePerLinearMeter: number;
   pricePerSquareMeter: number;
   minimumRate: number;
@@ -24,6 +35,16 @@ export interface CustomerInput {
   phone?: string | null;
   address?: string | null;
   notes?: string | null;
+  vat?: string | null;
+  legalName?: string | null;
+  fiscalStreet?: string | null;
+  fiscalStreet2?: string | null;
+  fiscalCity?: string | null;
+  fiscalZip?: string | null;
+  fiscalProvince?: string | null;
+  fiscalCountryCode?: string | null;
+  paymentTermCode?: string | null;
+  externalPartnerId?: string | null;
   pricePerLinearMeter: number;
   pricePerSquareMeter: number;
   minimumRate: number;
@@ -31,7 +52,7 @@ export interface CustomerInput {
   specialPieces: SpecialPiece[];
 }
 
-export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED";
+export type DeliveryNoteStatus = "DRAFT" | "PENDING" | "REVIEWED" | "INVOICED";
 export type DeliveryNoteTexture = "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO";
 export type DeliveryNotePricingMode = "DIMENSIONS" | "UNIT";
 
@@ -75,6 +96,7 @@ export interface DeliveryNote {
   totalAmount: number;
   date: string;
   items: DeliveryNoteItem[];
+  invoiceId?: string | null;
 }
 
 export interface DailyDeliveryNotesReportUpload {

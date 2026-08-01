@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useEffect, useMemo, useRef, useState, type WheelEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   calculatePricePreview,
   createDeliveryNote,
@@ -24,6 +24,7 @@ import {
   updateDeliveryNoteStatus
 } from "@/application/use-cases";
 import { ApiErrorState } from "@/components/ApiErrorState";
+import { InvoicePreviewDialog } from "@/components/invoices/InvoicePreviewDialog";
 import { VoiceAlbaranButton } from "@/components/VoiceAlbaranButton";
 import {
   ItemFormSheet,
@@ -43,6 +44,8 @@ import {
   type ParsedVoiceAlbaranData
 } from "@/features/voice/voiceAlbaran";
 import { ApiError } from "@/infrastructure/api/apiClient";
+import { createInvoice, previewInvoice } from "@/features/invoices/invoiceApi";
+import type { InvoicePreviewResponse } from "@/features/invoices/invoiceTypes";
 import {
   buildDeliveryNoteItemDescription,
   normalizeDeliveryNoteDescriptionInput
@@ -73,16 +76,19 @@ const badgeByStatus: Record<DeliveryNoteStatus, string> = {
   PENDING:
     "border border-[var(--epx-accent)]/30 bg-[color:rgb(255_149_0_/_0.12)] text-[var(--epx-accent)]",
   REVIEWED:
-    "border border-[var(--epx-success)]/30 bg-[color:rgb(209_255_0_/_0.12)] text-[var(--epx-success)]"
+    "border border-[var(--epx-success)]/30 bg-[color:rgb(209_255_0_/_0.12)] text-[var(--epx-success)]",
+  INVOICED: "border border-sky-500/30 bg-sky-500/10 text-sky-200"
 };
 
 const statusLabel: Record<DeliveryNoteStatus, string> = {
   DRAFT: "Borrador",
   PENDING: "Pendiente",
-  REVIEWED: "Revisado"
+  REVIEWED: "Revisado",
+  INVOICED: "Facturado"
 };
 
 const emptyItem = (): DeliveryNoteItemFormState => ({
+  clientId: crypto.randomUUID(),
   hasThickness: false,
   hasPrimer: false,
   saveAsSpecialPiece: false,
@@ -107,6 +113,7 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
   customerId: note.customerId,
   date: note.date.slice(0, 10),
   items: note.items.map((item) => ({
+    clientId: item.id ?? crypto.randomUUID(),
     hasThickness: item.thickness != null,
     hasPrimer: item.primer ?? false,
     saveAsSpecialPiece: false,
@@ -185,6 +192,8 @@ export const DeliveryNotesPage = () => {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [invoiceSelection, setInvoiceSelection] = useState<string[]>([]);
+  const [invoicePreviewData, setInvoicePreviewData] = useState<InvoicePreviewResponse | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
@@ -197,10 +206,10 @@ export const DeliveryNotesPage = () => {
   const [weekOnly, setWeekOnly] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
-  const [previews, setPreviews] = useState<Record<number, PricePreviewState>>({});
+  const [previews, setPreviews] = useState<Record<string, PricePreviewState>>({});
   const [isNotesOpen, setIsNotesOpen] = useState(false);
-  const [sheetState, setSheetState] = useState<{ index: number | null; mode: "create" | "edit"; open: boolean }>({
-    index: null,
+  const [sheetState, setSheetState] = useState<{ itemId: string | null; mode: "create" | "edit"; open: boolean }>({
+    itemId: null,
     mode: "create",
     open: false
   });
@@ -369,7 +378,7 @@ export const DeliveryNotesPage = () => {
     }
 
     const activeEntries = form.items
-      .map((item, index) => ({ index, item }))
+      .map((item) => ({ itemId: item.clientId, item }))
       .filter(({ item }) => isItemComplete(item));
 
     if (activeEntries.length === 0) {
@@ -382,13 +391,13 @@ export const DeliveryNotesPage = () => {
       const requestId = previewsRequestIdRef.current + 1;
       previewsRequestIdRef.current = requestId;
       void Promise.all(
-        activeEntries.map(async ({ index, item }) => {
+        activeEntries.map(async ({ itemId, item }) => {
           const fallbackPricing = resolvedCustomer
             ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
             : null;
           const result = await calculatePricePreview(form.customerId, normalizeItem(item));
           return {
-            index,
+            itemId,
             pricing: resolvePricePreview(result.pricing, fallbackPricing)
           };
         })
@@ -398,9 +407,9 @@ export const DeliveryNotesPage = () => {
             return;
           }
           setPreviews(
-            results.reduce<Record<number, PricePreviewState>>((accumulator, result) => {
+            results.reduce<Record<string, PricePreviewState>>((accumulator, result) => {
               if (result.pricing) {
-                accumulator[result.index] = result.pricing;
+                accumulator[result.itemId] = result.pricing;
               }
               return accumulator;
             }, {})
@@ -416,8 +425,8 @@ export const DeliveryNotesPage = () => {
           }
 
           setPreviews(
-            activeEntries.reduce<Record<number, PricePreviewState>>((accumulator, { index, item }) => {
-              accumulator[index] = estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer);
+            activeEntries.reduce<Record<string, PricePreviewState>>((accumulator, { itemId, item }) => {
+              accumulator[itemId] = estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer);
               return accumulator;
             }, {})
           );
@@ -478,6 +487,20 @@ export const DeliveryNotesPage = () => {
     }
   });
 
+  const invoiceMutation = useMutation({
+    mutationFn: createInvoice,
+    onSuccess: async ({ invoice }) => {
+      setInvoiceSelection([]);
+      await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
+      await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      window.location.assign(`/invoices#${invoice.id}`);
+    }
+  });
+  const invoicePreviewMutation = useMutation({
+    mutationFn: previewInvoice,
+    onSuccess: setInvoicePreviewData
+  });
+
   const mutationError = useMemo(() => {
     const error =
       createMutation.error ?? updateMutation.error ?? deleteMutation.error ?? statusMutation.error;
@@ -486,12 +509,12 @@ export const DeliveryNotesPage = () => {
 
   const liveTotal = useMemo(
     () =>
-      form.items.reduce((sum, item, index) => {
+      form.items.reduce((sum, item) => {
         const fallbackPreview =
           resolvedCustomer && isItemComplete(item)
             ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
             : null;
-        const preview = resolvePricePreview(previews[index] ?? null, fallbackPreview);
+        const preview = resolvePricePreview(previews[item.clientId] ?? null, fallbackPreview);
         if (preview) {
           return sum + preview.totalPrice;
         }
@@ -502,7 +525,9 @@ export const DeliveryNotesPage = () => {
   );
 
   const currentSheetItem =
-    sheetState.index != null ? form.items[sheetState.index] ?? emptyItem() : emptyItem();
+    sheetState.itemId != null
+      ? form.items.find((item) => item.clientId === sheetState.itemId) ?? emptyItem()
+      : emptyItem();
 
   const customerStepReady = Boolean(form.customerId);
   const itemsStepReady = form.items.length > 0 && form.items.every(isItemComplete);
@@ -516,7 +541,7 @@ export const DeliveryNotesPage = () => {
     setVoiceFeedback(null);
     setCustomerSearch("");
     setIsComposerOpen(false);
-    setSheetState({ index: null, mode: "create", open: false });
+    setSheetState({ itemId: null, mode: "create", open: false });
   };
 
   const openNewComposer = () => {
@@ -544,7 +569,10 @@ export const DeliveryNotesPage = () => {
   const handleVoiceDataExtracted = (data: ParsedVoiceAlbaranData) => {
     const customers = customersQuery.data?.customers ?? [];
     const matchedCustomer = findCustomerByVoiceName(customers, data.customerName);
-    const nextItems = data.items.map((item) => mapParsedVoiceItemToFormState(item, matchedCustomer));
+    const nextItems = data.items.map((item) => ({
+      ...mapParsedVoiceItemToFormState(item, matchedCustomer),
+      clientId: crypto.randomUUID()
+    }));
 
     setForm((current) => ({
       customerId: matchedCustomer?.id ?? current.customerId,
@@ -590,60 +618,54 @@ export const DeliveryNotesPage = () => {
   };
 
   const handleSheetSave = (item: DeliveryNoteItemFormState) => {
+    const commercialItem = {
+      ...item,
+      description: item.description.trim().toLocaleUpperCase("es-ES"),
+      color: item.color.trim().toLocaleUpperCase("es-ES")
+    };
     const fallbackPreview =
-      resolvedCustomer && isItemComplete(item)
-        ? estimateDeliveryNoteItemPrice(normalizeItem(item), resolvedCustomer)
+      resolvedCustomer && isItemComplete(commercialItem)
+        ? estimateDeliveryNoteItemPrice(normalizeItem(commercialItem), resolvedCustomer)
         : null;
 
     setForm((current) => {
-      if (sheetState.mode === "edit" && sheetState.index != null) {
+      if (sheetState.mode === "edit" && sheetState.itemId != null) {
         return {
           ...current,
-          items: current.items.map((entry, index) => (index === sheetState.index ? item : entry))
+          items: current.items.map((entry) =>
+            entry.clientId === sheetState.itemId ? commercialItem : entry
+          )
         };
       }
 
       return {
         ...current,
-        items: [...current.items, item]
+        items: [...current.items, commercialItem]
       };
     });
 
     if (fallbackPreview) {
       setPreviews((current) => {
-        if (sheetState.mode === "edit" && sheetState.index != null) {
-          return {
-            ...current,
-            [sheetState.index]: fallbackPreview
-          };
-        }
-
         return {
           ...current,
-          [form.items.length]: fallbackPreview
+          [commercialItem.clientId]: fallbackPreview
         };
       });
     }
 
-    setSheetState({ index: null, mode: "create", open: false });
+    setSheetState({ itemId: null, mode: "create", open: false });
   };
 
-  const removeItem = (index: number) => {
+  const removeItem = (itemId: string) => {
     setForm((current) => ({
       ...current,
-      items: current.items.filter((_, itemIndex) => itemIndex !== index)
+      items: current.items.filter((item) => item.clientId !== itemId)
     }));
-    setPreviews((current) =>
-      Object.entries(current).reduce<Record<number, PricePreviewState>>((accumulator, [key, value]) => {
-        const numericIndex = Number.parseInt(key, 10);
-        if (numericIndex === index) {
-          return accumulator;
-        }
-
-        accumulator[numericIndex > index ? numericIndex - 1 : numericIndex] = value;
-        return accumulator;
-      }, {})
-    );
+    setPreviews((current) => {
+      const next = { ...current };
+      delete next[itemId];
+      return next;
+    });
   };
 
   const getStatusAction = (note: DeliveryNote) => {
@@ -655,17 +677,41 @@ export const DeliveryNotesPage = () => {
       return { action: "Marcar revisado", nextStatus: "REVIEWED" as const };
     }
 
-    return { action: "Reabrir", nextStatus: "PENDING" as const };
+    if (note.status === "REVIEWED") {
+      return { action: "Reabrir", nextStatus: "PENDING" as const };
+    }
+
+    return null;
   };
+
+  const selectedForInvoice = deliveryNotesQuery.data?.deliveryNotes.filter((note) =>
+    invoiceSelection.includes(note.id)
+  ) ?? [];
+  const invoiceSelectionCustomerId = selectedForInvoice[0]?.customerId;
+  const toggleInvoiceSelection = (note: DeliveryNote) => {
+    setInvoicePreviewData(null);
+    invoicePreviewMutation.reset();
+    if (invoiceSelection.includes(note.id)) {
+      setInvoiceSelection((current) => current.filter((id) => id !== note.id));
+      return;
+    }
+    if (note.status !== "REVIEWED") return;
+    if (invoiceSelectionCustomerId && invoiceSelectionCustomerId !== note.customerId) {
+      window.alert("Solo puedes agrupar albaranes del mismo cliente.");
+      return;
+    }
+    setInvoiceSelection((current) => [...current, note.id]);
+  };
+
+  const confirmInvoice = () => invoicePreviewMutation.mutate(invoiceSelection);
 
   const getItemPreview = (
     item: DeliveryNoteItemFormState,
-    index: number,
     customer: Customer | null
   ) => {
     const fallbackPreview =
       customer && isItemComplete(item) ? estimateDeliveryNoteItemPrice(normalizeItem(item), customer) : null;
-    return resolvePricePreview(previews[index] ?? null, fallbackPreview);
+    return resolvePricePreview(previews[item.clientId] ?? null, fallbackPreview);
   };
 
   return (
@@ -689,11 +735,15 @@ export const DeliveryNotesPage = () => {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
-        <div className={`${mobilePane === "detail" ? "hidden xl:block" : "block"} space-y-4`}>
+        <div
+          className={`${mobilePane === "detail" ? "hidden xl:block" : "block"} ${
+            invoiceSelection.length > 0 ? "pb-28 md:pb-24" : ""
+          } min-w-0 space-y-4`}
+        >
           <div className="border border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] p-4">
             <div className="grid gap-3">
               <div className="flex flex-wrap gap-2">
-                {(["ALL", "DRAFT", "PENDING", "REVIEWED"] as const).map((value) => (
+                {(["ALL", "DRAFT", "PENDING", "REVIEWED", "INVOICED"] as const).map((value) => (
                   <button
                     className={`px-3 py-2 text-sm font-semibold ${
                       statusFilter === value
@@ -795,13 +845,28 @@ export const DeliveryNotesPage = () => {
 
           <div className="space-y-3">
             {deliveryNotesQuery.data?.deliveryNotes.map((note) => (
-              <button
-                className={`w-full border p-4 text-left transition-colors ${
+              <div className="flex items-stretch gap-2" key={note.id}>
+                <label
+                  className={`flex w-11 shrink-0 items-center justify-center border ${
+                    note.status === "REVIEWED"
+                      ? "cursor-pointer border-[var(--epx-surface-raised)] bg-[var(--epx-surface)]"
+                      : "cursor-not-allowed border-white/5 bg-white/5 opacity-40"
+                  }`}
+                  title={note.status === "REVIEWED" ? "Seleccionar para facturar" : "Solo se facturan albaranes revisados"}
+                >
+                  <input
+                    checked={invoiceSelection.includes(note.id)}
+                    disabled={note.status !== "REVIEWED"}
+                    onChange={() => toggleInvoiceSelection(note)}
+                    type="checkbox"
+                  />
+                </label>
+                <button
+                className={`min-w-0 flex-1 border p-4 text-left transition-colors ${
                   selectedNote?.id === note.id
                     ? "border-[var(--epx-accent)]/40 bg-[color:rgb(255_149_0_/_0.12)]"
                     : "border-[var(--epx-surface-raised)] bg-[var(--epx-surface)] hover:border-[var(--epx-accent)]/30"
                 }`}
-                key={note.id}
                 onClick={() => {
                   setSelectedNoteId(note.id);
                   setMobilePane("detail");
@@ -826,6 +891,7 @@ export const DeliveryNotesPage = () => {
                   </span>
                 </div>
               </button>
+              </div>
             ))}
 
             {!deliveryNotesQuery.isLoading && !deliveryNotesQuery.data?.deliveryNotes.length ? (
@@ -902,6 +968,7 @@ export const DeliveryNotesPage = () => {
                       <button
                         aria-label="Editar albaran"
                         className="inline-flex h-9 w-9 items-center justify-center border border-neutral-300 bg-white text-neutral-700 sm:h-8 sm:w-8"
+                        disabled={selectedNote.status === "INVOICED"}
                         onClick={() => openEditComposer(selectedNote)}
                         type="button"
                       >
@@ -910,6 +977,7 @@ export const DeliveryNotesPage = () => {
                       <button
                         aria-label="Eliminar albaran"
                         className="inline-flex h-9 w-9 items-center justify-center border border-red-500/20 bg-red-500/10 text-red-200 sm:h-8 sm:w-8"
+                        disabled={selectedNote.status === "INVOICED"}
                         onClick={() => {
                           if (window.confirm(`Eliminar ${selectedNote.number}?`)) {
                             deleteMutation.mutate(selectedNote.id);
@@ -921,6 +989,18 @@ export const DeliveryNotesPage = () => {
                       </button>
                     </div>
                   </div>
+                  {selectedNote.status === "INVOICED" ? (
+                    <p className="mt-3 text-sm text-sky-700">
+                      Este albarán está bloqueado porque ya fue facturado.{" "}
+                      {selectedNote.invoiceId ? (
+                        <Link className="font-semibold underline" to={`/invoices#${selectedNote.invoiceId}`}>
+                          Ver factura
+                        </Link>
+                      ) : (
+                        <Link className="font-semibold underline" to="/invoices">Ver facturas</Link>
+                      )}
+                    </p>
+                  ) : null}
                 </div>
 
                 <section className="border border-neutral-300 bg-white px-3 py-3 text-neutral-900 shadow-[0_18px_36px_rgba(0,0,0,0.05)] sm:px-6 sm:py-4">
@@ -1084,6 +1164,7 @@ export const DeliveryNotesPage = () => {
                   </p>
                 </div>
 
+                {getStatusAction(selectedNote) ? (
                 <button
                   className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold ${
                     selectedNote.status === "REVIEWED"
@@ -1093,6 +1174,7 @@ export const DeliveryNotesPage = () => {
                   disabled={statusMutation.isPending}
                   onClick={() => {
                     const statusAction = getStatusAction(selectedNote);
+                    if (!statusAction) return;
                     statusMutation.mutate({
                       id: selectedNote.id,
                       status: statusAction.nextStatus
@@ -1101,8 +1183,13 @@ export const DeliveryNotesPage = () => {
                   type="button"
                 >
                   <CheckCircleIcon className="h-5 w-5" />
-                  {getStatusAction(selectedNote).action}
+                  {getStatusAction(selectedNote)?.action}
                 </button>
+                ) : (
+                  <Link className="text-sm font-semibold text-sky-700 underline" to="/invoices">
+                    Ver factura
+                  </Link>
+                )}
               </div>
             </article>
           ) : (
@@ -1270,7 +1357,7 @@ export const DeliveryNotesPage = () => {
                       <button
                         className="inline-flex items-center gap-1 bg-[var(--epx-accent)] px-2 py-1.5 text-[11px] font-semibold text-[#131313] disabled:cursor-not-allowed disabled:opacity-45"
                         disabled={!selectedCustomer}
-                        onClick={() => setSheetState({ index: null, mode: "create", open: true })}
+                        onClick={() => setSheetState({ itemId: null, mode: "create", open: true })}
                         type="button"
                       >
                         <PlusIcon className="h-3.5 w-3.5" />
@@ -1283,7 +1370,7 @@ export const DeliveryNotesPage = () => {
                         form.items.map((item, index) => (
                           <article
                             className="border border-neutral-300 bg-white p-2.5 sm:p-3"
-                            key={`draft-item-${index}`}
+                            key={item.clientId}
                           >
                             <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-neutral-500 sm:text-[11px]">
                               <span className="min-w-0 flex-1 truncate font-semibold text-neutral-900">
@@ -1375,8 +1462,8 @@ export const DeliveryNotesPage = () => {
                                 </span>
                               </span>
                               <span className="shrink-0 text-[10px] font-semibold text-[var(--epx-accent)] sm:text-xs">
-                                {getItemPreview(item, index, selectedCustomer)
-                                  ? formatCurrency(getItemPreview(item, index, selectedCustomer)!.totalPrice)
+                                {getItemPreview(item, selectedCustomer)
+                                  ? formatCurrency(getItemPreview(item, selectedCustomer)!.totalPrice)
                                   : "—"}
                               </span>
                             </div>
@@ -1402,7 +1489,9 @@ export const DeliveryNotesPage = () => {
                             <div className="mt-3 flex flex-wrap gap-2">
                               <button
                                 className="inline-flex items-center gap-1.5 border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700"
-                                onClick={() => setSheetState({ index, mode: "edit", open: true })}
+                                onClick={() =>
+                                  setSheetState({ itemId: item.clientId, mode: "edit", open: true })
+                                }
                                 type="button"
                               >
                                 <PencilSquareIcon className="h-3.5 w-3.5" />
@@ -1410,7 +1499,7 @@ export const DeliveryNotesPage = () => {
                               </button>
                               <button
                                 className="inline-flex items-center gap-1.5 border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-xs font-semibold text-red-200"
-                                onClick={() => removeItem(index)}
+                                onClick={() => removeItem(item.clientId)}
                                 type="button"
                               >
                                 <TrashIcon className="h-3.5 w-3.5" />
@@ -1484,6 +1573,55 @@ export const DeliveryNotesPage = () => {
         </div>
       ) : null}
 
+      {invoiceSelection.length > 0 && !invoicePreviewData ? (
+        <aside
+          aria-live="polite"
+          className="fixed inset-x-3 bottom-[5.75rem] z-40 mx-auto max-w-xl border border-[var(--epx-accent)]/60 bg-[#24211e] shadow-[0_16px_36px_rgba(0,0,0,0.42)] md:bottom-4"
+        >
+          <div className="flex min-w-0 items-center gap-2 p-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
+              <span className="flex h-9 min-w-9 shrink-0 items-center justify-center bg-[var(--epx-accent)] px-2 text-sm font-bold text-[#131313]">
+                {invoiceSelection.length}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">
+                  {invoiceSelection.length === 1
+                    ? "1 albarán seleccionado"
+                    : `${invoiceSelection.length} albaranes seleccionados`}
+                </p>
+                <p className="truncate text-xs text-[#d7c8b7]">
+                  Puedes seguir añadiendo desde la lista
+                </p>
+              </div>
+            </div>
+            <button
+              aria-label="Vaciar selección de factura"
+              className="flex h-11 w-11 shrink-0 items-center justify-center border border-white/15 text-[#d7c8b7] transition-colors hover:border-white/30 hover:text-white"
+              disabled={invoicePreviewMutation.isPending}
+              onClick={() => setInvoiceSelection([])}
+              type="button"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+            <button
+              className="min-h-11 shrink-0 bg-[var(--epx-accent)] px-3 text-sm font-bold text-[#131313] disabled:cursor-wait disabled:opacity-60 sm:px-4"
+              disabled={invoicePreviewMutation.isPending}
+              onClick={confirmInvoice}
+              type="button"
+            >
+              {invoicePreviewMutation.isPending ? "Preparando…" : "Revisar factura"}
+            </button>
+          </div>
+          {invoicePreviewMutation.error instanceof ApiError ? (
+            <div className="border-t border-red-400/20 bg-red-500/10 px-3 py-2">
+              <p className="text-sm text-red-200" role="alert">
+                {invoicePreviewMutation.error.message}
+              </p>
+            </div>
+          ) : null}
+        </aside>
+      ) : null}
+
       <ItemFormSheet
         availableTemplates={availableItemTemplates}
         customer={selectedCustomer}
@@ -1491,9 +1629,25 @@ export const DeliveryNotesPage = () => {
         initialItem={currentSheetItem}
         isOpen={sheetState.open}
         mode={sheetState.mode}
-        onClose={() => setSheetState({ index: null, mode: "create", open: false })}
+        onClose={() => setSheetState({ itemId: null, mode: "create", open: false })}
         onSave={handleSheetSave}
       />
+      {invoicePreviewData ? (
+        <InvoicePreviewDialog
+          data={invoicePreviewData}
+          error={invoiceMutation.error instanceof ApiError ? invoiceMutation.error.message : null}
+          isSubmitting={invoiceMutation.isPending}
+          onClose={() => {
+            if (!invoiceMutation.isPending) setInvoicePreviewData(null);
+          }}
+          onConfirm={() =>
+            invoiceMutation.mutate({
+              deliveryNoteIds: invoiceSelection,
+              previewToken: invoicePreviewData.previewToken
+            })
+          }
+        />
+      ) : null}
     </section>
   );
 };

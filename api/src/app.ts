@@ -9,6 +9,7 @@ import {
   DeleteCustomerUseCase,
   GetCustomerUseCase,
   GetCustomersUseCase,
+  RestoreCustomerUseCase,
   UpdateCustomerUseCase
 } from "./application/use-cases/customers.js";
 import {
@@ -33,7 +34,16 @@ import { buildOpenApiDocument } from "./docs/openapi.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDailyDeliveryNotesReportUploadRepository } from "./infrastructure/repositories/PrismaDailyDeliveryNotesReportUploadRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
+import { PrismaInvoiceRepository } from "./infrastructure/repositories/PrismaInvoiceRepository.js";
 import { DailyDeliveryNotesReportScheduler } from "./infrastructure/services/DailyDeliveryNotesReportScheduler.js";
+import { InvoiceReconciliationScheduler } from "./infrastructure/services/InvoiceReconciliationScheduler.js";
+import { OdooJson2InvoiceGateway } from "./infrastructure/services/OdooJson2InvoiceGateway.js";
+import { ReconcileInvoiceUseCase } from "./application/use-cases/invoices/reconcileInvoice.js";
+import { CreateInvoiceFromDeliveryNotesUseCase } from "./application/use-cases/invoices/createInvoiceFromDeliveryNotes.js";
+import { GetInvoiceUseCase } from "./application/use-cases/invoices/getInvoice.js";
+import { GetInvoicePdfUseCase } from "./application/use-cases/invoices/getInvoicePdf.js";
+import { ListInvoicesUseCase } from "./application/use-cases/invoices/listInvoices.js";
+import { InvoicesController } from "./controllers/InvoicesController.js";
 import { GeminiVoiceTranscriber } from "./infrastructure/services/GeminiVoiceTranscriber.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
@@ -46,21 +56,72 @@ import { createVoiceAlbaranParser } from "./infrastructure/services/VoiceAlbaran
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import {
+  buildGeneralApiRateLimiter,
+  buildLoginRateLimiter
+} from "./middleware/rateLimiters.js";
 import { buildAuthRouter } from "./routes/auth.routes.js";
 import { buildCustomersRouter } from "./routes/customers.routes.js";
 import { buildDeliveryNotesRouter } from "./routes/deliveryNotes.routes.js";
 import { buildHermesToolsRouter } from "./routes/hermesTools.routes.js";
 import { buildVoiceRouter } from "./routes/voice.routes.js";
+import { buildInvoicesRouter } from "./routes/invoices.routes.js";
+import { PreviewInvoiceUseCase } from "./application/use-cases/invoices/previewInvoice.js";
 
 export interface AppContext {
   app: express.Express;
   dailyDeliveryNotesReportScheduler: DailyDeliveryNotesReportScheduler;
+  invoiceReconciliationScheduler: InvoiceReconciliationScheduler;
 }
 
 export const createAppContext = (): AppContext => {
   const customerRepository = new PrismaCustomerRepository();
   const deliveryNoteRepository = new PrismaDeliveryNoteRepository();
   const dailyReportUploadRepository = new PrismaDailyDeliveryNotesReportUploadRepository();
+  const invoiceRepository = new PrismaInvoiceRepository();
+  const invoiceGateway = new OdooJson2InvoiceGateway({
+    url: env.ODOO_URL,
+    database: env.ODOO_DB,
+    apiKey: env.ODOO_API_KEY,
+    timeoutMs: env.ODOO_TIMEOUT_MS,
+    taxRate: env.ODOO_TAX_RATE.toString(),
+    taxId: env.ODOO_TAX_ID ?? null,
+    maxPdfBytes: env.ODOO_MAX_PDF_BYTES
+  });
+  const reconcileInvoiceUseCase = new ReconcileInvoiceUseCase(
+    invoiceRepository,
+    invoiceGateway,
+    env.ODOO_RECONCILIATION_MAX_ATTEMPTS
+  );
+  const previewInvoiceUseCase = new PreviewInvoiceUseCase(invoiceRepository, {
+    enabled: env.ODOO_INVOICING_ENABLED,
+    taxRate: env.ODOO_TAX_RATE.toString(),
+    series: env.ODOO_SERIES.trim() || null,
+    tokenSecret: env.JWT_SECRET,
+    ttlMs: env.ODOO_INVOICE_PREVIEW_TTL_MS
+  });
+  const createInvoiceUseCase = new CreateInvoiceFromDeliveryNotesUseCase(
+    invoiceRepository,
+    invoiceGateway,
+    {
+      enabled: env.ODOO_INVOICING_ENABLED,
+      taxRate: env.ODOO_TAX_RATE.toString(),
+      series: env.ODOO_SERIES.trim() || null
+    },
+    previewInvoiceUseCase
+  );
+  const getInvoiceUseCase = new GetInvoiceUseCase(invoiceRepository);
+  const listInvoicesUseCase = new ListInvoicesUseCase(invoiceRepository);
+  const getInvoicePdfUseCase = new GetInvoicePdfUseCase(invoiceRepository, invoiceGateway);
+  const invoiceReconciliationScheduler = new InvoiceReconciliationScheduler(
+    invoiceRepository,
+    reconcileInvoiceUseCase,
+    {
+      enabled: env.ODOO_RECONCILIATION_ENABLED,
+      intervalMs: env.ODOO_RECONCILIATION_INTERVAL_MS,
+      batchSize: 20
+    }
+  );
   const emailNotifier = new NodemailerEmailNotifier({
     enabled: env.EMAIL_NOTIFICATIONS_ENABLED,
     from: env.EMAIL_FROM,
@@ -101,9 +162,27 @@ export const createAppContext = (): AppContext => {
 
   const getCustomersUseCase = new GetCustomersUseCase(customerRepository);
   const getCustomerUseCase = new GetCustomerUseCase(customerRepository);
-  const createCustomerUseCase = new CreateCustomerUseCase(customerRepository);
-  const updateCustomerUseCase = new UpdateCustomerUseCase(customerRepository);
-  const deleteCustomerUseCase = new DeleteCustomerUseCase(customerRepository);
+  const customerSyncConfig = { enabled: env.ODOO_CUSTOMER_SYNC_ENABLED };
+  const createCustomerUseCase = new CreateCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
+  const updateCustomerUseCase = new UpdateCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
+  const deleteCustomerUseCase = new DeleteCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
+  const restoreCustomerUseCase = new RestoreCustomerUseCase(
+    customerRepository,
+    invoiceGateway,
+    customerSyncConfig
+  );
 
   const getDeliveryNotesUseCase = new GetDeliveryNotesUseCase(deliveryNoteRepository);
   const getDeliveryNoteUseCase = new GetDeliveryNoteUseCase(deliveryNoteRepository);
@@ -165,7 +244,8 @@ export const createAppContext = (): AppContext => {
     getCustomerUseCase,
     createCustomerUseCase,
     updateCustomerUseCase,
-    deleteCustomerUseCase
+    deleteCustomerUseCase,
+    restoreCustomerUseCase
   );
 
   const deliveryNotesController = new DeliveryNotesController(
@@ -182,9 +262,19 @@ export const createAppContext = (): AppContext => {
     sendDailyDeliveryNotesReportUseCase
   );
   const voiceController = new VoiceController(parseVoiceAlbaranUseCase, parseVoiceAlbaranAudioUseCase);
+  const invoicesController = new InvoicesController(
+    createInvoiceUseCase,
+    getInvoiceUseCase,
+    listInvoicesUseCase,
+    reconcileInvoiceUseCase,
+    getInvoicePdfUseCase,
+    previewInvoiceUseCase
+  );
 
   const app = express();
 
+  // Produccion y staging reciben trafico publico a traves de un unico proxy Nginx.
+  app.set("trust proxy", 1);
   app.use(helmet());
   app.use(
     cors({
@@ -199,6 +289,15 @@ export const createAppContext = (): AppContext => {
     response.json({ status: "ok" });
   });
 
+  app.use(
+    "/api",
+    buildGeneralApiRateLimiter({
+      windowMs: env.API_RATE_LIMIT_WINDOW_MS,
+      max: env.API_RATE_LIMIT_MAX,
+      hermesSharedSecret: env.HERMES_SHARED_SECRET
+    })
+  );
+
   if (env.NODE_ENV !== "production") {
     const openApiDocument = buildOpenApiDocument();
 
@@ -208,10 +307,18 @@ export const createAppContext = (): AppContext => {
     app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(openApiDocument));
   }
 
-  app.use("/api/auth", buildAuthRouter(authenticateWithGoogleUseCase));
+  app.use(
+    "/api/auth",
+    buildLoginRateLimiter({
+      windowMs: env.LOGIN_RATE_LIMIT_WINDOW_MS,
+      max: env.LOGIN_RATE_LIMIT_MAX
+    }),
+    buildAuthRouter(authenticateWithGoogleUseCase)
+  );
   app.use("/api", authMiddleware);
   app.use("/api/customers", buildCustomersRouter(customersController));
   app.use("/api/delivery-notes", buildDeliveryNotesRouter(deliveryNotesController));
+  app.use("/api/invoices", buildInvoicesRouter(invoicesController));
   app.use("/api/voice", buildVoiceRouter(voiceController));
   app.get("/api/dashboard/summary", asyncHandler(deliveryNotesController.getDashboardSummary));
   app.use("/api/hermes-tools", buildHermesToolsRouter(customersController, deliveryNotesController));
@@ -220,7 +327,8 @@ export const createAppContext = (): AppContext => {
 
   return {
     app,
-    dailyDeliveryNotesReportScheduler
+    dailyDeliveryNotesReportScheduler,
+    invoiceReconciliationScheduler
   };
 };
 

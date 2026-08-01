@@ -191,7 +191,7 @@ Variables relevantes:
 ```env
 GOOGLE_CLIENT_ID=20604165419-dps72fkkha457807c56d39cqlj5g2j4v.apps.googleusercontent.com
 JWT_SECRET=<generado con openssl rand -hex 32>
-JWT_EXPIRES_IN=7d
+JWT_EXPIRES_IN=1d
 ALLOWED_EMAILS=calalva82@gmail.com,epoxiron@gmail.com
 HERMES_SHARED_SECRET=<generado con openssl rand -hex 32>
 REPORT_UPLOADS_ENABLED=false

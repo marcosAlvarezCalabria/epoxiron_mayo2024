@@ -72,29 +72,39 @@ class InMemoryCustomerRepository {
     throw new Error("not implemented");
   }
 
-  public async delete() {
-    throw new Error("not implemented");
-  }
-
-  public async hasDeliveryNotes() {
-    return false;
+  public async setActive(id: string, active: boolean) {
+    const customer = this.customers.find((item) => item.id === id);
+    if (!customer) throw new Error("customer not found");
+    const updated = { ...customer, active };
+    this.customers = this.customers.map((item) => (item.id === id ? updated : item));
+    return updated;
   }
 }
 
 class InMemoryDeliveryNoteRepository {
   public notes: DeliveryNote[] = [];
-  public create = vi.fn(
+  private readonly lastSequences = new Map<number, number>();
+  public createWithNextNumber = vi.fn(
     async (
+      year: number,
       input: DeliveryNoteInput & {
-        number: string;
         customerName: string;
         totalAmount: number;
         items: DeliveryNote["items"];
       }
     ) => {
+      const lastSequence = Math.max(
+        this.lastSequences.get(year) ?? 0,
+        ...this.notes
+          .map((note) => note.number.match(new RegExp(`^ALB-${year}-(\\d+)$`))?.[1])
+          .filter((sequence): sequence is string => Boolean(sequence))
+          .map((sequence) => Number.parseInt(sequence, 10))
+      );
+      const nextSequence = lastSequence + 1;
+      this.lastSequences.set(year, nextSequence);
       const created: DeliveryNote = {
         id: crypto.randomUUID(),
-        number: input.number,
+        number: `ALB-${year}-${nextSequence.toString().padStart(4, "0")}`,
         customerId: input.customerId,
         customerName: input.customerName,
         status: input.status,
@@ -263,15 +273,6 @@ class InMemoryDeliveryNoteRepository {
     return this.notes.find((note) => note.id === id) ?? null;
   }
 
-  public async findLatestNumberForYear(year: number) {
-    const prefix = `ALB-${year}-`;
-    const matches = this.notes
-      .map((note) => note.number)
-      .filter((number) => number.startsWith(prefix))
-      .sort((left, right) => right.localeCompare(left));
-
-    return matches[0] ?? null;
-  }
 }
 
 class FakeDailyDeliveryNotesReportGenerator {
@@ -451,7 +452,18 @@ const buildCustomer = (): Customer => ({
   email: null,
   phone: null,
   address: null,
-  notes: null,
+      notes: null,
+      vat: null,
+      legalName: null,
+      fiscalStreet: null,
+      fiscalStreet2: null,
+      fiscalCity: null,
+      fiscalZip: null,
+      fiscalProvince: null,
+      fiscalCountryCode: null,
+      paymentTermCode: null,
+      externalPartnerId: null,
+      active: true,
   pricePerLinearMeter: 10,
   pricePerSquareMeter: 20,
   minimumRate: 15,
@@ -544,12 +556,43 @@ describe("delivery note use cases", () => {
       ]
     });
 
-    expect(deliveryNoteRepository.create).toHaveBeenCalledOnce();
+    expect(deliveryNoteRepository.createWithNextNumber).toHaveBeenCalledOnce();
     expect(result.number).toBe("ALB-2026-0001");
     expect(result.customerName).toBe("Pinturas Lopez");
     expect(result.totalAmount).toBe(140);
     expect(result.items[0]?.totalPrice).toBe(80);
     expect(result.items[1]?.totalPrice).toBe(60);
+  });
+
+  it("allocates different sequential numbers for concurrent delivery notes", async () => {
+    const useCase = new CreateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+    const input: DeliveryNoteInput = {
+      customerId: "customer-1",
+      status: "DRAFT",
+      date: new Date("2026-07-26T10:00:00.000Z"),
+      items: [{
+        description: "Perfil",
+        color: "RAL 9005",
+        texture: "NORMAL",
+        quantity: 1,
+        linearMeters: 1
+      }]
+    };
+
+    const [first, second] = await Promise.all([
+      useCase.execute(input),
+      useCase.execute(input)
+    ]);
+
+    expect(new Set([first.number, second.number]).size).toBe(2);
+    expect([first.number, second.number].sort()).toEqual([
+      "ALB-2026-0001",
+      "ALB-2026-0002"
+    ]);
   });
 
   it("fails creating a delivery note for an unknown customer", async () => {
@@ -674,6 +717,28 @@ describe("delivery note use cases", () => {
 
     expect(deliveryNoteRepository.updateStatus).toHaveBeenCalledWith("note-pending", "REVIEWED");
     expect(result.status).toBe("REVIEWED");
+  });
+
+  it("blocks edits, deletion and status changes for invoiced delivery notes", async () => {
+    const invoiced = deliveryNoteRepository.notes.find((entry) => entry.id === "note-reviewed")!;
+    invoiced.status = "INVOICED";
+    const updateUseCase = new UpdateDeliveryNoteUseCase(
+      customerRepository,
+      deliveryNoteRepository,
+      calculatePriceUseCase
+    );
+    const deleteUseCase = new DeleteDeliveryNoteUseCase(deliveryNoteRepository);
+    const statusUseCase = new ChangeDeliveryNoteStatusUseCase(deliveryNoteRepository);
+
+    await expect(updateUseCase.execute(invoiced.id, {
+      customerId: invoiced.customerId,
+      status: "REVIEWED",
+      items: []
+    })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(deleteUseCase.execute(invoiced.id)).rejects.toMatchObject({ statusCode: 409 });
+    await expect(statusUseCase.execute(invoiced.id, "REVIEWED")).rejects.toMatchObject({
+      statusCode: 409
+    });
   });
 
   it("throws when fetching an unknown delivery note", async () => {

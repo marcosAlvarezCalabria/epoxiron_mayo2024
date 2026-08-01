@@ -20,6 +20,7 @@ import {
 import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
 
 export interface DeliveryNoteItemFormState {
+  clientId: string;
   hasThickness: boolean;
   hasPrimer: boolean;
   saveAsSpecialPiece: boolean;
@@ -37,6 +38,7 @@ interface DeliveryNoteItemFieldErrors {
   color?: string;
   customUnitPrice?: string;
   description?: string;
+  quantity?: string;
 }
 
 interface PricePreviewState {
@@ -207,6 +209,7 @@ export const ItemFormSheet = ({
 
   const handleSave = () => {
     const nextErrors: DeliveryNoteItemFieldErrors = {};
+    const quantity = Number(item.quantity);
     const matchedSpecialPiece = customer?.specialPieces.find(
       (piece) => normalizeSpecialPieceName(piece.name) === normalizeSpecialPieceName(item.description)
     );
@@ -217,6 +220,10 @@ export const ItemFormSheet = ({
 
     if (!item.color.trim()) {
       nextErrors.color = "Selecciona un color.";
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 200) {
+      nextErrors.quantity = "La cantidad debe ser un entero entre 1 y 200.";
     }
 
     if (item.pricingMode === "UNIT" && !item.customUnitPrice.trim() && !matchedSpecialPiece) {
@@ -441,9 +448,13 @@ export const ItemFormSheet = ({
                             className="w-full bg-transparent px-1 text-center text-lg font-bold text-neutral-950 outline-none"
                             inputMode="numeric"
                             onBlur={() => {
-                              setItem((current) => ({
+                              const quantity = Number(item.quantity);
+                              setFieldErrors((current) => ({
                                 ...current,
-                                quantity: clampQuantity(current.quantity)
+                                quantity:
+                                  Number.isInteger(quantity) && quantity >= 1 && quantity <= 200
+                                    ? undefined
+                                    : "La cantidad debe ser un entero entre 1 y 200."
                               }));
                               setIsQuantityInputFocused(false);
                             }}
@@ -523,6 +534,11 @@ export const ItemFormSheet = ({
                     </div>
                   </div>
                 </div>
+                {fieldErrors.quantity ? (
+                  <p className="mt-2 text-xs text-red-600" role="alert">
+                    {fieldErrors.quantity}
+                  </p>
+                ) : null}
               </div>
 
               {([

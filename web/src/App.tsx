@@ -7,6 +7,7 @@ import { DeliveryNotesPage } from "@/pages/DeliveryNotesPage";
 import { DeliveryNotesLibraryPage } from "@/pages/DeliveryNotesLibraryPage";
 import { DeliveryNotesLibraryViewerPage } from "@/pages/DeliveryNotesLibraryViewerPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { InvoicesPage } from "@/pages/InvoicesPage";
 
 export const App = () => {
   return (
@@ -25,6 +26,7 @@ export const App = () => {
         <Route element={<DeliveryNotesLibraryPage />} path="delivery-notes-library" />
         <Route element={<DeliveryNotesLibraryViewerPage />} path="delivery-notes-library/view" />
         <Route element={<DeliveryNotesPage />} path="delivery-notes" />
+        <Route element={<InvoicesPage />} path="invoices" />
       </Route>
       <Route element={<Navigate replace to="/" />} path="*" />
     </Routes>

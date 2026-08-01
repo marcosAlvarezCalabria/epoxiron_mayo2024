@@ -30,6 +30,15 @@ const emptyCustomerForm = (): CustomerFormState => ({
   phone: "",
   address: "",
   notes: "",
+  vat: "",
+  legalName: "",
+  fiscalStreet: "",
+  fiscalStreet2: "",
+  fiscalCity: "",
+  fiscalZip: "",
+  fiscalProvince: "",
+  fiscalCountryCode: "ES",
+  paymentTermCode: "",
   pricePerLinearMeter: "0",
   pricePerSquareMeter: "0",
   minimumRate: "0",
@@ -37,12 +46,21 @@ const emptyCustomerForm = (): CustomerFormState => ({
   specialPieces: []
 });
 
-const customerToFormState = (customer: Customer): CustomerFormState => ({
+export const customerToFormState = (customer: Customer): CustomerFormState => ({
   name: customer.name,
   email: customer.email ?? "",
   phone: customer.phone ?? "",
   address: customer.address ?? "",
   notes: customer.notes ?? "",
+  vat: customer.vat ?? "",
+  legalName: customer.legalName ?? "",
+  fiscalStreet: customer.fiscalStreet ?? "",
+  fiscalStreet2: customer.fiscalStreet2 ?? "",
+  fiscalCity: customer.fiscalCity ?? "",
+  fiscalZip: customer.fiscalZip ?? "",
+  fiscalProvince: customer.fiscalProvince ?? "",
+  fiscalCountryCode: customer.fiscalCountryCode ?? "ES",
+  paymentTermCode: customer.paymentTermCode ?? "",
   pricePerLinearMeter: customer.pricePerLinearMeter.toString(),
   pricePerSquareMeter: customer.pricePerSquareMeter.toString(),
   minimumRate: customer.minimumRate.toString(),
@@ -119,12 +137,21 @@ const getDuplicatedSpecialPieceIndexes = (specialPieces: SpecialPieceFormState[]
 const hasDuplicatedSpecialPieceNames = (specialPieces: SpecialPieceFormState[]) =>
   getDuplicatedSpecialPieceIndexes(specialPieces).size > 0;
 
-const normalizeCustomerPayload = (form: CustomerFormState): CustomerInput => ({
+export const normalizeCustomerPayload = (form: CustomerFormState): CustomerInput => ({
   name: form.name.trim(),
   email: toOptionalText(form.email),
   phone: toOptionalText(form.phone),
   address: toOptionalText(form.address),
   notes: toOptionalText(form.notes),
+  vat: toOptionalText(form.vat),
+  legalName: toOptionalText(form.legalName),
+  fiscalStreet: toOptionalText(form.fiscalStreet),
+  fiscalStreet2: toOptionalText(form.fiscalStreet2),
+  fiscalCity: toOptionalText(form.fiscalCity),
+  fiscalZip: toOptionalText(form.fiscalZip),
+  fiscalProvince: toOptionalText(form.fiscalProvince),
+  fiscalCountryCode: toOptionalText(form.fiscalCountryCode),
+  paymentTermCode: toOptionalText(form.paymentTermCode),
   pricePerLinearMeter: parseNumber(form.pricePerLinearMeter),
   pricePerSquareMeter: parseNumber(form.pricePerSquareMeter),
   minimumRate: parseNumber(form.minimumRate),
@@ -155,16 +182,28 @@ const priceTiles = [
   }
 ] as const;
 
+const isFiscalDataComplete = (customer: Customer) =>
+  [
+    customer.legalName,
+    customer.vat,
+    customer.fiscalStreet,
+    customer.fiscalCity,
+    customer.fiscalZip,
+    customer.fiscalCountryCode
+  ].every((value) => Boolean(value?.trim()));
+
 const badgeByStatus: Record<DeliveryNote["status"], string> = {
   DRAFT: "text-[var(--epx-text-muted)] bg-[var(--epx-surface)] border border-[var(--epx-surface-raised)]",
   PENDING: "text-[var(--epx-accent)] bg-[color:rgb(255_149_0_/_0.12)] border border-[var(--epx-accent)]/30",
-  REVIEWED: "text-[var(--epx-success)] bg-[color:rgb(209_255_0_/_0.12)] border border-[var(--epx-success)]/30"
+  REVIEWED: "text-[var(--epx-success)] bg-[color:rgb(209_255_0_/_0.12)] border border-[var(--epx-success)]/30",
+  INVOICED: "text-sky-200 bg-sky-500/10 border border-sky-500/30"
 };
 
 const statusLabel: Record<DeliveryNote["status"], string> = {
   DRAFT: "Borrador",
   PENDING: "Pendiente",
-  REVIEWED: "Revisado"
+  REVIEWED: "Revisado",
+  INVOICED: "Facturado"
 };
 
 export const CustomersPage = () => {
@@ -513,13 +552,13 @@ export const CustomersPage = () => {
                   <button
                     className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-200"
                     onClick={() => {
-                      if (window.confirm(`Eliminar a ${selectedCustomer.name}?`)) {
+                      if (window.confirm(`¿Archivar a ${selectedCustomer.name}? Se conservará su historial.`)) {
                         deleteMutation.mutate(selectedCustomer.id);
                       }
                     }}
                     type="button"
                   >
-                    Eliminar
+                    Archivar
                   </button>
                 </div>
               </div>
@@ -552,6 +591,46 @@ export const CustomersPage = () => {
                     {selectedCustomer.phone ?? "Sin telefono"}
                   </p>
                 </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-[var(--epx-surface-raised)] bg-[var(--epx-bg)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-gray-400">
+                    Datos fiscales
+                  </p>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      isFiscalDataComplete(selectedCustomer)
+                        ? "bg-[color:rgb(209_255_0_/_0.12)] text-[var(--epx-success)]"
+                        : "bg-amber-500/10 text-amber-300"
+                    }`}
+                  >
+                    {isFiscalDataComplete(selectedCustomer)
+                      ? "Ficha fiscal completa"
+                      : "Ficha fiscal incompleta"}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-white">
+                  {selectedCustomer.legalName ?? "Sin razón social"}
+                </p>
+                <p className="mt-1 text-sm text-gray-400">
+                  {selectedCustomer.vat ?? "Sin NIF / CIF"}
+                </p>
+                <p className="mt-3 text-sm text-gray-400">
+                  {[
+                    selectedCustomer.fiscalStreet,
+                    selectedCustomer.fiscalStreet2,
+                    selectedCustomer.fiscalZip,
+                    selectedCustomer.fiscalCity,
+                    selectedCustomer.fiscalProvince,
+                    selectedCustomer.fiscalCountryCode
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || "Sin domicilio fiscal"}
+                </p>
+                <p className="mt-2 text-sm text-gray-500">
+                  Condición de pago: {selectedCustomer.paymentTermCode ?? "Sin definir"}
+                </p>
               </div>
 
               <div className="mt-5">

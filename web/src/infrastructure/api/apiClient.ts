@@ -44,3 +44,17 @@ export const apiClient = async <T>(
 
   return (await response.json()) as T;
 };
+
+export const apiBlob = async (path: string): Promise<Blob> => {
+  const token = authService.getToken();
+  const response = await fetch(`${API_URL}${path}`, {
+    headers: token ? { authorization: `Bearer ${token}` } : {}
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({ error: "Error desconocido" }))) as {
+      error?: string;
+    };
+    throw new ApiError(body.error ?? "Error de API", response.status);
+  }
+  return response.blob();
+};

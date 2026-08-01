@@ -10,6 +10,12 @@ Monorepo de Epoxiron.
 ## Documentacion
 
 - Infraestructura y despliegue: [deploy/README_DEPLOY.md](C:/Users/Marcos/Documents/Codex/epoxiron%20mayo_2026/deploy/README_DEPLOY.md)
+- Contrato de facturación y sincronización con Odoo:
+  [SPEC_FACTURACION_ODOO.md](SPEC_FACTURACION_ODOO.md)
+- Captura, calculadora y revisión previa:
+  [SPEC_MEJORAS_CAPTURA_Y_PREFACTURA.md](SPEC_MEJORAS_CAPTURA_Y_PREFACTURA.md)
+- Estado consolidado de las dos últimas actualizaciones:
+  [docs/RESUMEN_2026-07-28.md](docs/RESUMEN_2026-07-28.md)
 
 ## Requisitos locales
 

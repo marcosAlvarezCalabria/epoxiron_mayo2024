@@ -22,6 +22,10 @@ const envSchema = z
     PORT: z.coerce.number().int().positive().default(3001),
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     CORS_ORIGIN: z.string().min(1),
+    API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+    API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+    LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+    LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(5),
     HERMES_BASE_URL: z.string().url(),
     HERMES_SHARED_SECRET: z.string().min(1),
     HERMES_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
@@ -42,7 +46,7 @@ const envSchema = z
     VOICE_TRANSCRIBER_LANGUAGE: z.string().trim().min(2).optional(),
     GOOGLE_CLIENT_ID: z.string().min(1),
     JWT_SECRET: z.string().min(1),
-    JWT_EXPIRES_IN: z.string().min(1).default("7d"),
+    JWT_EXPIRES_IN: z.string().min(1).default("1d"),
     ALLOWED_EMAILS: z
       .string()
       .transform((value) =>
@@ -66,7 +70,22 @@ const envSchema = z
     EMAIL_NOTIFICATIONS_ENABLED: booleanStringWithDefaultFalse,
     EMAIL_FROM: z.string().default(""),
     EMAIL_TO: z.string().default(""),
-    EMAIL_APP_PASSWORD: z.string().default("")
+    EMAIL_APP_PASSWORD: z.string().default(""),
+    ODOO_INVOICING_ENABLED: booleanStringWithDefaultFalse,
+    ODOO_CUSTOMER_SYNC_ENABLED: booleanStringWithDefaultFalse,
+    ODOO_URL: z.string().default(""),
+    ODOO_DB: z.string().default(""),
+    ODOO_USER: z.string().default(""),
+    ODOO_API_KEY: z.string().default(""),
+    ODOO_TIMEOUT_MS: z.coerce.number().int().positive().default(15000),
+    ODOO_TAX_RATE: z.coerce.number().positive().default(21),
+    ODOO_TAX_ID: z.coerce.number().int().positive().optional(),
+    ODOO_SERIES: z.string().default(""),
+    ODOO_RECONCILIATION_ENABLED: booleanStringWithDefaultFalse,
+    ODOO_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(30000),
+    ODOO_RECONCILIATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(20),
+    ODOO_MAX_PDF_BYTES: z.coerce.number().int().positive().default(10485760),
+    ODOO_INVOICE_PREVIEW_TTL_MS: z.coerce.number().int().min(60000).max(3600000).default(900000)
   })
   .superRefine((value, context) => {
     const resolvedVoiceParserBaseUrl =
@@ -154,6 +173,37 @@ const envSchema = z
       });
     }
 
+    if (value.ODOO_RECONCILIATION_ENABLED && !value.ODOO_INVOICING_ENABLED) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "ODOO_INVOICING_ENABLED debe ser true cuando se activa la reconciliacion",
+        path: ["ODOO_RECONCILIATION_ENABLED"]
+      });
+    }
+
+    if (value.ODOO_INVOICING_ENABLED || value.ODOO_CUSTOMER_SYNC_ENABLED) {
+      (["ODOO_URL", "ODOO_DB", "ODOO_USER", "ODOO_API_KEY"] as const).forEach((key) => {
+        if (!value[key].trim()) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${key} es obligatorio cuando se activa la facturacion`,
+            path: [key]
+          });
+        }
+      });
+      if (value.ODOO_URL.trim()) {
+        try {
+          new URL(value.ODOO_URL);
+        } catch (_error: unknown) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "ODOO_URL debe ser una URL valida",
+            path: ["ODOO_URL"]
+          });
+        }
+      }
+    }
+
     if (!value.EMAIL_NOTIFICATIONS_ENABLED) {
       return;
     }
@@ -171,4 +221,6 @@ const envSchema = z
     });
   });
 
-export const env = envSchema.parse(process.env);
+export const parseEnv = (source: NodeJS.ProcessEnv) => envSchema.parse(source);
+
+export const env = parseEnv(process.env);

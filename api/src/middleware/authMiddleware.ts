@@ -1,14 +1,17 @@
 import type { NextFunction, Request, Response } from "express";
 import { env } from "../config/env.js";
 import { JwtAccessTokenIssuer } from "../infrastructure/services/JwtAccessTokenIssuer.js";
+import { secureSecretEquals } from "../security/secureSecretEquals.js";
 
 const getHermesSecret = (request: Request) =>
   request.header("x-hermes-secret") ?? request.header("x-epoxiron-hermes-secret");
 const jwtAccessTokenIssuer = new JwtAccessTokenIssuer(env.JWT_SECRET, env.JWT_EXPIRES_IN);
 
 export const authMiddleware = (request: Request, response: Response, next: NextFunction) => {
+  response.locals ??= {};
   const hermesSecret = getHermesSecret(request);
-  if (hermesSecret && hermesSecret === env.HERMES_SHARED_SECRET) {
+  if (secureSecretEquals(hermesSecret, env.HERMES_SHARED_SECRET)) {
+    response.locals.authenticatedActor = "hermes";
     next();
     return;
   }
@@ -22,7 +25,8 @@ export const authMiddleware = (request: Request, response: Response, next: NextF
   const token = authHeader.slice("Bearer ".length);
 
   try {
-    jwtAccessTokenIssuer.verify(token);
+    const user = jwtAccessTokenIssuer.verify(token);
+    response.locals.authenticatedActor = user.email.toLowerCase();
     next();
   } catch {
     response.status(401).json({ error: "Token invalido o expirado" });
