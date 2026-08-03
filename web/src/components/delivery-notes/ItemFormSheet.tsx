@@ -1,5 +1,5 @@
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { calculatePricePreview } from "@/application/use-cases";
 import { RalColorPicker } from "@/components/delivery-notes/RalColorPicker";
 import type {
@@ -18,6 +18,10 @@ import {
   parseMetersSquared
 } from "@/lib/measurements";
 import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
+import {
+  quantityWheelScrollTop,
+  resolveQuantityWheelScroll
+} from "./quantityWheel";
 
 export interface DeliveryNoteItemFormState {
   clientId: string;
@@ -104,30 +108,57 @@ export const ItemFormSheet = ({
   const [isQuantityInputFocused, setIsQuantityInputFocused] = useState(false);
   const previewRequestIdRef = useRef(0);
   const quantityWheelRef = useRef<HTMLDivElement | null>(null);
+  const isQuantityWheelUserInitiatedRef = useRef(false);
+  const quantityWheelInteractionTimeoutRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen) {
       return;
     }
 
+    isQuantityWheelUserInitiatedRef.current = false;
     setItem(initialItem);
     setFieldErrors(emptyErrors);
     setPreview(null);
     setTemplateSearch("");
     setShowAllSpecialPieces(false);
-  }, [initialItem, isOpen]);
+    setIsQuantityInputFocused(false);
+  }, [initialItem.clientId, isOpen]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isOpen || isQuantityInputFocused) {
       return;
     }
 
-    const quantity = Number.parseInt(clampQuantity(item.quantity), 10);
-    quantityWheelRef.current?.scrollTo({
-      top: (quantity - 1) * quantityWheelItemHeight,
-      behavior: "auto"
-    });
+    isQuantityWheelUserInitiatedRef.current = false;
+    const wheel = quantityWheelRef.current;
+    if (wheel) {
+      wheel.scrollTop = quantityWheelScrollTop(
+        item.quantity,
+        quantityWheelItemHeight,
+        quantityOptions.length
+      );
+    }
   }, [isOpen, isQuantityInputFocused, item.quantity]);
+
+  useEffect(
+    () => () => {
+      if (quantityWheelInteractionTimeoutRef.current != null) {
+        window.clearTimeout(quantityWheelInteractionTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const markQuantityWheelInteraction = () => {
+    isQuantityWheelUserInitiatedRef.current = true;
+    if (quantityWheelInteractionTimeoutRef.current != null) {
+      window.clearTimeout(quantityWheelInteractionTimeoutRef.current);
+    }
+    quantityWheelInteractionTimeoutRef.current = window.setTimeout(() => {
+      isQuantityWheelUserInitiatedRef.current = false;
+    }, 250);
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -480,20 +511,30 @@ export const ItemFormSheet = ({
                           />
                           <div
                             className="overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                            onPointerDown={markQuantityWheelInteraction}
+                            onPointerMove={markQuantityWheelInteraction}
                             onScroll={(event) => {
-                              const nextValue =
-                                Math.round(event.currentTarget.scrollTop / quantityWheelItemHeight) + 1;
-                              const clampedValue = Math.min(
-                                quantityOptions.length,
-                                Math.max(1, nextValue)
-                              );
+                              const scrollTop = event.currentTarget.scrollTop;
+                              const isUserInitiated = isQuantityWheelUserInitiatedRef.current;
+                              if (isUserInitiated) {
+                                markQuantityWheelInteraction();
+                              }
 
-                              setItem((current) =>
-                                current.quantity === clampedValue.toString()
+                              setItem((current) => {
+                                const quantity = resolveQuantityWheelScroll({
+                                  currentQuantity: current.quantity,
+                                  isUserInitiated,
+                                  itemHeight: quantityWheelItemHeight,
+                                  maximumQuantity: quantityOptions.length,
+                                  scrollTop
+                                });
+
+                                return current.quantity === quantity
                                   ? current
-                                  : { ...current, quantity: clampedValue.toString() }
-                              );
+                                  : { ...current, quantity };
+                              });
                             }}
+                            onWheel={markQuantityWheelInteraction}
                             ref={quantityWheelRef}
                             style={{
                               height: `${quantityWheelItemHeight}px`,

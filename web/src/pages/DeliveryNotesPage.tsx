@@ -208,6 +208,7 @@ export const DeliveryNotesPage = () => {
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<string, PricePreviewState>>({});
   const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [newItemDraft, setNewItemDraft] = useState<DeliveryNoteItemFormState>(emptyItem);
   const [sheetState, setSheetState] = useState<{ itemId: string | null; mode: "create" | "edit"; open: boolean }>({
     itemId: null,
     mode: "create",
@@ -526,8 +527,8 @@ export const DeliveryNotesPage = () => {
 
   const currentSheetItem =
     sheetState.itemId != null
-      ? form.items.find((item) => item.clientId === sheetState.itemId) ?? emptyItem()
-      : emptyItem();
+      ? form.items.find((item) => item.clientId === sheetState.itemId) ?? newItemDraft
+      : newItemDraft;
 
   const customerStepReady = Boolean(form.customerId);
   const itemsStepReady = form.items.length > 0 && form.items.every(isItemComplete);
@@ -1357,7 +1358,10 @@ export const DeliveryNotesPage = () => {
                       <button
                         className="inline-flex items-center gap-1 bg-[var(--epx-accent)] px-2 py-1.5 text-[11px] font-semibold text-[#131313] disabled:cursor-not-allowed disabled:opacity-45"
                         disabled={!selectedCustomer}
-                        onClick={() => setSheetState({ itemId: null, mode: "create", open: true })}
+                        onClick={() => {
+                          setNewItemDraft(emptyItem());
+                          setSheetState({ itemId: null, mode: "create", open: true });
+                        }}
                         type="button"
                       >
                         <PlusIcon className="h-3.5 w-3.5" />
