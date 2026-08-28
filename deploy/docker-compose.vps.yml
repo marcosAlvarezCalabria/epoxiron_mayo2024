@@ -35,13 +35,19 @@ services:
       - epoxiron_net
 
   hermes:
-    image: nousresearch/hermes-agent:v2026.8.27
+    build:
+      context: ./hermes
+      dockerfile: Dockerfile
+    image: epoxiron-hermes:v2026.8.27-stt
     container_name: hermes-gateway
     restart: unless-stopped
     command: ["gateway", "run"]
     env_file:
       - path: ./hermes/hermes.env
         required: false
+    environment:
+      HERMES_LOCAL_STT_LANGUAGE: es
+      HF_HOME: /opt/data/cache/huggingface
     depends_on:
       - api
     volumes:
