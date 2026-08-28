@@ -63,6 +63,13 @@ import {
   resolvePricePreview,
   type PricePreviewState
 } from "@/lib/pricing";
+import { authService } from "@/services/auth.service";
+import {
+  clearDeliveryNoteDraft,
+  hasDeliveryNoteDraftContent,
+  readDeliveryNoteDraft,
+  saveDeliveryNoteDraft
+} from "@/services/deliveryNoteDraftStorage";
 
 interface DeliveryNoteFormState {
   customerId: string;
@@ -191,14 +198,18 @@ const isItemComplete = (item: DeliveryNoteItemFormState) =>
 export const DeliveryNotesPage = () => {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
+  const [draftUserEmail] = useState(() => authService.getUser()?.email ?? null);
+  const [initialDraft] = useState(() =>
+    draftUserEmail ? readDeliveryNoteDraft(draftUserEmail) : null
+  );
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [invoiceSelection, setInvoiceSelection] = useState<string[]>([]);
   const [invoicePreviewData, setInvoicePreviewData] = useState<InvoicePreviewResponse | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
-  const [form, setForm] = useState<DeliveryNoteFormState>(emptyForm);
-  const [customerSearch, setCustomerSearch] = useState("");
+  const [form, setForm] = useState<DeliveryNoteFormState>(() => initialDraft?.form ?? emptyForm());
+  const [customerSearch, setCustomerSearch] = useState(() => initialDraft?.customerSearch ?? "");
   const [dateFilter, setDateFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<DeliveryNoteStatus | "ALL">("ALL");
   const [customerFilter, setCustomerFilter] = useState("");
@@ -207,6 +218,11 @@ export const DeliveryNotesPage = () => {
   const [formError, setFormError] = useState<string | null>(null);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const [previews, setPreviews] = useState<Record<string, PricePreviewState>>({});
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(
+    initialDraft?.savedAt ?? null
+  );
+  const [draftWasRestored, setDraftWasRestored] = useState(Boolean(initialDraft));
+  const [draftStorageError, setDraftStorageError] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [newItemDraft, setNewItemDraft] = useState<DeliveryNoteItemFormState>(emptyItem);
   const [sheetState, setSheetState] = useState<{ itemId: string | null; mode: "create" | "edit"; open: boolean }>({
@@ -218,6 +234,8 @@ export const DeliveryNotesPage = () => {
   const formDateInputRef = useRef<HTMLInputElement | null>(null);
   const composerContentRef = useRef<HTMLDivElement | null>(null);
   const previewsRequestIdRef = useRef(0);
+  const latestDraftRef = useRef({ form, customerSearch, editingNoteId });
+  latestDraftRef.current = { form, customerSearch, editingNoteId };
   const currentWeekStart = useMemo(() => buildIsoDate(getCurrentWeekStart()), []);
   const todayDate = useMemo(() => buildIsoDate(new Date()), []);
 
@@ -351,6 +369,64 @@ export const DeliveryNotesPage = () => {
   }, [selectedNoteId]);
 
   useEffect(() => {
+    if (!draftUserEmail || editingNoteId || !isComposerOpen) {
+      return;
+    }
+
+    if (!hasDeliveryNoteDraftContent(form, customerSearch)) {
+      clearDeliveryNoteDraft(draftUserEmail);
+      setDraftSavedAt(null);
+      setDraftWasRestored(false);
+      setDraftStorageError(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      const savedAt = Date.now();
+      const saved = saveDeliveryNoteDraft(draftUserEmail, {
+        savedAt,
+        form,
+        customerSearch
+      });
+      setDraftStorageError(!saved);
+      if (saved) {
+        setDraftSavedAt(savedAt);
+        setDraftWasRestored(false);
+      }
+    }, 400);
+
+    return () => window.clearTimeout(timeout);
+  }, [customerSearch, draftUserEmail, editingNoteId, form, isComposerOpen]);
+
+  useEffect(() => {
+    if (!draftUserEmail) {
+      return;
+    }
+
+    const persistLatestDraft = () => {
+      const latest = latestDraftRef.current;
+      if (
+        latest.editingNoteId ||
+        !hasDeliveryNoteDraftContent(latest.form, latest.customerSearch)
+      ) {
+        return;
+      }
+
+      saveDeliveryNoteDraft(draftUserEmail, {
+        savedAt: Date.now(),
+        form: latest.form,
+        customerSearch: latest.customerSearch
+      });
+    };
+
+    window.addEventListener("pagehide", persistLatestDraft);
+    return () => {
+      persistLatestDraft();
+      window.removeEventListener("pagehide", persistLatestDraft);
+    };
+  }, [draftUserEmail]);
+
+  useEffect(() => {
     if (!isComposerOpen) {
       return;
     }
@@ -440,11 +516,17 @@ export const DeliveryNotesPage = () => {
   const createMutation = useMutation({
     mutationFn: createDeliveryNote,
     onSuccess: async (result) => {
+      if (draftUserEmail) {
+        clearDeliveryNoteDraft(draftUserEmail);
+      }
       setSelectedNoteId(result.deliveryNote.id);
       setEditingNoteId(null);
       setForm(emptyForm());
       setPreviews({});
       setFormError(null);
+      setDraftSavedAt(null);
+      setDraftWasRestored(false);
+      setDraftStorageError(false);
       setIsComposerOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
@@ -461,6 +543,9 @@ export const DeliveryNotesPage = () => {
       setForm(emptyForm());
       setPreviews({});
       setFormError(null);
+      setDraftSavedAt(null);
+      setDraftWasRestored(false);
+      setDraftStorageError(false);
       setIsComposerOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
@@ -534,26 +619,86 @@ export const DeliveryNotesPage = () => {
   const itemsStepReady = form.items.length > 0 && form.items.every(isItemComplete);
   const reviewStepReady = customerStepReady && itemsStepReady;
 
+  const persistDraftNow = () => {
+    if (
+      !draftUserEmail ||
+      editingNoteId ||
+      !hasDeliveryNoteDraftContent(form, customerSearch)
+    ) {
+      return;
+    }
+
+    const savedAt = Date.now();
+    const saved = saveDeliveryNoteDraft(draftUserEmail, {
+      savedAt,
+      form,
+      customerSearch
+    });
+    setDraftStorageError(!saved);
+    if (saved) {
+      setDraftSavedAt(savedAt);
+      setDraftWasRestored(false);
+    }
+  };
+
   const closeComposer = () => {
+    if (!editingNoteId) {
+      persistDraftNow();
+    } else if (draftUserEmail) {
+      const storedDraft = readDeliveryNoteDraft(draftUserEmail);
+      setForm(storedDraft?.form ?? emptyForm());
+      setCustomerSearch(storedDraft?.customerSearch ?? "");
+      setDraftSavedAt(storedDraft?.savedAt ?? null);
+      setDraftWasRestored(Boolean(storedDraft));
+    }
+
     setEditingNoteId(null);
-    setForm(emptyForm());
     setPreviews({});
     setFormError(null);
     setVoiceFeedback(null);
-    setCustomerSearch("");
     setIsComposerOpen(false);
     setSheetState({ itemId: null, mode: "create", open: false });
   };
 
   const openNewComposer = () => {
+    if (draftUserEmail) {
+      const storedDraft = readDeliveryNoteDraft(draftUserEmail);
+      if (storedDraft) {
+        setForm(storedDraft.form);
+        setCustomerSearch(storedDraft.customerSearch);
+        setDraftSavedAt(storedDraft.savedAt);
+        setDraftWasRestored(true);
+      }
+    }
     setEditingNoteId(null);
-    setForm(emptyForm());
     setPreviews({});
     setFormError(null);
     setVoiceFeedback(null);
-    setCustomerSearch("");
+    setDraftStorageError(false);
     setMobilePane("detail");
     setIsComposerOpen(true);
+  };
+
+  const discardLocalDraft = () => {
+    if (
+      hasDeliveryNoteDraftContent(form, customerSearch) &&
+      !window.confirm("Se borrara el borrador guardado en este dispositivo. ¿Quieres continuar?")
+    ) {
+      return;
+    }
+
+    if (draftUserEmail) {
+      clearDeliveryNoteDraft(draftUserEmail);
+    }
+    setForm(emptyForm());
+    setCustomerSearch("");
+    setPreviews({});
+    setFormError(null);
+    setVoiceFeedback(null);
+    setDraftSavedAt(null);
+    setDraftWasRestored(false);
+    setDraftStorageError(false);
+    setSheetState({ itemId: null, mode: "create", open: false });
   };
 
   const openEditComposer = (note: DeliveryNote) => {
@@ -1213,17 +1358,46 @@ export const DeliveryNotesPage = () => {
           <div className="absolute inset-x-0 bottom-0 top-0 flex min-h-0 flex-col overflow-hidden border border-neutral-300 bg-white sm:inset-6">
             <div className="shrink-0 border-b border-neutral-300 bg-white px-4 py-3 sm:px-5">
               <div className="flex items-center justify-between gap-3">
-                <p className="min-w-0 text-sm font-semibold text-neutral-900 sm:text-base">
-                  {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
-                </p>
-                <button
-                  className="inline-flex h-8 w-8 items-center justify-center border border-neutral-300 bg-white text-neutral-600"
-                  onClick={closeComposer}
-                  type="button"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                </button>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-neutral-900 sm:text-base">
+                    {editingNoteId ? "Editar albaran" : "Nuevo albaran"}
+                  </p>
+                  {!editingNoteId && draftSavedAt ? (
+                    <p aria-live="polite" className="mt-1 text-xs text-neutral-500">
+                      {draftWasRestored
+                        ? "Borrador recuperado en este dispositivo"
+                        : `Guardado automaticamente a las ${new Date(draftSavedAt).toLocaleTimeString("es-ES", {
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}`}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {!editingNoteId && hasDeliveryNoteDraftContent(form, customerSearch) ? (
+                    <button
+                      className="border border-neutral-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-neutral-700"
+                      onClick={discardLocalDraft}
+                      type="button"
+                    >
+                      Descartar
+                    </button>
+                  ) : null}
+                  <button
+                    aria-label="Cerrar editor de albaran"
+                    className="inline-flex h-8 w-8 items-center justify-center border border-neutral-300 bg-white text-neutral-600"
+                    onClick={closeComposer}
+                    type="button"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
+              {draftStorageError ? (
+                <p className="mt-2 text-xs text-red-700">
+                  No se pudo guardar el borrador en este dispositivo. Manten esta ventana abierta.
+                </p>
+              ) : null}
               {voiceFeedback ? (
                 <p className="mt-3 border border-[var(--epx-accent)]/25 bg-[color:rgb(255_149_0_/_0.08)] px-3 py-2 text-sm text-neutral-700">
                   {voiceFeedback}

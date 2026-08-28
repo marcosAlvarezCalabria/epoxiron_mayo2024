@@ -1,3 +1,5 @@
+import { clearDeliveryNoteDraft } from "@/services/deliveryNoteDraftStorage";
+
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 const tokenStorageKey = "epoxiron_token";
 const userStorageKey = "epoxiron_user";
@@ -63,6 +65,10 @@ export const authService = {
   },
 
   clearSession() {
+    const user = this.getUser();
+    if (user) {
+      clearDeliveryNoteDraft(user.email);
+    }
     sessionStorage.removeItem(tokenStorageKey);
     sessionStorage.removeItem(userStorageKey);
   },
