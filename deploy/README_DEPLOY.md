@@ -43,7 +43,7 @@ Puertos publicados:
     hermes/
       hermes.env.example
       skills/
-        epoxiron-operations/
+        epoxiron/
           SKILL.md
   README.md
   pnpm-lock.yaml
@@ -130,7 +130,7 @@ docker compose -f deploy/docker-compose.vps.yml -p epoxiron restart api
 - `api/Dockerfile` ya no usa multi-stage
 - el repo ya no usa `docker-compose.yml` en la raiz
 - los prompts de Codex ya no viven en la raiz
-- la skill `epoxiron-operations` vive en `deploy/hermes/skills/`
+- la skill `epoxiron` vive en `deploy/hermes/skills/`
 
 ## Hermes
 

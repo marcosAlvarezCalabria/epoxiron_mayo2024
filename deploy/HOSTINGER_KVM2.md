@@ -84,7 +84,7 @@ Configura su contexto:
 
 - Copia o adapta [hermes/config/hermes.config.example.yaml](/opt/epoxiron/hermes/config/hermes.config.example.yaml)
 - Usa `project_context_files` con `.hermes.md` y `AGENTS.md`
-- Instala la skill del proyecto desde [hermes/skills/epoxiron-operations/SKILL.md](/opt/epoxiron/hermes/skills/epoxiron-operations/SKILL.md)
+- Instala la skill del proyecto desde [hermes/skills/epoxiron/SKILL.md](/opt/epoxiron/hermes/skills/epoxiron/SKILL.md)
 
 ## 6. Levantar API, web y Postgres
 

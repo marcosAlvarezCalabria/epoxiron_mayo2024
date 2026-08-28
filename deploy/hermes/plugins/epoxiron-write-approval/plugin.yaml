@@ -1,0 +1,3 @@
+name: epoxiron-write-approval
+version: "1.0.0"
+description: Require human approval before Hermes mutates Epoxiron delivery notes
