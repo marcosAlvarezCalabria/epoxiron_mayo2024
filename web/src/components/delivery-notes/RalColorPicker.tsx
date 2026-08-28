@@ -163,11 +163,14 @@ export const RalColorPicker = ({ onChange, onTextureChange, texture, value }: Ra
                     <div className="grid grid-cols-6 gap-2 sm:grid-cols-8 lg:grid-cols-10">
                       {group.colors.map(([code, color]) => {
                         const isSelected = value === code;
+                        const isRalCode = /^RAL \d{4}$/u.test(code);
                         const swatchTextColor = getSwatchTextColor(color.hex);
                         return (
                           <button
                             aria-label={`${code} ${color.name}`}
-                            className={`relative flex h-11 w-16 items-center justify-center border px-1 text-center transition-transform hover:scale-[1.03] ${
+                            className={`relative flex h-11 items-center justify-center border px-1 text-center transition-transform hover:scale-[1.03] ${
+                              isRalCode ? "w-16" : "col-span-2 w-full"
+                            } ${
                               isSelected
                                 ? "border-[var(--epx-accent)] ring-2 ring-[var(--epx-accent)]/40"
                                 : "border-neutral-300"
@@ -182,10 +185,14 @@ export const RalColorPicker = ({ onChange, onTextureChange, texture, value }: Ra
                             type="button"
                           >
                             <span
-                              className="pointer-events-none text-[10px] font-semibold tracking-[0.08em]"
+                              className={`pointer-events-none font-semibold uppercase ${
+                                isRalCode
+                                  ? "text-[10px] tracking-[0.08em]"
+                                  : "px-1 text-[9px] leading-tight tracking-[0.04em]"
+                              }`}
                               style={{ color: swatchTextColor }}
                             >
-                              {code.replace("RAL ", "")}
+                              {isRalCode ? code.replace("RAL ", "") : color.name}
                             </span>
                             {isSelected ? (
                               <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/25 text-white">
