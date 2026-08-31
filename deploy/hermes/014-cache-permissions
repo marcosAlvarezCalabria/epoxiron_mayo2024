@@ -1,0 +1,21 @@
+#!/command/with-contenv sh
+set -eu
+
+hermes_home="${HERMES_HOME:-/opt/data}"
+cache_dir="$hermes_home/cache"
+legacy_audio_dir="$hermes_home/audio_cache"
+
+# The gateway runs as the unprivileged hermes user. Maintenance commands
+# executed with docker exec run as root by default and can leave the shared
+# cache unwritable, which prevents Telegram voice messages from being saved.
+if [ -L "$cache_dir" ]; then
+    echo "[cache-permissions] refusing to chown symlinked cache: $cache_dir"
+else
+    mkdir -p "$cache_dir/audio" "$cache_dir/huggingface"
+    chown -R hermes:hermes "$cache_dir"
+fi
+
+# Keep the legacy location writable while older cached messages still exist.
+if [ -d "$legacy_audio_dir" ] && [ ! -L "$legacy_audio_dir" ]; then
+    chown -R hermes:hermes "$legacy_audio_dir"
+fi
