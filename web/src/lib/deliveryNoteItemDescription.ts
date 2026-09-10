@@ -119,8 +119,11 @@ const descriptionContainsCalculatedMeasures = (description: string) => {
 
 type DeliveryNoteItemLike = Pick<
   DeliveryNoteItem | DeliveryNoteItemDraft,
-  "description" | "color" | "texture" | "pricingMode" | "linearMeters" | "squareMeters" | "thickness" | "primer"
+  "description" | "color" | "texture" | "pricingMode" | "linearMeters" | "squareMeters" | "widthMm" | "heightMm" | "thickness" | "primer"
 >;
+
+const formatMillimeters = (value: number) =>
+  Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.?0+$/u, "");
 
 const normalizeRenderedColor = (value: string) => value.replace(/^RAL\s+/u, "").trim();
 
@@ -145,7 +148,11 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemLike) => 
       segments.push(`${formatMetersSummary(item.linearMeters)}MLIN`);
     }
 
-    if ((item.squareMeters ?? 0) > 0) {
+    if ((item.widthMm ?? 0) > 0 && (item.heightMm ?? 0) > 0) {
+      segments.push(
+        `${formatMillimeters(item.widthMm ?? 0)}X${formatMillimeters(item.heightMm ?? 0)}MM`
+      );
+    } else if ((item.squareMeters ?? 0) > 0) {
       segments.push(`${formatSquareMetersSummary(item.squareMeters)}M2`);
     }
   }

@@ -77,6 +77,8 @@ model DeliveryNoteItem {
   customUnitPrice Float?
   linearMeters   Float?
   squareMeters   Float?
+  widthMm        Float?
+  heightMm       Float?
   thickness      Float?
   primer         Boolean      @default(false)
   quantity       Int

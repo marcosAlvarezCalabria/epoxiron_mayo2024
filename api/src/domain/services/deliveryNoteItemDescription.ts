@@ -10,6 +10,8 @@ interface DeliveryNoteItemDescriptionInput {
   pricingMode: DeliveryNotePricingMode | string;
   linearMeters?: number | null;
   squareMeters?: number | null;
+  widthMm?: number | null;
+  heightMm?: number | null;
   thickness?: number | null;
   primer?: boolean;
 }
@@ -122,6 +124,10 @@ const descriptionContainsCalculatedMeasures = (description: string) => {
 };
 
 const formatDocumentNumber = (value: number) => value.toFixed(2).replace(".", ",");
+const formatMillimeters = (value: number) =>
+  Number.isInteger(value)
+    ? value.toString()
+    : value.toFixed(2).replace(".", ",").replace(/,?0+$/u, "");
 const normalizeRenderedColor = (value: string) => value.replace(/^RAL\s+/u, "").trim();
 
 export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemDescriptionInput) => {
@@ -144,7 +150,11 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemDescripti
       segments.push(`${formatDocumentNumber(item.linearMeters ?? 0)}MLIN`);
     }
 
-    if ((item.squareMeters ?? 0) > 0) {
+    if ((item.widthMm ?? 0) > 0 && (item.heightMm ?? 0) > 0) {
+      segments.push(
+        `${formatMillimeters(item.widthMm ?? 0)}X${formatMillimeters(item.heightMm ?? 0)}MM`
+      );
+    } else if ((item.squareMeters ?? 0) > 0) {
       segments.push(`${formatDocumentNumber(item.squareMeters ?? 0)}M2`);
     }
   }

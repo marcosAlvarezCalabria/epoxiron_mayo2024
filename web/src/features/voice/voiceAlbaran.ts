@@ -500,7 +500,9 @@ export const mapParsedVoiceItemToFormState = (
         usesExistingSpecialPiece || item.pricingMode === "UNIT" ? "" : formatNumericField(item.linearMeters),
       quantity: item.quantity.toString(),
       squareMeters:
-        usesExistingSpecialPiece || item.pricingMode === "UNIT" ? "" : formatNumericField(item.squareMeters)
+        usesExistingSpecialPiece || item.pricingMode === "UNIT" ? "" : formatNumericField(item.squareMeters),
+      widthMm: "",
+      heightMm: ""
     };
   })()
 });

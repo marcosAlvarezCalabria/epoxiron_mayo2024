@@ -243,6 +243,7 @@ export const RAL_COLORS: Record<string, { hex: string; name: string; family: str
     ["RAL 9017", "Negro trafico", "#141414"]
   ]),
   ...buildFamily("Metalicos / especiales", [
+    ["ORO", "Oro", "#B08D57"],
     ["ORO V200", "Oro V200", "#B08D57"],
     ["ESMERILADO", "Esmerilado", "#B7B7B2"],
     ["ORO ENVEJECIDO ESMERILADO", "Oro envejecido esmerilado", "#80633F"],

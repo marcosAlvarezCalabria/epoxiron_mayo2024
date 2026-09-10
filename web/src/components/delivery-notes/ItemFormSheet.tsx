@@ -15,7 +15,8 @@ import {
 } from "@/lib/deliveryNoteItemDescription";
 import {
   parseMeters,
-  parseMetersSquared
+  parseMetersSquared,
+  parseSquareMetersFromMillimeters
 } from "@/lib/measurements";
 import { estimateDeliveryNoteItemPrice, resolvePricePreview } from "@/lib/pricing";
 import {
@@ -36,12 +37,15 @@ export interface DeliveryNoteItemFormState {
   linearMeters: string;
   quantity: string;
   squareMeters: string;
+  widthMm: string;
+  heightMm: string;
 }
 
 interface DeliveryNoteItemFieldErrors {
   color?: string;
   customUnitPrice?: string;
   description?: string;
+  dimensions?: string;
   quantity?: string;
 }
 
@@ -62,7 +66,7 @@ interface ItemFormSheetProps {
 }
 
 const emptyErrors: DeliveryNoteItemFieldErrors = {};
-const quantityOptions = Array.from({ length: 200 }, (_, index) => index + 1);
+const quantityOptions = Array.from({ length: 1000 }, (_, index) => index + 1);
 const quantityWheelItemHeight = 34;
 
 const parseDecimal = (value: string) => {
@@ -84,7 +88,11 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
-  squareMeters: parseMetersSquared(item.squareMeters),
+  squareMeters:
+    parseSquareMetersFromMillimeters(item.widthMm, item.heightMm) ??
+    parseMetersSquared(item.squareMeters),
+  widthMm: parseDecimal(item.widthMm),
+  heightMm: parseDecimal(item.heightMm),
   texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
@@ -233,6 +241,10 @@ export const ItemFormSheet = ({
   }, [customer?.specialPieces, showAllSpecialPieces, templateSearch]);
   const hasTypedTemplateSearch = templateSearch.trim().length > 0;
   const shouldShowSpecialPieceResults = showAllSpecialPieces || hasTypedTemplateSearch;
+  const calculatedSquareMeters = parseSquareMetersFromMillimeters(
+    item.widthMm,
+    item.heightMm
+  );
 
   const close = () => {
     onClose();
@@ -253,8 +265,19 @@ export const ItemFormSheet = ({
       nextErrors.color = "Selecciona un color.";
     }
 
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 200) {
-      nextErrors.quantity = "La cantidad debe ser un entero entre 1 y 200.";
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 1000) {
+      nextErrors.quantity = "La cantidad debe ser un entero entre 1 y 1000.";
+    }
+
+    const widthMm = parseDecimal(item.widthMm);
+    const heightMm = parseDecimal(item.heightMm);
+    if (
+      item.pricingMode === "DIMENSIONS" &&
+      ((widthMm == null) !== (heightMm == null) ||
+        (widthMm != null && widthMm <= 0) ||
+        (heightMm != null && heightMm <= 0))
+    ) {
+      nextErrors.dimensions = "Indica ancho y alto completos, ambos mayores que 0 mm.";
     }
 
     if (item.pricingMode === "UNIT" && !item.customUnitPrice.trim() && !matchedSpecialPiece) {
@@ -312,7 +335,7 @@ export const ItemFormSheet = ({
                 {preview ? `${preview.totalPrice.toFixed(2)} €` : "—"}
               </span>
               <span className="text-neutral-300">|</span>
-              <span>{item.pricingMode === "UNIT" ? "Unidad" : "M/M2"}</span>
+              <span>{item.pricingMode === "UNIT" ? "Unidad" : "M / mm x mm"}</span>
               {preview ? (
                 <>
                   <span className="text-neutral-300">|</span>
@@ -436,7 +459,7 @@ export const ItemFormSheet = ({
                     ) : null}
                 </div>
                 <p className="text-xs text-neutral-600">
-                  Si eliges una pieza especial, el sistema usa su precio por unidad y no calcula por M o M2.
+                  Si eliges una pieza especial, el sistema usa su precio por unidad y no calcula por medidas.
                 </p>
               </div>
             ) : null}
@@ -478,14 +501,15 @@ export const ItemFormSheet = ({
                             autoFocus
                             className="w-full bg-transparent px-1 text-center text-lg font-bold text-neutral-950 outline-none"
                             inputMode="numeric"
+                            maxLength={4}
                             onBlur={() => {
                               const quantity = Number(item.quantity);
                               setFieldErrors((current) => ({
                                 ...current,
                                 quantity:
-                                  Number.isInteger(quantity) && quantity >= 1 && quantity <= 200
+                                  Number.isInteger(quantity) && quantity >= 1 && quantity <= 1000
                                     ? undefined
-                                    : "La cantidad debe ser un entero entre 1 y 200."
+                                    : "La cantidad debe ser un entero entre 1 y 1000."
                               }));
                               setIsQuantityInputFocused(false);
                             }}
@@ -588,7 +612,8 @@ export const ItemFormSheet = ({
                   label: "Modo de precio"
                 },
                 { key: "linearMeters", label: "Metros lineales", placeholder: "0" },
-                { key: "squareMeters", label: "Metros cuadrados", placeholder: "0" }
+                { key: "widthMm", label: "Ancho (mm)", placeholder: "Ej. 2500" },
+                { key: "heightMm", label: "Alto (mm)", placeholder: "Ej. 800" }
               ] as const).map((field) =>
                 field.key === "pricingMode" ? (
                   <div className="border border-neutral-300 bg-white px-4 py-3" key={field.key}>
@@ -600,7 +625,7 @@ export const ItemFormSheet = ({
                       </div>
                       <div className="inline-flex rounded-full border border-neutral-300 bg-neutral-100 p-1">
                         {([
-                          { label: "M/M2", value: "DIMENSIONS" },
+                          { label: "M / mm x mm", value: "DIMENSIONS" },
                           { label: "Unidad", value: "UNIT" }
                         ] as const).map((option) => (
                           <button
@@ -624,7 +649,7 @@ export const ItemFormSheet = ({
                       </div>
                     </div>
                   </div>
-                ) : item.pricingMode === "UNIT" && field.key !== "linearMeters" ? (
+                ) : item.pricingMode === "UNIT" && field.key === "widthMm" ? (
                   <label
                     className="border border-neutral-300 bg-white px-4 py-3"
                     key={field.key}
@@ -661,18 +686,41 @@ export const ItemFormSheet = ({
                   <input
                     className="mt-3 w-full bg-transparent text-lg font-semibold text-neutral-900 outline-none"
                     inputMode="decimal"
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setItem((current) => ({
                         ...current,
-                        [field.key]: event.target.value
-                      }))
-                    }
+                        [field.key]: event.target.value,
+                        ...(field.key === "widthMm" || field.key === "heightMm"
+                          ? { squareMeters: "" }
+                          : {})
+                      }));
+                      if (field.key === "widthMm" || field.key === "heightMm") {
+                        setFieldErrors((current) => ({ ...current, dimensions: undefined }));
+                      }
+                    }}
                     placeholder={field.placeholder}
                     value={item[field.key]}
                   />
                 </label>
                 )
               )}
+              {item.pricingMode === "DIMENSIONS" ? (
+                <div className="border border-neutral-300 bg-neutral-50 px-4 py-3 sm:col-span-2">
+                  <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                    Superficie calculada internamente
+                  </span>
+                  <span className="mt-1 block text-sm font-semibold text-neutral-900">
+                    {calculatedSquareMeters != null
+                      ? `${calculatedSquareMeters.toFixed(4).replace(/\.?0+$/u, "")} m²`
+                      : "Completa ancho y alto en mm"}
+                  </span>
+                  {fieldErrors.dimensions ? (
+                    <p className="mt-2 text-sm text-red-600" role="alert">
+                      {fieldErrors.dimensions}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">

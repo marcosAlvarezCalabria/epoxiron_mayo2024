@@ -12,11 +12,27 @@ export const deliveryNoteItemDraftSchema = z.object({
   customUnitPrice: z.coerce.number().positive().nullable().optional(),
   linearMeters: z.coerce.number().positive().nullable().optional(),
   squareMeters: z.coerce.number().positive().nullable().optional(),
+  widthMm: z.coerce.number().positive().nullable().optional(),
+  heightMm: z.coerce.number().positive().nullable().optional(),
   thickness: z.coerce.number().positive().nullable().optional(),
   primer: z.boolean().optional(),
   saveAsSpecialPiece: z.boolean().optional(),
-  quantity: z.coerce.number().int().min(1).max(200)
-});
+  quantity: z.coerce.number().int().min(1).max(1000)
+}).superRefine((item, context) => {
+  if ((item.widthMm == null) !== (item.heightMm == null)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "El ancho y el alto en milímetros deben indicarse juntos",
+      path: item.widthMm == null ? ["widthMm"] : ["heightMm"]
+    });
+  }
+}).transform((item) => ({
+  ...item,
+  squareMeters:
+    item.widthMm != null && item.heightMm != null
+      ? (item.widthMm * item.heightMm) / 1_000_000
+      : item.squareMeters
+}));
 
 export const deliveryNoteInputSchema = z.object({
   customerId: z.string().uuid(),

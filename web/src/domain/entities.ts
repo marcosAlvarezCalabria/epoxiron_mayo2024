@@ -64,6 +64,8 @@ export interface DeliveryNoteItemDraft {
   customUnitPrice?: number | null;
   linearMeters?: number | null;
   squareMeters?: number | null;
+  widthMm?: number | null;
+  heightMm?: number | null;
   thickness?: number | null;
   primer?: boolean;
   saveAsSpecialPiece?: boolean;
@@ -79,6 +81,8 @@ export interface DeliveryNoteItem {
   customUnitPrice?: number | null;
   linearMeters?: number | null;
   squareMeters?: number | null;
+  widthMm?: number | null;
+  heightMm?: number | null;
   thickness?: number | null;
   primer?: boolean;
   quantity: number;

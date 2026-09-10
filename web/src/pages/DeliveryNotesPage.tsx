@@ -53,10 +53,11 @@ import {
 import {
   formatMeters,
   formatMetersSummary,
-  formatSquareMeters,
-  formatSquareMetersSummary,
+  formatMillimeterDimensions,
+  formatMillimeters,
   parseMeters,
-  parseMetersSquared
+  parseMetersSquared,
+  parseSquareMetersFromMillimeters
 } from "@/lib/measurements";
 import {
   estimateDeliveryNoteItemPrice,
@@ -106,7 +107,9 @@ const emptyItem = (): DeliveryNoteItemFormState => ({
   texture: "NORMAL",
   linearMeters: "",
   quantity: "1",
-  squareMeters: ""
+  squareMeters: "",
+  widthMm: "",
+  heightMm: ""
 });
 
 const emptyForm = (): DeliveryNoteFormState => ({
@@ -131,7 +134,9 @@ const noteToFormState = (note: DeliveryNote): DeliveryNoteFormState => ({
     texture: item.texture ?? "NORMAL",
     linearMeters: formatMeters(item.linearMeters),
     quantity: item.quantity.toString(),
-    squareMeters: formatSquareMeters(item.squareMeters)
+    squareMeters: item.widthMm != null && item.heightMm != null ? "" : (item.squareMeters?.toString() ?? ""),
+    widthMm: formatMillimeters(item.widthMm),
+    heightMm: formatMillimeters(item.heightMm)
   })),
   notes: note.notes ?? ""
 });
@@ -145,7 +150,11 @@ const normalizeItem = (item: DeliveryNoteItemFormState): DeliveryNoteItemDraft =
   primer: item.hasPrimer,
   quantity: Number.parseInt(item.quantity || "1", 10),
   saveAsSpecialPiece: item.saveAsSpecialPiece,
-  squareMeters: parseMetersSquared(item.squareMeters),
+  squareMeters:
+    parseSquareMetersFromMillimeters(item.widthMm, item.heightMm) ??
+    parseMetersSquared(item.squareMeters),
+  widthMm: item.widthMm.trim() ? Number.parseFloat(item.widthMm.replace(",", ".")) : null,
+  heightMm: item.heightMm.trim() ? Number.parseFloat(item.heightMm.replace(",", ".")) : null,
   texture: item.texture,
   thickness: item.hasThickness ? 1 : null
 });
@@ -1285,7 +1294,7 @@ export const DeliveryNotesPage = () => {
                               {item.quantity}
                               {item.pricingMode === "UNIT"
                                 ? ` | U ${item.customUnitPrice?.toFixed(2) ?? item.unitPrice.toFixed(2)}€`
-                                : ` | M ${formatMetersSummary(item.linearMeters)} | M2 ${formatSquareMetersSummary(item.squareMeters)}`}
+                                : ` | M ${formatMetersSummary(item.linearMeters)} | MEDIDAS ${formatMillimeterDimensions(item.widthMm, item.heightMm) ?? "—"}`}
                               {item.thickness != null ? " | G" : ""}
                               {item.primer ? " | I" : ""}
                             </span>
@@ -1559,7 +1568,11 @@ export const DeliveryNotesPage = () => {
                                     linearMeters: parseMeters(item.linearMeters),
                                     pricingMode: item.pricingMode,
                                     primer: item.hasPrimer,
-                                    squareMeters: parseMetersSquared(item.squareMeters),
+                                    squareMeters:
+                                      parseSquareMetersFromMillimeters(item.widthMm, item.heightMm) ??
+                                      parseMetersSquared(item.squareMeters),
+                                    widthMm: item.widthMm ? Number.parseFloat(item.widthMm.replace(",", ".")) : null,
+                                    heightMm: item.heightMm ? Number.parseFloat(item.heightMm.replace(",", ".")) : null,
                                     texture: item.texture,
                                     thickness: item.hasThickness ? 1 : null
                                   })} · x${item.quantity}${item.pricingMode === "UNIT" ? ` · U ${item.customUnitPrice || "0"}` : ""}${item.saveAsSpecialPiece ? " · ESP" : ""}`}
@@ -1572,7 +1585,11 @@ export const DeliveryNotesPage = () => {
                                       linearMeters: parseMeters(item.linearMeters),
                                       pricingMode: item.pricingMode,
                                       primer: item.hasPrimer,
-                                      squareMeters: parseMetersSquared(item.squareMeters),
+                                      squareMeters:
+                                        parseSquareMetersFromMillimeters(item.widthMm, item.heightMm) ??
+                                        parseMetersSquared(item.squareMeters),
+                                      widthMm: item.widthMm ? Number.parseFloat(item.widthMm.replace(",", ".")) : null,
+                                      heightMm: item.heightMm ? Number.parseFloat(item.heightMm.replace(",", ".")) : null,
                                       texture: item.texture,
                                       thickness: item.hasThickness ? 1 : null
                                     })}
@@ -1596,8 +1613,8 @@ export const DeliveryNotesPage = () => {
                                       </span>
                                       <span className="text-neutral-400">·</span>
                                       <span className="inline-flex items-center gap-1">
-                                        <UnitToken base="m" suffix="2" />
-                                        <span>{item.squareMeters || "0"}</span>
+                                        <span>mm</span>
+                                        <span>{item.widthMm && item.heightMm ? `${item.widthMm}x${item.heightMm}` : "—"}</span>
                                       </span>
                                     </>
                                   )}
@@ -1633,7 +1650,11 @@ export const DeliveryNotesPage = () => {
                                     linearMeters: parseMeters(item.linearMeters),
                                     pricingMode: item.pricingMode,
                                     primer: item.hasPrimer,
-                                    squareMeters: parseMetersSquared(item.squareMeters),
+                                    squareMeters:
+                                      parseSquareMetersFromMillimeters(item.widthMm, item.heightMm) ??
+                                      parseMetersSquared(item.squareMeters),
+                                    widthMm: item.widthMm ? Number.parseFloat(item.widthMm.replace(",", ".")) : null,
+                                    heightMm: item.heightMm ? Number.parseFloat(item.heightMm.replace(",", ".")) : null,
                                     texture: item.texture,
                                     thickness: item.hasThickness ? 1 : null
                                   })} · x${item.quantity}`}
@@ -1655,8 +1676,8 @@ export const DeliveryNotesPage = () => {
                                     <span>{item.linearMeters || "0"}</span>
                                   </span>
                                   <span className="inline-flex items-center gap-1">
-                                    <UnitToken base="m" suffix="2" />
-                                    <span>{item.squareMeters || "0"}</span>
+                                    <span>mm</span>
+                                    <span>{item.widthMm && item.heightMm ? `${item.widthMm}x${item.heightMm}` : "—"}</span>
                                   </span>
                                 </>
                               )}

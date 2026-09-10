@@ -80,6 +80,8 @@ const toDomainItem = (
     customUnitPrice?: number | null;
     linearMeters: number | null;
     squareMeters: number | null;
+    widthMm: number | null;
+    heightMm: number | null;
     thickness: number | null;
     primer: boolean;
     quantity: number;
@@ -95,6 +97,8 @@ const toDomainItem = (
   customUnitPrice: item.customUnitPrice,
   linearMeters: item.linearMeters,
   squareMeters: item.squareMeters,
+  widthMm: item.widthMm,
+  heightMm: item.heightMm,
   thickness: item.thickness,
   primer: item.primer,
   quantity: item.quantity,
@@ -123,6 +127,8 @@ const toDomainNote = (
         customUnitPrice?: number | null;
         linearMeters: number | null;
         squareMeters: number | null;
+        widthMm: number | null;
+        heightMm: number | null;
         thickness: number | null;
         primer: boolean;
         quantity: number;

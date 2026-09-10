@@ -34,7 +34,9 @@ describe("voiceAlbaran helpers", () => {
       texture: "GOFRADO",
       linearMeters: "12,5",
       quantity: "2",
-      squareMeters: ""
+      squareMeters: "",
+      widthMm: "",
+      heightMm: ""
     });
   });
 
@@ -80,7 +82,9 @@ describe("voiceAlbaran helpers", () => {
       texture: "NORMAL",
       linearMeters: "",
       quantity: "2",
-      squareMeters: ""
+      squareMeters: "",
+      widthMm: "",
+      heightMm: ""
     });
   });
 

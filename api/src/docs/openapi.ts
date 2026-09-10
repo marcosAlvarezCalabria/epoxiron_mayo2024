@@ -94,9 +94,11 @@ const deliveryNoteItemComponent = registry.register(
     customUnitPrice: z.number().positive().nullable(),
     linearMeters: z.number().positive().nullable().optional(),
     squareMeters: z.number().positive().nullable().optional(),
+    widthMm: z.number().positive().nullable().optional(),
+    heightMm: z.number().positive().nullable().optional(),
     thickness: z.number().positive().nullable().optional(),
     primer: z.boolean().optional(),
-    quantity: z.number().int().positive(),
+    quantity: z.number().int().min(1).max(1000),
     unitPrice: z.number().nonnegative(),
     totalPrice: z.number().nonnegative()
   })

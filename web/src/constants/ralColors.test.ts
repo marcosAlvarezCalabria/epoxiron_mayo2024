@@ -3,6 +3,7 @@ import { getRalColor } from "@/constants/ralColors";
 
 describe("commercial colors", () => {
   it.each([
+    ["ORO", "Oro"],
     ["ORO V200", "Oro V200"],
     ["ESMERILADO", "Esmerilado"],
     ["ORO ENVEJECIDO ESMERILADO", "Oro envejecido esmerilado"]

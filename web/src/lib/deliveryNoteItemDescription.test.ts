@@ -53,6 +53,20 @@ describe("deliveryNoteItemDescription helpers", () => {
     );
   });
 
+  it("renders stored dimensions in millimeters instead of square meters", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "CHAPA",
+        color: "ORO",
+        texture: "NORMAL",
+        pricingMode: "DIMENSIONS",
+        squareMeters: 2,
+        widthMm: 2500,
+        heightMm: 800
+      })
+    ).toBe(`CHAPA ${middleDot} ORO ${middleDot} 2500X800MM`);
+  });
+
   it("prefers explicit spoken dimensions over calculated M2 in the rendered description", () => {
     expect(
       buildDeliveryNoteItemDescription({

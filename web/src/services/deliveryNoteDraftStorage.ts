@@ -42,6 +42,28 @@ const getDraftKey = (email: string) =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+const withCurrentItemShape = (value: unknown): unknown => {
+  if (!isRecord(value) || !isRecord(value.form) || !Array.isArray(value.form.items)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    form: {
+      ...value.form,
+      items: value.form.items.map((item) =>
+        isRecord(item)
+          ? {
+              ...item,
+              widthMm: typeof item.widthMm === "string" ? item.widthMm : "",
+              heightMm: typeof item.heightMm === "string" ? item.heightMm : ""
+            }
+          : item
+      )
+    }
+  };
+};
+
 const isDraftItem = (value: unknown): value is DeliveryNoteItemFormState => {
   if (!isRecord(value)) return false;
   return (
@@ -56,7 +78,9 @@ const isDraftItem = (value: unknown): value is DeliveryNoteItemFormState => {
     ["NORMAL", "MATE", "TEXTURADO", "GOFRADO"].includes(String(value.texture)) &&
     typeof value.linearMeters === "string" &&
     typeof value.quantity === "string" &&
-    typeof value.squareMeters === "string"
+    typeof value.squareMeters === "string" &&
+    typeof value.widthMm === "string" &&
+    typeof value.heightMm === "string"
   );
 };
 
@@ -92,7 +116,7 @@ export const readDeliveryNoteDraft = (
   try {
     const raw = target.getItem(key);
     if (!raw) return null;
-    const draft: unknown = JSON.parse(raw);
+    const draft = withCurrentItemShape(JSON.parse(raw));
     if (!isStoredDraft(draft) || now - draft.savedAt > DRAFT_MAX_AGE_MS) {
       removeDraft(target, key);
       return null;
