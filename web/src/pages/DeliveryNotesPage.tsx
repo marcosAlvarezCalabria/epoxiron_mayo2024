@@ -1604,31 +1604,6 @@ export const DeliveryNotesPage = () => {
                                         <span>{item.customUnitPrice || "0"}</span>
                                       </span>
                                     </>
-                                  ) : (
-                                    <>
-                                      <span className="text-neutral-400">·</span>
-                                      <span className="inline-flex items-center gap-1">
-                                        <UnitToken base="m" suffix="l" />
-                                        <span>{item.linearMeters || "0"}</span>
-                                      </span>
-                                      <span className="text-neutral-400">·</span>
-                                      <span className="inline-flex items-center gap-1">
-                                        <span>mm</span>
-                                        <span>{item.widthMm && item.heightMm ? `${item.widthMm}x${item.heightMm}` : "—"}</span>
-                                      </span>
-                                    </>
-                                  )}
-                                  {item.hasThickness ? (
-                                    <>
-                                      <span className="text-neutral-400">·</span>
-                                      <span>G</span>
-                                    </>
-                                  ) : null}
-                                  {item.hasPrimer ? (
-                                    <>
-                                      <span className="text-neutral-400">·</span>
-                                      <span>I</span>
-                                    </>
                                   ) : null}
                                   {item.saveAsSpecialPiece ? (
                                     <>
