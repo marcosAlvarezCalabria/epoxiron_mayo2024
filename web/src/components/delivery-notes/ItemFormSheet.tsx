@@ -74,6 +74,11 @@ const parseDecimal = (value: string) => {
   return normalized ? Number.parseFloat(normalized) : null;
 };
 
+const formatCalculatedSquareMeters = (value: number) =>
+  new Intl.NumberFormat("es-ES", {
+    maximumFractionDigits: 8
+  }).format(value);
+
 const clampQuantity = (value: string) => {
   const parsed = Number.parseInt(value || "1", 10);
   return Math.min(quantityOptions.length, Math.max(1, parsed)).toString();
@@ -611,9 +616,7 @@ export const ItemFormSheet = ({
                   key: "pricingMode",
                   label: "Modo de precio"
                 },
-                { key: "linearMeters", label: "Metros lineales", placeholder: "0" },
-                { key: "widthMm", label: "Ancho (mm)", placeholder: "Ej. 2500" },
-                { key: "heightMm", label: "Alto (mm)", placeholder: "Ej. 800" }
+                { key: "linearMeters", label: "Metros lineales", placeholder: "0" }
               ] as const).map((field) =>
                 field.key === "pricingMode" ? (
                   <div className="border border-neutral-300 bg-white px-4 py-3" key={field.key}>
@@ -649,7 +652,7 @@ export const ItemFormSheet = ({
                       </div>
                     </div>
                   </div>
-                ) : item.pricingMode === "UNIT" && field.key === "widthMm" ? (
+                ) : item.pricingMode === "UNIT" && field.key === "linearMeters" ? (
                   <label
                     className="border border-neutral-300 bg-white px-4 py-3"
                     key={field.key}
@@ -689,14 +692,8 @@ export const ItemFormSheet = ({
                     onChange={(event) => {
                       setItem((current) => ({
                         ...current,
-                        [field.key]: event.target.value,
-                        ...(field.key === "widthMm" || field.key === "heightMm"
-                          ? { squareMeters: "" }
-                          : {})
+                        [field.key]: event.target.value
                       }));
-                      if (field.key === "widthMm" || field.key === "heightMm") {
-                        setFieldErrors((current) => ({ ...current, dimensions: undefined }));
-                      }
                     }}
                     placeholder={field.placeholder}
                     value={item[field.key]}
@@ -705,21 +702,91 @@ export const ItemFormSheet = ({
                 )
               )}
               {item.pricingMode === "DIMENSIONS" ? (
-                <div className="border border-neutral-300 bg-neutral-50 px-4 py-3 sm:col-span-2">
-                  <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">
-                    Superficie calculada internamente
-                  </span>
-                  <span className="mt-1 block text-sm font-semibold text-neutral-900">
-                    {calculatedSquareMeters != null
-                      ? `${calculatedSquareMeters.toFixed(4).replace(/\.?0+$/u, "")} m²`
-                      : "Completa ancho y alto en mm"}
-                  </span>
+                <fieldset className="border border-neutral-300 bg-neutral-50 p-4 sm:col-span-2">
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600">
+                    Medidas para superficie
+                  </legend>
+
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
+                    <label className="min-w-0" htmlFor="piece-width-mm">
+                      <span className="block text-xs font-semibold text-neutral-700">
+                        Ancho <span className="font-normal text-neutral-500">(mm)</span>
+                      </span>
+                      <span className="mt-2 flex items-center border border-neutral-300 bg-white px-3">
+                        <input
+                          aria-describedby="piece-surface-status"
+                          className="min-w-0 flex-1 bg-transparent py-3 text-lg font-semibold text-neutral-900 outline-none placeholder:text-neutral-400"
+                          id="piece-width-mm"
+                          inputMode="decimal"
+                          onChange={(event) => {
+                            setItem((current) => ({
+                              ...current,
+                              widthMm: event.target.value,
+                              squareMeters: ""
+                            }));
+                            setFieldErrors((current) => ({ ...current, dimensions: undefined }));
+                          }}
+                          placeholder="2500"
+                          value={item.widthMm}
+                        />
+                        <span className="ml-2 shrink-0 text-xs font-medium text-neutral-500">mm</span>
+                      </span>
+                    </label>
+
+                    <span
+                      aria-hidden="true"
+                      className="pb-3 text-lg font-semibold text-neutral-400"
+                    >
+                      ×
+                    </span>
+
+                    <label className="min-w-0" htmlFor="piece-height-mm">
+                      <span className="block text-xs font-semibold text-neutral-700">
+                        Alto <span className="font-normal text-neutral-500">(mm)</span>
+                      </span>
+                      <span className="mt-2 flex items-center border border-neutral-300 bg-white px-3">
+                        <input
+                          aria-describedby="piece-surface-status"
+                          className="min-w-0 flex-1 bg-transparent py-3 text-lg font-semibold text-neutral-900 outline-none placeholder:text-neutral-400"
+                          id="piece-height-mm"
+                          inputMode="decimal"
+                          onChange={(event) => {
+                            setItem((current) => ({
+                              ...current,
+                              heightMm: event.target.value,
+                              squareMeters: ""
+                            }));
+                            setFieldErrors((current) => ({ ...current, dimensions: undefined }));
+                          }}
+                          placeholder="800"
+                          value={item.heightMm}
+                        />
+                        <span className="ml-2 shrink-0 text-xs font-medium text-neutral-500">mm</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <div
+                    aria-live="polite"
+                    className="mt-4 border-t border-neutral-200 pt-3"
+                    id="piece-surface-status"
+                  >
+                    <span className="block text-xs font-medium text-neutral-600">
+                      Superficie calculada
+                    </span>
+                    <span className="mt-1 block text-base font-semibold text-neutral-900">
+                      {calculatedSquareMeters != null
+                        ? `${formatCalculatedSquareMeters(calculatedSquareMeters)} m²`
+                        : "Introduce ancho y alto para calcularla"}
+                    </span>
+                  </div>
+
                   {fieldErrors.dimensions ? (
                     <p className="mt-2 text-sm text-red-600" role="alert">
                       {fieldErrors.dimensions}
                     </p>
                   ) : null}
-                </div>
+                </fieldset>
               ) : null}
             </div>
 
