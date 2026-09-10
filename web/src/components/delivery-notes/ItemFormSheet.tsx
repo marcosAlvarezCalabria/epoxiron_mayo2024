@@ -702,9 +702,9 @@ export const ItemFormSheet = ({
                 )
               )}
               {item.pricingMode === "DIMENSIONS" ? (
-                <fieldset className="border border-neutral-300 bg-neutral-50 p-4 sm:col-span-2">
-                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-600">
-                    Medidas para superficie
+                <fieldset className="border border-neutral-300 bg-white px-4 pb-4 pt-3 sm:col-span-2">
+                  <legend className="px-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-neutral-500">
+                    Metros cuadrados
                   </legend>
 
                   <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3">
@@ -712,10 +712,10 @@ export const ItemFormSheet = ({
                       <span className="block text-xs font-semibold text-neutral-700">
                         Ancho <span className="font-normal text-neutral-500">(mm)</span>
                       </span>
-                      <span className="mt-2 flex items-center border border-neutral-300 bg-white px-3">
+                      <span className="mt-1 flex items-center border-b border-neutral-300 focus-within:border-[var(--epx-accent)]">
                         <input
                           aria-describedby="piece-surface-status"
-                          className="min-w-0 flex-1 bg-transparent py-3 text-lg font-semibold text-neutral-900 outline-none placeholder:text-neutral-400"
+                          className="min-w-0 flex-1 bg-transparent py-2 text-lg font-semibold text-neutral-900 outline-none placeholder:text-neutral-400"
                           id="piece-width-mm"
                           inputMode="decimal"
                           onChange={(event) => {
@@ -735,7 +735,7 @@ export const ItemFormSheet = ({
 
                     <span
                       aria-hidden="true"
-                      className="pb-3 text-lg font-semibold text-neutral-400"
+                      className="pb-2 text-lg font-semibold text-neutral-400"
                     >
                       ×
                     </span>
@@ -744,10 +744,10 @@ export const ItemFormSheet = ({
                       <span className="block text-xs font-semibold text-neutral-700">
                         Alto <span className="font-normal text-neutral-500">(mm)</span>
                       </span>
-                      <span className="mt-2 flex items-center border border-neutral-300 bg-white px-3">
+                      <span className="mt-1 flex items-center border-b border-neutral-300 focus-within:border-[var(--epx-accent)]">
                         <input
                           aria-describedby="piece-surface-status"
-                          className="min-w-0 flex-1 bg-transparent py-3 text-lg font-semibold text-neutral-900 outline-none placeholder:text-neutral-400"
+                          className="min-w-0 flex-1 bg-transparent py-2 text-lg font-semibold text-neutral-900 outline-none placeholder:text-neutral-400"
                           id="piece-height-mm"
                           inputMode="decimal"
                           onChange={(event) => {
@@ -768,13 +768,13 @@ export const ItemFormSheet = ({
 
                   <div
                     aria-live="polite"
-                    className="mt-4 border-t border-neutral-200 pt-3"
+                    className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-neutral-200 pt-3"
                     id="piece-surface-status"
                   >
-                    <span className="block text-xs font-medium text-neutral-600">
-                      Superficie calculada
+                    <span className="text-xs font-medium text-neutral-600">
+                      Superficie
                     </span>
-                    <span className="mt-1 block text-base font-semibold text-neutral-900">
+                    <span className="text-base font-semibold text-neutral-900">
                       {calculatedSquareMeters != null
                         ? `${formatCalculatedSquareMeters(calculatedSquareMeters)} m²`
                         : "Introduce ancho y alto para calcularla"}
