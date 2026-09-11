@@ -176,6 +176,11 @@ el borrador desde PostgreSQL. El esquema de sesión se corrigió para conservar
 ambos campos tanto en borradores como en propuestas. Sin ellos, la API aplicaba
 erróneamente la tarifa mínima en lugar del precio por superficie.
 
+Después se cubrió un segundo caso: el parser podía devolver `VALLA` con los m²
+ya calculados, sin repetir `2040X950` en la descripción. Las dimensiones del
+texto se asocian ahora a la línea cuyo área coincide, se conservan para el
+cálculo y el albarán muestra `2040X950MM` en vez de `1,94M2`.
+
 ## 11. Archivos clave
 
 - `docs/TELEGRAM_ALBARAN_AGENT_SPEC.md`.

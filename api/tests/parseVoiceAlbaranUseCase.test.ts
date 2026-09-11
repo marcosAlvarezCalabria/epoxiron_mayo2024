@@ -52,7 +52,8 @@ const buildParser = (parsed: ParsedVoiceAlbaran): VoiceAlbaranParser => ({
 });
 
 const buildParsedItem = (
-  description: string
+  description: string,
+  squareMeters: number | null = null
 ): ParsedVoiceAlbaran["items"][number] => ({
   description,
   color: "RAL 9005",
@@ -61,7 +62,7 @@ const buildParsedItem = (
   pricingMode: "DIMENSIONS",
   texture: "NORMAL",
   linearMeters: null,
-  squareMeters: null,
+  squareMeters,
   widthMm: null,
   heightMm: null,
   hasThickness: false,
@@ -78,9 +79,9 @@ describe("ParseVoiceAlbaranUseCase", () => {
         date: "2026-09-11",
         notes: null,
         items: [
-          buildParsedItem("VALLA DE LAMA 2040X950"),
-          buildParsedItem("VALLA DE LAMA 1900X950"),
-          buildParsedItem("VALLA DE LAMA 2100X1000")
+          buildParsedItem("VALLA", 1.938),
+          buildParsedItem("VALLA", 1.805),
+          buildParsedItem("VALLA", 2.1)
         ]
       }))
     };
@@ -95,9 +96,9 @@ describe("ParseVoiceAlbaranUseCase", () => {
     );
 
     expect(result.items).toMatchObject([
-      { description: "VALLA DE LAMA 204X95", widthMm: 2040, heightMm: 950 },
-      { description: "VALLA DE LAMA 190X95", widthMm: 1900, heightMm: 950 },
-      { description: "VALLA DE LAMA 210X100", widthMm: 2100, heightMm: 1000 }
+      { description: "VALLA", widthMm: 2040, heightMm: 950 },
+      { description: "VALLA", widthMm: 1900, heightMm: 950 },
+      { description: "VALLA", widthMm: 2100, heightMm: 1000 }
     ]);
   });
   it("removes square meters derived only from spoken dimensions", async () => {

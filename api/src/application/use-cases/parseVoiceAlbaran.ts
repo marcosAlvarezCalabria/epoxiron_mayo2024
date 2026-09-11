@@ -132,21 +132,42 @@ const normalizeSpokenDimensions = (
     }];
   });
   if (normalizedDimensions.length === 0) return parsed;
-  let dimensionIndex = 0;
+  const unusedDimensionIndexes = new Set(
+    normalizedDimensions.map((_dimension, index) => index)
+  );
 
   return {
     ...parsed,
     items: parsed.items.map((item) => {
-      if (!descriptionDimensionPattern.test(item.description)) return item;
-      const normalizedDimension = normalizedDimensions[dimensionIndex];
-      dimensionIndex += 1;
+      if ((item.linearMeters ?? 0) > 0) return item;
+      const hasDescriptionDimensions = descriptionDimensionPattern.test(item.description);
+      const matchingAreaIndex = item.squareMeters == null
+        ? -1
+        : normalizedDimensions.findIndex((dimension, index) =>
+            unusedDimensionIndexes.has(index) &&
+            Math.abs(
+              (dimension.widthMm * dimension.heightMm) / 1_000_000 -
+              (item.squareMeters ?? 0)
+            ) < 0.01
+          );
+      const dimensionIndex = matchingAreaIndex >= 0
+        ? matchingAreaIndex
+        : hasDescriptionDimensions
+          ? [...unusedDimensionIndexes][0] ?? -1
+          : -1;
+      const normalizedDimension = dimensionIndex >= 0
+        ? normalizedDimensions[dimensionIndex]
+        : null;
+      if (dimensionIndex >= 0) unusedDimensionIndexes.delete(dimensionIndex);
       return normalizedDimension
         ? {
             ...item,
-            description: item.description.replace(
-              descriptionDimensionPattern,
-              normalizedDimension.description
-            ),
+            description: hasDescriptionDimensions
+              ? item.description.replace(
+                  descriptionDimensionPattern,
+                  normalizedDimension.description
+                )
+              : item.description,
             widthMm: normalizedDimension.widthMm,
             heightMm: normalizedDimension.heightMm
           }
