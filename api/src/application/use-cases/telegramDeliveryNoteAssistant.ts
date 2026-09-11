@@ -53,6 +53,35 @@ const isRejection = (value: string): boolean => {
 const isHelp = (value: string): boolean =>
   ["start", "help", "ayuda"].includes(normalizeText(value));
 
+interface SpecialPiecesQuery {
+  customerName: string | null;
+  page: number;
+}
+
+const SPECIAL_PIECES_PAGE_SIZE = 20;
+
+const parseSpecialPiecesQuery = (value: string): SpecialPiecesQuery | null => {
+  let normalized = normalizeText(value);
+  const pageMatch = normalized.match(/\s+pagina\s+(\d+)$/);
+  const page = pageMatch?.[1] ? Number.parseInt(pageMatch[1], 10) : 1;
+  if (pageMatch) normalized = normalized.slice(0, pageMatch.index).trim();
+
+  const direct = normalized.match(/^especiales(?:\s+(?:de|del)\s+)?(.*)$/);
+  const natural = normalized.match(
+    /^(?:muestra|muestrame|ver|lista|listar|listado de)\s+(?:las\s+)?piezas especiales(?:\s+(?:de|del|cliente)\s+(.+))?$/
+  );
+  const plain = normalized.match(
+    /^piezas especiales(?:\s+(?:de|del|cliente)\s+(.+))?$/
+  );
+  const requestedName = direct?.[1] ?? natural?.[1] ?? plain?.[1];
+  if (!direct && !natural && !plain) return null;
+
+  return {
+    customerName: requestedName?.trim() || null,
+    page: Number.isInteger(page) && page > 0 ? page : 1
+  };
+};
+
 const HELP_TEXT = [
   "👋 Agente de Albaranes de Epoxiron",
   "",
@@ -60,6 +89,7 @@ const HELP_TEXT = [
   "• /new — empieza un albarán nuevo o descarta el borrador actual.",
   "• Dicta el cliente y las piezas. Puedes enviarlas en varios mensajes.",
   "• Puedes corregir cantidad, color, acabado, cliente o eliminar líneas.",
+  "• /especiales Cliente — muestra sus piezas especiales y precios.",
   "• YA ESTÁ — prepara la propuesta para revisarla.",
   "• SI — confirma la propuesta y crea el albarán en borrador (DRAFT).",
   "• NO — cancela la propuesta y el borrador.",
@@ -82,6 +112,47 @@ const findCustomer = (
   if (!customerName) return null;
   const normalized = normalizeText(customerName);
   return customers.find((customer) => normalizeText(customer.name) === normalized) ?? null;
+};
+
+const findCustomerCandidates = (
+  customers: Customer[],
+  customerName: string
+): Customer[] => {
+  const normalized = normalizeText(customerName);
+  const exact = customers.filter(
+    (customer) => normalizeText(customer.name) === normalized
+  );
+  if (exact.length > 0) return exact;
+  return customers.filter((customer) => {
+    const candidate = normalizeText(customer.name);
+    return candidate.startsWith(normalized + " ") || normalized.startsWith(candidate + " ");
+  });
+};
+
+const specialPiecesText = (customer: Customer, requestedPage: number): string => {
+  const pieces = [...customer.specialPieces].sort((left, right) =>
+    left.name.localeCompare(right.name, "es", { sensitivity: "base" })
+  );
+  if (pieces.length === 0) {
+    return `PIEZAS ESPECIALES · ${customer.name}\nEste cliente no tiene piezas especiales.`;
+  }
+
+  const totalPages = Math.ceil(pieces.length / SPECIAL_PIECES_PAGE_SIZE);
+  if (requestedPage > totalPages) {
+    return `La página ${requestedPage} no existe. ${customer.name} tiene ${totalPages} página(s) de piezas especiales.`;
+  }
+  const offset = (requestedPage - 1) * SPECIAL_PIECES_PAGE_SIZE;
+  const lines = pieces
+    .slice(offset, offset + SPECIAL_PIECES_PAGE_SIZE)
+    .map((piece, index) => `${offset + index + 1}. ${piece.name} — ${formatMoney(piece.price)}/ud.`);
+  const next = requestedPage < totalPages
+    ? `\nSiguiente: /especiales ${customer.name} pagina ${requestedPage + 1}`
+    : "";
+  return [
+    `PIEZAS ESPECIALES · ${customer.name}`,
+    ...lines,
+    `Página ${requestedPage}/${totalPages} · ${pieces.length} pieza(s).${next}`
+  ].join("\n");
 };
 
 interface SpecialPieceResolution {
@@ -409,6 +480,11 @@ export class TelegramDeliveryNoteAssistant {
       return [HELP_TEXT];
     }
 
+    const specialPiecesQuery = parseSpecialPiecesQuery(input.text);
+    if (specialPiecesQuery) {
+      return this.listSpecialPieces(session, input.updateId, specialPiecesQuery);
+    }
+
     if (isConfirmation(input.text)) {
       return this.confirm(session, input.updateId);
     }
@@ -458,6 +534,38 @@ export class TelegramDeliveryNoteAssistant {
         "No pude convertir ese mensaje en una pieza. Repítelo indicando descripción, color, cantidad y medidas. El precio lo calcula la API."
       ];
     }
+  }
+
+  private async listSpecialPieces(
+    session: TelegramDeliveryNoteSession,
+    updateId: number,
+    query: SpecialPiecesQuery
+  ): Promise<string[]> {
+    const requestedName = query.customerName ?? session.draft.customerName;
+    if (!requestedName) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return ["Indica el cliente: /especiales Nombre del cliente"];
+    }
+
+    const customers = await this.customers.findAll();
+    const candidates = findCustomerCandidates(customers, requestedName);
+    if (candidates.length === 0) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return [`No encontré el cliente "${requestedName}". Indica su nombre exacto.`];
+    }
+    if (candidates.length > 1) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return [
+        "Encontré varios clientes:\n" +
+        candidates.slice(0, 10).map((customer) => `- ${customer.name}`).join("\n") +
+        "\nRepite /especiales con el nombre exacto."
+      ];
+    }
+
+    const customer = candidates[0];
+    if (!customer) return [];
+    await this.sessions.markProcessed(session.id, updateId);
+    return [specialPiecesText(customer, query.page)];
   }
 
   private async tryHandleDraftCommand(

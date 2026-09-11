@@ -47,6 +47,19 @@ export class TelegramDeliveryNoteBot {
   }
 
   private async poll(signal: AbortSignal): Promise<void> {
+    try {
+      await this.client.setMyCommands([
+        { command: "start", description: "Mostrar el manual" },
+        { command: "new", description: "Empezar un albarán nuevo" },
+        { command: "especiales", description: "Ver piezas especiales de un cliente" },
+        { command: "help", description: "Mostrar la ayuda" }
+      ]);
+    } catch (error: unknown) {
+      console.warn(
+        "[Telegram albaranes] No se pudo actualizar el menú:",
+        error instanceof Error ? error.message : "error desconocido"
+      );
+    }
     while (!signal.aborted) {
       try {
         const updates = await this.client.getUpdates(

@@ -31,6 +31,11 @@ interface TelegramResponse<T> {
   description?: string;
 }
 
+export interface TelegramBotCommand {
+  command: string;
+  description: string;
+}
+
 const parseResponse = async <T>(response: Response): Promise<TelegramResponse<T>> => {
   const value: unknown = await response.json();
   if (!value || typeof value !== "object" || !("ok" in value)) {
@@ -77,6 +82,18 @@ export class TelegramBotClient {
     const payload = await parseResponse<unknown>(response);
     if (!response.ok || !payload.ok) {
       throw new Error(payload.description ?? "Telegram no pudo enviar el mensaje");
+    }
+  }
+
+  public async setMyCommands(commands: TelegramBotCommand[]): Promise<void> {
+    const response = await fetch(this.url("setMyCommands"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ commands })
+    });
+    const payload = await parseResponse<boolean>(response);
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.description ?? "Telegram no pudo actualizar los comandos");
     }
   }
 

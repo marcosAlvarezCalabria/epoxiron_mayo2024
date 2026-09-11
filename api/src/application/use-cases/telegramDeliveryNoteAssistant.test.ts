@@ -205,10 +205,78 @@ describe("TelegramDeliveryNoteAssistant", () => {
 
     expect(result[0]).toContain("Agente de Albaranes de Epoxiron");
     expect(result[0]).toContain("/new");
+    expect(result[0]).toContain("/especiales");
     expect(result[0]).toContain("YA ESTÁ");
     expect(result[0]).toContain("Nada se crea hasta que respondas SI");
     expect(create).not.toHaveBeenCalled();
     expect(sessions.session.draft.items).toHaveLength(0);
+  });
+
+  it("muestra las piezas especiales de un cliente sin modificar el borrador", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      name: "DITRAMETAL S.L.",
+      specialPieces: [
+        { name: "PUERTA 9003 500X800", price: 3.8 },
+        { name: "TUBO 9005+7024 2.02MLIN", price: 6.26 }
+      ]
+    };
+    const { assistant, sessions, parser } = buildAssistant(false, parsed, [specialCustomer]);
+
+    const result = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "/especiales Ditrametal"
+    });
+
+    expect(result[0]).toContain("PIEZAS ESPECIALES · DITRAMETAL S.L.");
+    expect(result[0]).toContain("PUERTA 9003 500X800 — 3,80");
+    expect(result[0]).toContain("TUBO 9005+7024 2.02MLIN — 6,26");
+    expect(sessions.session.draft).toEqual(emptyDraft());
+    expect(parser.execute).not.toHaveBeenCalled();
+  });
+
+  it("usa el cliente del borrador y pagina el catálogo de piezas especiales", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      specialPieces: Array.from({ length: 21 }, (_, index) => ({
+        name: `PIEZA ${String(index + 1).padStart(2, "0")}`,
+        price: index + 1
+      }))
+    };
+    const { assistant, sessions } = buildAssistant(false, parsed, [specialCustomer]);
+    sessions.session.draft = { ...emptyDraft(), customerName: customer.name };
+
+    const result = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "/especiales pagina 2"
+    });
+
+    expect(result[0]).toContain("21. PIEZA 21");
+    expect(result[0]).toContain("Página 2/2 · 21 pieza(s).");
+    expect(sessions.session.draft.customerName).toBe(customer.name);
+  });
+
+  it("permite consultar especiales aunque haya una propuesta pendiente", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      specialPieces: [{ name: "PUERTA ESPECIAL", price: 7.5 }]
+    };
+    const { assistant, sessions } = buildAssistant(false, parsed, [specialCustomer]);
+    sessions.session.status = "PROPOSAL_READY";
+
+    const result = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "/especiales Cliente Uno"
+    });
+
+    expect(result[0]).toContain("PUERTA ESPECIAL");
+    expect(sessions.session.status).toBe("PROPOSAL_READY");
   });
 
   it("prepara la propuesta pero no escribe en modo simulación", async () => {
