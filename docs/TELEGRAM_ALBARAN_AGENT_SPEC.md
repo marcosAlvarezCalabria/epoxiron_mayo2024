@@ -405,3 +405,9 @@ Antes de desplegar:
 - api/prisma/migrations/20260909120000_add_telegram_delivery_note_sessions
 - deploy/telegram-staging
 - deploy/telegram-production
+
+## 20. Contexto para continuar en otro chat
+
+El estado operativo, los últimos commits, las rutas de despliegue, la
+autorización de Marcos y Rubén y la siguiente prueba recomendada están resumidos
+en `docs/PROJECT_CONTEXT_HANDOFF_2026-09-11.md`.
