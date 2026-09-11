@@ -41,7 +41,8 @@ const emptyDraft = (): TelegramDeliveryNoteDraft => ({
   customerName: null,
   date: null,
   notes: null,
-  items: []
+  items: [],
+  pendingSpecialPiece: null
 });
 
 class MemorySessions implements TelegramDeliveryNoteSessionRepository {
@@ -247,7 +248,7 @@ describe("TelegramDeliveryNoteAssistant", () => {
     });
   });
 
-  it("añade al borrador la pieza especial pulsada con una unidad", async () => {
+  it("pregunta la cantidad y después añade la pieza especial pulsada", async () => {
     const specialCustomer: Customer = {
       ...customer,
       name: "DITRAMETAL S.L.",
@@ -266,15 +267,60 @@ describe("TelegramDeliveryNoteAssistant", () => {
       pieceId: "11111111-1111-4111-8111-111111111111"
     });
 
-    expect(result[0]).toContain("Añadido: PUERTA RAL 9003 500X800 (1 ud.)");
+    expect(result[0]).toContain("¿Qué cantidad quieres añadir?");
     expect(sessions.session.draft.customerName).toBe("DITRAMETAL S.L.");
+    expect(sessions.session.draft.items).toHaveLength(0);
+    expect(sessions.session.draft.pendingSpecialPiece).toMatchObject({
+      customerId: specialCustomer.id,
+      pieceId: "11111111-1111-4111-8111-111111111111"
+    });
+
+    const quantityResult = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "cinco unidades"
+    });
+
+    expect(quantityResult[0]).toContain("Añadido: PUERTA RAL 9003 500X800 (5 ud.)");
     expect(sessions.session.draft.items).toHaveLength(1);
     expect(sessions.session.draft.items[0]).toMatchObject({
       description: "PUERTA RAL 9003 500X800",
       color: "RAL 9003",
-      quantity: 1,
+      quantity: 5,
       specialPieceIntent: true
     });
+    expect(sessions.session.draft.pendingSpecialPiece).toBeNull();
+    expect(parser.execute).not.toHaveBeenCalled();
+  });
+
+  it("mantiene la selección especial pendiente cuando la cantidad no es válida", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      specialPieces: [{
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "PUERTA RAL 9003",
+        price: 3.8
+      }]
+    };
+    const { assistant, sessions, parser } = buildAssistant(false, parsed, [specialCustomer]);
+    await assistant.selectSpecialPiece({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      pieceId: "11111111-1111-4111-8111-111111111111"
+    });
+
+    const result = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "cero"
+    });
+
+    expect(result[0]).toContain("mayor que cero");
+    expect(sessions.session.draft.items).toHaveLength(0);
+    expect(sessions.session.draft.pendingSpecialPiece).not.toBeNull();
     expect(parser.execute).not.toHaveBeenCalled();
   });
 

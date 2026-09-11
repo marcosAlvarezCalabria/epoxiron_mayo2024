@@ -379,6 +379,14 @@ const parsePositiveInteger = (value: string | undefined): number | null => {
   return parsed != null && Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const parseSpecialPieceQuantity = (value: string): number | null => {
+  const normalized = normalizeText(value);
+  const match = normalized.match(
+    /^(?:cantidad\s+)?(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)(?:\s+(?:ud|uds|unidad|unidades))?$/
+  );
+  return parsePositiveInteger(match?.[1]);
+};
+
 const normalizeAgentColor = (value: string | null): string | null => {
   if (!value) return null;
   const normalized = normalizeText(value);
@@ -493,6 +501,10 @@ export class TelegramDeliveryNoteAssistant {
       return this.listSpecialPieces(session, input.updateId, specialPiecesQuery);
     }
 
+    if (session.status === "COLLECTING" && session.draft.pendingSpecialPiece) {
+      return this.completeSpecialPieceSelection(session, input);
+    }
+
     if (isConfirmation(input.text)) {
       return this.confirm(session, input.updateId);
     }
@@ -601,6 +613,52 @@ export class TelegramDeliveryNoteAssistant {
       ];
     }
 
+    await this.sessions.saveDraft(session.id, input.updateId, {
+      ...session.draft,
+      customerName: owner.name,
+      pendingSpecialPiece: {
+        customerId: owner.id,
+        pieceId: input.pieceId
+      },
+      items: session.draft.items.map(sanitizeAgentItem)
+    });
+    return [
+      `Seleccionada: ${piece.name}. ¿Qué cantidad quieres añadir? Responde, por ejemplo, 5 o cinco unidades.`
+    ];
+  }
+
+  private async completeSpecialPieceSelection(
+    session: TelegramDeliveryNoteSession,
+    input: TelegramAssistantInput
+  ): Promise<string[]> {
+    const quantity = parseSpecialPieceQuantity(input.text);
+    if (!quantity) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return ["Indica una cantidad entera mayor que cero, por ejemplo: 5 o cinco unidades."];
+    }
+
+    const pending = session.draft.pendingSpecialPiece;
+    if (!pending) return [];
+    const customers = await this.customers.findAll();
+    const owner = customers.find((customer) => customer.id === pending.customerId);
+    const piece = owner?.specialPieces.find((candidate) => candidate.id === pending.pieceId);
+    if (!owner || !piece) {
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        pendingSpecialPiece: null
+      });
+      return ["Esa pieza especial ya no está disponible. Vuelve a abrir /especiales."];
+    }
+
+    const currentCustomer = findCustomer(customers, session.draft.customerName);
+    if (currentCustomer?.id !== owner.id) {
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        pendingSpecialPiece: null
+      });
+      return ["El cliente del borrador cambió. Vuelve a seleccionar la pieza con /especiales."];
+    }
+
     const color = extractRequestedColor(piece.name);
     const item: TelegramDeliveryNoteDraft["items"][number] = {
       description: piece.name,
@@ -614,16 +672,17 @@ export class TelegramDeliveryNoteAssistant {
       hasThickness: false,
       hasPrimer: false,
       saveAsSpecialPiece: false,
-      quantity: 1
+      quantity
     };
     await this.sessions.saveDraft(session.id, input.updateId, {
       ...session.draft,
       customerName: owner.name,
+      pendingSpecialPiece: null,
       items: [...session.draft.items.map(sanitizeAgentItem), item]
     });
     return [
-      `Añadido: ${piece.name} (1 ud.) para ${owner.name}.` +
-      (color ? " Puedes cambiar la cantidad o seguir añadiendo piezas." : " Falta indicar el color antes de terminar.")
+      `Añadido: ${piece.name} (${quantity} ud.) para ${owner.name}.` +
+      (color ? " Puedes seguir añadiendo piezas o escribir YA ESTÁ." : " Falta indicar el color antes de terminar.")
     ];
   }
 

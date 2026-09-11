@@ -51,7 +51,7 @@ Flujo disponible:
 3. Telegram muestra hasta 20 piezas por página, con nombre y precio, como
    botones pulsables.
 4. Al pulsar una pieza se valida nuevamente que exista y pertenezca al cliente.
-5. Se añade al borrador como una unidad; después puede corregirse la cantidad.
+5. El bot pregunta la cantidad y solo después añade esa cantidad al borrador.
 6. En `YA ESTÁ`, la propuesta utiliza el precio fijo vigente de esa pieza.
 
 También se admite `/especiales Nombre pagina N`. Un botón antiguo no permite
@@ -159,8 +159,9 @@ En producción, con una sesión limpia:
    directamente el cliente.
 3. Enviar `/especiales`.
 4. Comprobar que aparecen botones únicamente de DITRAMETAL.
-5. Pulsar una pieza y comprobar que se añade como una unidad.
-6. Corregir su cantidad si procede.
+5. Pulsar una pieza, responder la cantidad solicitada y comprobar que se añade
+   esa cantidad.
+6. Corregir su cantidad posteriormente si procede.
 7. Enviar `YA ESTÁ` y revisar precio, cliente y total.
 8. Usar `NO` si la prueba no debe crear nada. Usar `SI` solo cuando se quiera
    crear realmente un albarán `DRAFT`.

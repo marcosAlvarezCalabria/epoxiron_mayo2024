@@ -33,6 +33,24 @@ describe("persistencia de medidas del agente de Telegram", () => {
     expect(draft.items[0]).toMatchObject({ widthMm: 2040, heightMm: 950 });
   });
 
+  it("conserva la pieza especial pendiente mientras espera su cantidad", () => {
+    const draft = parseTelegramDeliveryNoteDraft({
+      customerName: "DITRAMETAL S.L.",
+      date: null,
+      notes: null,
+      items: [],
+      pendingSpecialPiece: {
+        customerId: "customer-1",
+        pieceId: "piece-1"
+      }
+    });
+
+    expect(draft.pendingSpecialPiece).toEqual({
+      customerId: "customer-1",
+      pieceId: "piece-1"
+    });
+  });
+
   it("conserva ancho y alto al recuperar una propuesta pendiente", () => {
     const proposal = parseTelegramDeliveryNoteProposal({
       customerId: "customer-1",

@@ -13,6 +13,10 @@ export interface TelegramDeliveryNoteDraft {
   date: string | null;
   notes: string | null;
   items: ParsedVoiceAlbaranItem[];
+  pendingSpecialPiece?: {
+    customerId: string;
+    pieceId: string;
+  } | null;
 }
 
 export interface TelegramDeliveryNoteProposalLine {

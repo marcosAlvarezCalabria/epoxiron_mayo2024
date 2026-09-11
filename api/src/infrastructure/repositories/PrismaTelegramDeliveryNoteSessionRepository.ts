@@ -34,7 +34,11 @@ const draftSchema = z.object({
   customerName: z.string().nullable(),
   date: z.string().nullable(),
   notes: z.string().nullable(),
-  items: z.array(parsedItemSchema)
+  items: z.array(parsedItemSchema),
+  pendingSpecialPiece: z.object({
+    customerId: z.string(),
+    pieceId: z.string()
+  }).nullable().optional().default(null)
 });
 
 const itemSchema = z.object({
@@ -81,7 +85,8 @@ const emptyDraft = (): TelegramDeliveryNoteDraft => ({
   customerName: null,
   date: null,
   notes: null,
-  items: []
+  items: [],
+  pendingSpecialPiece: null
 });
 
 type SessionRecord = Awaited<ReturnType<typeof prisma.telegramDeliveryNoteSession.findUniqueOrThrow>>;
