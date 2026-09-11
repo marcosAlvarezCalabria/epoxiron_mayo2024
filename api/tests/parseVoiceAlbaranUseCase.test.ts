@@ -51,7 +51,55 @@ const buildParser = (parsed: ParsedVoiceAlbaran): VoiceAlbaranParser => ({
   )
 });
 
+const buildParsedItem = (
+  description: string
+): ParsedVoiceAlbaran["items"][number] => ({
+  description,
+  color: "RAL 9005",
+  specialPieceIntent: false,
+  customUnitPrice: null,
+  pricingMode: "DIMENSIONS",
+  texture: "NORMAL",
+  linearMeters: null,
+  squareMeters: null,
+  widthMm: null,
+  heightMm: null,
+  hasThickness: false,
+  hasPrimer: false,
+  saveAsSpecialPiece: false,
+  quantity: 1
+});
+
 describe("ParseVoiceAlbaranUseCase", () => {
+  it("conserva en milímetros varias medidas de vallas dictadas sin unidad", async () => {
+    const parser = {
+      parseTranscript: vi.fn(async () => ({
+        customerName: "Krzysztof Hodorowicz",
+        date: "2026-09-11",
+        notes: null,
+        items: [
+          buildParsedItem("VALLA DE LAMA 2040X950"),
+          buildParsedItem("VALLA DE LAMA 1900X950"),
+          buildParsedItem("VALLA DE LAMA 2100X1000")
+        ]
+      }))
+    };
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("KRZYSZTOF HÓDOROWICZ")])
+    );
+
+    const result = await useCase.execute(
+      "Albarán para Christoph. Valla de lama 9005 2040 x 950 1 unidad. " +
+      "Valla lama 9005 1900 x 950 1 unidad. Valla lama 9005 2100 x 1000 1 unidad."
+    );
+
+    expect(result.items).toMatchObject([
+      { description: "VALLA DE LAMA 204X95", widthMm: 2040, heightMm: 950 },
+      { description: "VALLA DE LAMA 190X95", widthMm: 1900, heightMm: 950 },
+      { description: "VALLA DE LAMA 210X100", widthMm: 2100, heightMm: 1000 }
+    ]);
+  });
   it("removes square meters derived only from spoken dimensions", async () => {
     const parser = buildParser({
       customerName: "ditrametal",

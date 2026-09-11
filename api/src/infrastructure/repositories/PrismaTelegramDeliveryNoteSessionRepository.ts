@@ -21,6 +21,8 @@ const parsedItemSchema = z.object({
   customUnitPrice: z.number().nullable(),
   linearMeters: z.number().nullable(),
   squareMeters: z.number().nullable(),
+  widthMm: nullableNumber,
+  heightMm: nullableNumber,
   hasThickness: z.boolean(),
   hasPrimer: z.boolean(),
   specialPieceIntent: z.boolean(),
@@ -43,6 +45,8 @@ const itemSchema = z.object({
   customUnitPrice: nullableNumber,
   linearMeters: nullableNumber,
   squareMeters: nullableNumber,
+  widthMm: nullableNumber,
+  heightMm: nullableNumber,
   thickness: nullableNumber,
   primer: z.boolean().optional(),
   saveAsSpecialPiece: z.boolean().optional(),
@@ -62,6 +66,14 @@ const proposalSchema = z.object({
   totalAmount: z.number(),
   preparedAt: z.string()
 });
+
+export const parseTelegramDeliveryNoteDraft = (
+  value: unknown
+): TelegramDeliveryNoteDraft => draftSchema.parse(value);
+
+export const parseTelegramDeliveryNoteProposal = (
+  value: unknown
+): TelegramDeliveryNoteProposal => proposalSchema.parse(value);
 
 const statusSchema = z.enum(["COLLECTING", "PROPOSAL_READY", "CREATING", "CREATED", "BLOCKED"]);
 
@@ -83,8 +95,8 @@ const toDomain = (record: SessionRecord): TelegramDeliveryNoteSession => ({
   userId: record.userId,
   lastUpdateId: record.lastUpdateId,
   status: statusSchema.parse(record.status) as TelegramSessionStatus,
-  draft: draftSchema.parse(record.draft),
-  proposal: record.proposal == null ? null : proposalSchema.parse(record.proposal),
+  draft: parseTelegramDeliveryNoteDraft(record.draft),
+  proposal: record.proposal == null ? null : parseTelegramDeliveryNoteProposal(record.proposal),
   proposalText: record.proposalText,
   proposalExpiresAt: record.proposalExpiresAt,
   deliveryNoteId: record.deliveryNoteId

@@ -168,6 +168,14 @@ En producción, con una sesión limpia:
 Rubén debe poder iniciar el bot de producción enviando `/start` sin recibir el
 mensaje de usuario no autorizado.
 
+### Incidencia posterior: persistencia de metros cuadrados
+
+Se detectó que medidas como `2040 x 950`, `1900 x 950` y `2100 x 1000` se
+normalizaban correctamente, pero `widthMm` y `heightMm` se perdían al recuperar
+el borrador desde PostgreSQL. El esquema de sesión se corrigió para conservar
+ambos campos tanto en borradores como en propuestas. Sin ellos, la API aplicaba
+erróneamente la tarifa mínima en lugar del precio por superficie.
+
 ## 11. Archivos clave
 
 - `docs/TELEGRAM_ALBARAN_AGENT_SPEC.md`.
