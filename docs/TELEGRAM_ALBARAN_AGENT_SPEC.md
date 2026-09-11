@@ -96,7 +96,7 @@ El bot muestra una guía breve con "/start" y "/help".
 | /start | Muestra bienvenida y manual. No crea ni modifica un albarán. |
 | /help | Vuelve a mostrar el manual. |
 | /new | Descarta el borrador o propuesta actual y empieza una sesión nueva. |
-| /especiales Cliente | Muestra, sin modificar el borrador, las piezas especiales y sus precios para el cliente. Si el borrador ya tiene cliente, se puede omitir el nombre. Admite `pagina N`. |
+| /especiales Cliente | Muestra las piezas especiales y sus precios como botones. Al pulsar una se añade 1 unidad al borrador del cliente. Si el borrador ya tiene cliente, se puede omitir el nombre. Admite `pagina N`. |
 | YA ESTÁ | Valida el borrador y genera una propuesta. |
 | SI | Confirma una propuesta vigente y crea un albarán DRAFT. |
 | NO | Cancela la propuesta y el borrador. |

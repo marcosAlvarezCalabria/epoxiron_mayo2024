@@ -20,9 +20,17 @@ export interface TelegramMessage {
   audio?: TelegramVoice;
 }
 
+interface TelegramCallbackQuery {
+  id: string;
+  from: TelegramUser;
+  data?: string;
+  message?: TelegramMessage;
+}
+
 export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
 }
 
 interface TelegramResponse<T> {
@@ -62,7 +70,7 @@ export class TelegramBotClient {
       body: JSON.stringify({
         offset,
         timeout: timeoutSeconds,
-        allowed_updates: ["message"]
+        allowed_updates: ["message", "callback_query"]
       }),
       signal
     });
@@ -73,15 +81,44 @@ export class TelegramBotClient {
     return payload.result;
   }
 
-  public async sendMessage(chatId: string, text: string): Promise<void> {
+  public async sendMessage(
+    chatId: string,
+    text: string,
+    inlineKeyboard?: Array<Array<{ text: string; callbackData: string }>>
+  ): Promise<void> {
     const response = await fetch(this.url("sendMessage"), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text })
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        ...(inlineKeyboard && inlineKeyboard.length > 0
+          ? {
+              reply_markup: {
+                inline_keyboard: inlineKeyboard.map((row) => row.map((button) => ({
+                  text: button.text,
+                  callback_data: button.callbackData
+                })))
+              }
+            }
+          : {})
+      })
     });
     const payload = await parseResponse<unknown>(response);
     if (!response.ok || !payload.ok) {
       throw new Error(payload.description ?? "Telegram no pudo enviar el mensaje");
+    }
+  }
+
+  public async answerCallbackQuery(callbackQueryId: string): Promise<void> {
+    const response = await fetch(this.url("answerCallbackQuery"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ callback_query_id: callbackQueryId })
+    });
+    const payload = await parseResponse<boolean>(response);
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.description ?? "Telegram no pudo cerrar la selección");
     }
   }
 

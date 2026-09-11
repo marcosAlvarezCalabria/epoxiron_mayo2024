@@ -80,7 +80,12 @@ export class TelegramDeliveryNoteBot {
   }
 
   private async handleUpdate(update: TelegramUpdate): Promise<void> {
-    const message = update.message;
+    const callback = update.callback_query;
+    const message = update.message ?? callback?.message;
+    if (callback && message) {
+      await this.handleCallback(update, String(message.chat.id), String(callback.from.id));
+      return;
+    }
     if (!message?.from) return;
     const chatId = String(message.chat.id);
     const userId = String(message.from.id);
@@ -105,14 +110,16 @@ export class TelegramDeliveryNoteBot {
         return;
       }
 
-      const replies = await this.assistant.handle({
+      const assistantInput = {
         chatId,
         userId,
         updateId: update.update_id,
         text
-      });
-      for (const reply of replies) {
-        await this.sendChunked(chatId, reply);
+      };
+      const buttons = await this.assistant.getSpecialPieceButtons(assistantInput);
+      const replies = await this.assistant.handle(assistantInput);
+      for (const [index, reply] of replies.entries()) {
+        await this.sendChunked(chatId, reply, index === 0 ? buttons : null);
       }
     } catch (error: unknown) {
       console.error("[Telegram albaranes] Mensaje rechazado:", error instanceof Error ? error.message : "error desconocido");
@@ -125,6 +132,44 @@ export class TelegramDeliveryNoteBot {
     }
   }
 
+  private async handleCallback(
+    update: TelegramUpdate,
+    chatId: string,
+    userId: string
+  ): Promise<void> {
+    const callback = update.callback_query;
+    if (!callback) return;
+    if (!this.allowedUserIds.has(userId)) {
+      await this.client.answerCallbackQuery(callback.id);
+      await this.client.sendMessage(chatId, "Usuario no autorizado para este bot.");
+      return;
+    }
+
+    const pieceId = callback.data?.match(/^special:([0-9a-f-]{36})$/i)?.[1];
+    try {
+      if (!pieceId) {
+        await this.client.sendMessage(chatId, "Esa selección no es válida.");
+        return;
+      }
+      const replies = await this.assistant.selectSpecialPiece({
+        chatId,
+        userId,
+        updateId: update.update_id,
+        pieceId
+      });
+      for (const reply of replies) await this.sendChunked(chatId, reply, null);
+    } finally {
+      try {
+        await this.client.answerCallbackQuery(callback.id);
+      } catch (error: unknown) {
+        console.warn(
+          "[Telegram albaranes] No se pudo cerrar la selección:",
+          error instanceof Error ? error.message : "error desconocido"
+        );
+      }
+    }
+  }
+
   private async transcribeWithRetry(input: VoiceTranscriptionInput): Promise<string> {
     try {
       return await this.transcriber.transcribe(input);
@@ -134,10 +179,19 @@ export class TelegramDeliveryNoteBot {
       return this.transcriber.transcribe(input);
     }
   }
-  private async sendChunked(chatId: string, value: string): Promise<void> {
+  private async sendChunked(
+    chatId: string,
+    value: string,
+    buttons: Array<Array<{ text: string; callbackData: string }>> | null
+  ): Promise<void> {
     const maxLength = 4_000;
     for (let index = 0; index < value.length; index += maxLength) {
-      await this.client.sendMessage(chatId, value.slice(index, index + maxLength));
+      const isLastChunk = index + maxLength >= value.length;
+      await this.client.sendMessage(
+        chatId,
+        value.slice(index, index + maxLength),
+        isLastChunk ? buttons ?? undefined : undefined
+      );
     }
   }
 }

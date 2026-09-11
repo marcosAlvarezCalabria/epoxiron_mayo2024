@@ -18,6 +18,11 @@ export interface TelegramAssistantInput {
   text: string;
 }
 
+export interface TelegramAssistantButton {
+  text: string;
+  callbackData: string;
+}
+
 type CustomerLookup = Pick<CustomerRepository, "findAll" | "findById">;
 type VoiceParser = Pick<ParseVoiceAlbaranUseCase, "execute">;
 type PriceCalculator = Pick<CalculatePriceUseCase, "execute">;
@@ -130,9 +135,7 @@ const findCustomerCandidates = (
 };
 
 const specialPiecesText = (customer: Customer, requestedPage: number): string => {
-  const pieces = [...customer.specialPieces].sort((left, right) =>
-    left.name.localeCompare(right.name, "es", { sensitivity: "base" })
-  );
+  const pieces = sortedSpecialPieces(customer);
   if (pieces.length === 0) {
     return `PIEZAS ESPECIALES · ${customer.name}\nEste cliente no tiene piezas especiales.`;
   }
@@ -154,6 +157,11 @@ const specialPiecesText = (customer: Customer, requestedPage: number): string =>
     `Página ${requestedPage}/${totalPages} · ${pieces.length} pieza(s).${next}`
   ].join("\n");
 };
+
+const sortedSpecialPieces = (customer: Customer): Customer["specialPieces"] =>
+  [...customer.specialPieces].sort((left, right) =>
+    left.name.localeCompare(right.name, "es", { sensitivity: "base" })
+  );
 
 interface SpecialPieceResolution {
   piece: Customer["specialPieces"][number] | null;
@@ -534,6 +542,89 @@ export class TelegramDeliveryNoteAssistant {
         "No pude convertir ese mensaje en una pieza. Repítelo indicando descripción, color, cantidad y medidas. El precio lo calcula la API."
       ];
     }
+  }
+
+  public async getSpecialPieceButtons(
+    input: TelegramAssistantInput
+  ): Promise<TelegramAssistantButton[][] | null> {
+    const query = parseSpecialPiecesQuery(input.text);
+    if (!query) return null;
+    const session = await this.sessions.getOrCreate(input.chatId, input.userId);
+    const requestedName = query.customerName ?? session.draft.customerName;
+    if (!requestedName) return null;
+    const customers = await this.customers.findAll();
+    const candidates = findCustomerCandidates(customers, requestedName);
+    const customer = candidates.length === 1 ? candidates[0] : null;
+    if (!customer) return null;
+
+    const pieces = sortedSpecialPieces(customer);
+    const offset = (query.page - 1) * SPECIAL_PIECES_PAGE_SIZE;
+    return pieces
+      .slice(offset, offset + SPECIAL_PIECES_PAGE_SIZE)
+      .flatMap((piece) => piece.id
+        ? [[{
+            text: `${piece.name} · ${formatMoney(piece.price)}`.slice(0, 64),
+            callbackData: `special:${piece.id}`
+          }]]
+        : []);
+  }
+
+  public async selectSpecialPiece(
+    input: Omit<TelegramAssistantInput, "text"> & { pieceId: string }
+  ): Promise<string[]> {
+    const session = await this.sessions.getOrCreate(input.chatId, input.userId);
+    if (input.updateId <= session.lastUpdateId) return [];
+    if (session.status !== "COLLECTING") {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [
+        session.status === "PROPOSAL_READY"
+          ? "Hay una propuesta pendiente. Cancélala con NO antes de añadir otra pieza."
+          : "No hay un borrador abierto. Envía /new para empezar."
+      ];
+    }
+
+    const customers = await this.customers.findAll();
+    const owner = customers.find((customer) =>
+      customer.specialPieces.some((piece) => piece.id === input.pieceId)
+    );
+    const piece = owner?.specialPieces.find((candidate) => candidate.id === input.pieceId);
+    if (!owner || !piece) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return ["Esa pieza especial ya no está disponible. Vuelve a abrir /especiales."];
+    }
+
+    const currentCustomer = findCustomer(customers, session.draft.customerName);
+    if (session.draft.customerName && currentCustomer?.id !== owner.id) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [
+        `La pieza pertenece a ${owner.name}, pero el borrador es de ${session.draft.customerName}.`
+      ];
+    }
+
+    const color = extractRequestedColor(piece.name);
+    const item: TelegramDeliveryNoteDraft["items"][number] = {
+      description: piece.name,
+      color,
+      specialPieceIntent: true,
+      customUnitPrice: null,
+      pricingMode: "DIMENSIONS",
+      texture: extractRequestedTexture(piece.name) ?? "NORMAL",
+      linearMeters: null,
+      squareMeters: null,
+      hasThickness: false,
+      hasPrimer: false,
+      saveAsSpecialPiece: false,
+      quantity: 1
+    };
+    await this.sessions.saveDraft(session.id, input.updateId, {
+      ...session.draft,
+      customerName: owner.name,
+      items: [...session.draft.items.map(sanitizeAgentItem), item]
+    });
+    return [
+      `Añadido: ${piece.name} (1 ud.) para ${owner.name}.` +
+      (color ? " Puedes cambiar la cantidad o seguir añadiendo piezas." : " Falta indicar el color antes de terminar.")
+    ];
   }
 
   private async listSpecialPieces(

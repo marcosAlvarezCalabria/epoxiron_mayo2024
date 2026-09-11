@@ -217,8 +217,8 @@ describe("TelegramDeliveryNoteAssistant", () => {
       ...customer,
       name: "DITRAMETAL S.L.",
       specialPieces: [
-        { name: "PUERTA 9003 500X800", price: 3.8 },
-        { name: "TUBO 9005+7024 2.02MLIN", price: 6.26 }
+        { id: "11111111-1111-4111-8111-111111111111", name: "PUERTA 9003 500X800", price: 3.8 },
+        { id: "22222222-2222-4222-8222-222222222222", name: "TUBO 9005+7024 2.02MLIN", price: 6.26 }
       ]
     };
     const { assistant, sessions, parser } = buildAssistant(false, parsed, [specialCustomer]);
@@ -234,6 +234,47 @@ describe("TelegramDeliveryNoteAssistant", () => {
     expect(result[0]).toContain("PUERTA 9003 500X800 — 3,80");
     expect(result[0]).toContain("TUBO 9005+7024 2.02MLIN — 6,26");
     expect(sessions.session.draft).toEqual(emptyDraft());
+    expect(parser.execute).not.toHaveBeenCalled();
+
+    const buttons = await assistant.getSpecialPieceButtons({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "/especiales Ditrametal"
+    });
+    expect(buttons?.[0]?.[0]).toMatchObject({
+      callbackData: "special:11111111-1111-4111-8111-111111111111"
+    });
+  });
+
+  it("añade al borrador la pieza especial pulsada con una unidad", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      name: "DITRAMETAL S.L.",
+      specialPieces: [{
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "PUERTA RAL 9003 500X800",
+        price: 3.8
+      }]
+    };
+    const { assistant, sessions, parser } = buildAssistant(false, parsed, [specialCustomer]);
+
+    const result = await assistant.selectSpecialPiece({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      pieceId: "11111111-1111-4111-8111-111111111111"
+    });
+
+    expect(result[0]).toContain("Añadido: PUERTA RAL 9003 500X800 (1 ud.)");
+    expect(sessions.session.draft.customerName).toBe("DITRAMETAL S.L.");
+    expect(sessions.session.draft.items).toHaveLength(1);
+    expect(sessions.session.draft.items[0]).toMatchObject({
+      description: "PUERTA RAL 9003 500X800",
+      color: "RAL 9003",
+      quantity: 1,
+      specialPieceIntent: true
+    });
     expect(parser.execute).not.toHaveBeenCalled();
   });
 
