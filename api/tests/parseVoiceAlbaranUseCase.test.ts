@@ -110,4 +110,64 @@ describe("ParseVoiceAlbaranUseCase", () => {
 
     expect(result.items[0]?.squareMeters).toBe(3);
   });
+
+  it("normalizes millimeter dimensions to the centimeter description format", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2026-07-09",
+      notes: null,
+      items: [{
+        description: "CHAPA 1000X500",
+        color: "RAL 9005",
+        specialPieceIntent: false,
+        customUnitPrice: null,
+        pricingMode: "DIMENSIONS",
+        texture: "NORMAL",
+        linearMeters: null,
+        squareMeters: null,
+        hasThickness: false,
+        hasPrimer: false,
+        saveAsSpecialPiece: false,
+        quantity: 1
+      }]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")])
+    );
+
+    const result = await useCase.execute("una chapa de 1000 x 500 milímetros");
+
+    expect(result.items[0]?.description).toBe("CHAPA 100X50");
+  });
+
+  it("normalizes mixed meter and centimeter dimensions", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2026-07-09",
+      notes: null,
+      items: [{
+        description: "CHAPA 1 M X 50 CM",
+        color: "RAL 9010",
+        specialPieceIntent: false,
+        customUnitPrice: null,
+        pricingMode: "DIMENSIONS",
+        texture: "NORMAL",
+        linearMeters: null,
+        squareMeters: null,
+        hasThickness: false,
+        hasPrimer: false,
+        saveAsSpecialPiece: false,
+        quantity: 1
+      }]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")])
+    );
+
+    const result = await useCase.execute("una chapa de 1 m x 50 cm");
+
+    expect(result.items[0]?.description).toBe("CHAPA 100X50");
+  });
 });

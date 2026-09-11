@@ -95,7 +95,18 @@ const normalizeVoiceColor = (value: string | null): string | null => {
     return null;
   }
 
-  return trimmed;
+  const normalizedName = trimmed
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+  if (/^(?:negro|negra)$/.test(normalizedName)) {
+    return "RAL 9005";
+  }
+  if (/^(?:blanco|blanca)$/.test(normalizedName)) {
+    return "RAL 9010";
+  }
+
+  return null;
 };
 
 const normalizeVoiceText = (value: string | null): string | null => {
@@ -132,13 +143,9 @@ const llmItemSchema = z.object({
     .transform((value) => {
       const parsedValue =
         typeof value === "number" ? value : Number.parseInt(value || "1", 10);
-
-      if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
-        return 1;
-      }
-
       return parsedValue;
     })
+    .pipe(z.number().int().positive())
 });
 
 const llmParsedVoiceAlbaranSchema = z.object({
@@ -175,18 +182,7 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
 
   const items = parsed.items
     .map((item) => ({
-      effectivePricingMode:
-        item.pricingMode === "UNIT" &&
-        (item.customUnitPrice == null || item.customUnitPrice <= 0) &&
-        ((item.linearMeters != null && item.linearMeters > 0) ||
-          (item.squareMeters != null && item.squareMeters > 0))
-          ? "DIMENSIONS"
-          : item.pricingMode,
       color: normalizeVoiceColor(item.color),
-      customUnitPrice:
-        item.pricingMode === "UNIT" && item.customUnitPrice && item.customUnitPrice > 0
-          ? item.customUnitPrice
-          : null,
       description: uppercaseSpanish(item.description),
       hasPrimer: item.hasPrimer || item.primer,
       hasThickness: item.hasThickness || (item.thickness != null && item.thickness > 0),
@@ -199,12 +195,12 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
     }))
     .map((item) => ({
       color: item.color,
-      customUnitPrice: item.effectivePricingMode === "UNIT" ? item.customUnitPrice : null,
+      customUnitPrice: null,
       description: item.description,
       hasPrimer: item.hasPrimer,
       hasThickness: item.hasThickness,
       linearMeters: item.linearMeters,
-      pricingMode: item.effectivePricingMode,
+      pricingMode: "DIMENSIONS" as const,
       quantity: item.quantity,
       saveAsSpecialPiece: item.saveAsSpecialPiece,
       specialPieceIntent: item.specialPieceIntent,

@@ -43,10 +43,9 @@ Reglas:
 - Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida en description con formato "3000X1000", pero no calcules squareMeters ni linearMeters a partir de ella.
 - Solo rellena squareMeters o linearMeters cuando el usuario indique explícitamente el valor en m2 o metros lineales.
 - Si el usuario da solo una dimension lineal ("3 metros", "3 ml"), usa linearMeters. Si da dos dimensiones en mm, calcula squareMeters aunque no diga "M2" explicitamente.
-- Si el usuario dice "por unidad", "precio por unidad", "a 5 euros", "cinco euros la unidad" o equivalente, usa pricingMode = "unit" y customUnitPrice con ese valor.
-- No uses pricingMode = "unit" solo porque el usuario diga "una unidad", "dos unidades" o la cantidad de piezas. Eso solo indica quantity.
-- Si pricingMode = "unit", no inventes linearMeters ni squareMeters salvo que el usuario los haya dado como informacion descriptiva clara. Prioriza el precio unitario.
-- Si el usuario dice metros lineales pero tambien dice expresamente "por unidad" y da un precio por unidad, conserva el precio unitario como fuente principal de precio.
+- Usa siempre pricingMode = "dimensions" y customUnitPrice = null.
+- Ignora cualquier precio dictado por el usuario. Los precios se calculan exclusivamente en la API.
+- "Una unidad", "dos unidades" o expresiones equivalentes solo indican quantity.
 - Si el usuario dice "grosor", "con grosor", "grosor incluido" o equivalente, usa hasThickness = true. Si no, false.
 - Si el usuario dice "imprimacion", "imprimacion incluida", "con imprimacion" o equivalente, usa hasPrimer = true. Si no, false.
 - Si el usuario dice "guardar como especial", "pieza especial", "guardala como especial" o equivalente, usa saveAsSpecialPiece = true. Si no, false.

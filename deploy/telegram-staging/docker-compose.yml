@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: epoxiron_telegram_staging
+      POSTGRES_USER: epoxiron_staging
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epoxiron_staging -d epoxiron_telegram_staging"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - telegram_staging_data:/var/lib/postgresql/data
+    networks: [telegram_staging]
+
+  api:
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: .env.example
+        required: true
+      - path: .env
+        required: false
+    volumes:
+      - /opt/epoxiron-telegram-staging/secrets/telegram-bot-token:/run/secrets/telegram-bot-token:ro
+      - /opt/epoxiron-telegram-staging/secrets/google-cloud-credentials.json:/run/secrets/google-cloud-credentials.json:ro
+    environment:
+      PORT: 3101
+      NODE_ENV: production
+      EPOXIRON_TELEGRAM_BOT_ENABLED: "true"
+      EPOXIRON_TELEGRAM_WRITES_ENABLED: "true"
+      EPOXIRON_TELEGRAM_BOT_ENVIRONMENT: staging
+    command:
+      - sh
+      - -lc
+      - |
+        export EPOXIRON_TELEGRAM_BOT_TOKEN="$$(tr -d '\r\n' < /run/secrets/telegram-bot-token)"
+        cd /app/api
+        ./node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma
+        node dist/src/server.js
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["127.0.0.1:3101:3101"]
+    networks: [telegram_staging]
+
+volumes:
+  telegram_staging_data:
+
+networks:
+  telegram_staging:

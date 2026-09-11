@@ -14,7 +14,7 @@ const booleanStringWithDefaultFalse = z
   .transform((value) => value === "true");
 
 const voiceParserProviderSchema = z.enum(["ollama", "openai-compatible"]);
-const voiceTranscriberProviderSchema = z.enum(["openai", "ollama", "gemini"]);
+const voiceTranscriberProviderSchema = z.enum(["openai", "ollama", "gemini", "google-chirp"]);
 
 const envSchema = z
   .object({
@@ -44,6 +44,8 @@ const envSchema = z
     VOICE_TRANSCRIBER_API_KEY: z.string().optional(),
     VOICE_TRANSCRIBER_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
     VOICE_TRANSCRIBER_LANGUAGE: z.string().trim().min(2).optional(),
+    GOOGLE_CLOUD_PROJECT: z.string().trim().min(1).optional(),
+    GOOGLE_CLOUD_LOCATION: z.string().trim().min(1).default("eu"),
     GOOGLE_CLIENT_ID: z.string().min(1),
     JWT_SECRET: z.string().min(1),
     JWT_EXPIRES_IN: z.string().min(1).default("1d"),
@@ -85,7 +87,21 @@ const envSchema = z
     ODOO_RECONCILIATION_INTERVAL_MS: z.coerce.number().int().positive().default(30000),
     ODOO_RECONCILIATION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(20),
     ODOO_MAX_PDF_BYTES: z.coerce.number().int().positive().default(10485760),
-    ODOO_INVOICE_PREVIEW_TTL_MS: z.coerce.number().int().min(60000).max(3600000).default(900000)
+    ODOO_INVOICE_PREVIEW_TTL_MS: z.coerce.number().int().min(60000).max(3600000).default(900000),
+    EPOXIRON_TELEGRAM_BOT_ENABLED: booleanStringWithDefaultFalse,
+    EPOXIRON_TELEGRAM_WRITES_ENABLED: booleanStringWithDefaultFalse,
+    EPOXIRON_TELEGRAM_BOT_ENVIRONMENT: z
+      .enum(["disabled", "staging", "production"])
+      .default("disabled"),
+    EPOXIRON_TELEGRAM_BOT_TOKEN: z.string().default(""),
+    EPOXIRON_TELEGRAM_ALLOWED_USER_IDS: z.string().default("").transform((value) =>
+      value.split(",").map((entry) => entry.trim()).filter(Boolean)
+    ),
+    EPOXIRON_TELEGRAM_POLL_TIMEOUT_SECONDS: z.coerce.number().int().min(1).max(50).default(25),
+    EPOXIRON_TELEGRAM_PROPOSAL_TTL_MINUTES: z.coerce.number().int().min(1).max(120).default(30),
+    EPOXIRON_TELEGRAM_MAX_AUDIO_BYTES: z.coerce.number().int().positive().default(20971520),
+    EPOXIRON_TELEGRAM_ECHO_TRANSCRIPTS: z.enum(["true", "false"]).default("true")
+      .transform((value) => value === "true")
   })
   .superRefine((value, context) => {
     const resolvedVoiceParserBaseUrl =
@@ -111,7 +127,9 @@ const envSchema = z
         ? "gemma4:e4b"
         : value.VOICE_TRANSCRIBER_PROVIDER === "gemini"
           ? "gemini-3.5-flash"
-          : "gpt-4o-mini-transcribe");
+          : value.VOICE_TRANSCRIBER_PROVIDER === "google-chirp"
+            ? "chirp_3"
+            : "gpt-4o-mini-transcribe");
     const resolvedVoiceTranscriberApiKey =
       value.VOICE_TRANSCRIBER_API_KEY ?? value.VOICE_PARSER_API_KEY ?? value.OLLAMA_API_KEY ?? "";
     const resolvedVoiceTranscriberTimeoutMs = value.VOICE_TRANSCRIBER_TIMEOUT_MS ?? 30000;
@@ -137,12 +155,40 @@ const envSchema = z
       });
     }
 
-    if (!resolvedVoiceTranscriberApiKey.trim()) {
+    if (value.VOICE_TRANSCRIBER_PROVIDER !== "google-chirp" && !resolvedVoiceTranscriberApiKey.trim()) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message: "VOICE_TRANSCRIBER_API_KEY es obligatorio",
         path: ["VOICE_TRANSCRIBER_API_KEY"]
       });
+    }
+
+    if (value.VOICE_TRANSCRIBER_PROVIDER === "google-chirp" && !value.GOOGLE_CLOUD_PROJECT) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "GOOGLE_CLOUD_PROJECT es obligatorio cuando se usa google-chirp",
+        path: ["GOOGLE_CLOUD_PROJECT"]
+      });
+    }
+
+    if (value.EPOXIRON_TELEGRAM_WRITES_ENABLED && !value.EPOXIRON_TELEGRAM_BOT_ENABLED) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "El bot debe estar activo antes de permitir escrituras",
+        path: ["EPOXIRON_TELEGRAM_WRITES_ENABLED"]
+      });
+    }
+
+    if (value.EPOXIRON_TELEGRAM_BOT_ENABLED) {
+      if (value.EPOXIRON_TELEGRAM_BOT_ENVIRONMENT === "disabled") {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Debe declararse el entorno del bot", path: ["EPOXIRON_TELEGRAM_BOT_ENVIRONMENT"] });
+      }
+      if (!value.EPOXIRON_TELEGRAM_BOT_TOKEN.trim()) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Falta el token del bot", path: ["EPOXIRON_TELEGRAM_BOT_TOKEN"] });
+      }
+      if (value.EPOXIRON_TELEGRAM_ALLOWED_USER_IDS.length === 0) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Debe autorizarse al menos un usuario", path: ["EPOXIRON_TELEGRAM_ALLOWED_USER_IDS"] });
+      }
     }
 
     if (value.REPORT_UPLOADS_ENABLED) {

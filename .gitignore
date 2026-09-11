@@ -11,6 +11,8 @@ hermes.env
 *.service-account.json
 *google-credentials*.json
 *credentials*.json
+*telegram-bot-token*
+secrets/
 api/google/
 api/credentials/
 node_modules/

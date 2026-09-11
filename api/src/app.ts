@@ -25,6 +25,7 @@ import {
   UpdateDeliveryNoteUseCase
 } from "./application/use-cases/deliveryNotes.js";
 import { ParseVoiceAlbaranUseCase } from "./application/use-cases/parseVoiceAlbaran.js";
+import { TelegramDeliveryNoteAssistant } from "./application/use-cases/telegramDeliveryNoteAssistant.js";
 import { ParseVoiceAlbaranAudioUseCase } from "./application/use-cases/parseVoiceAlbaranAudio.js";
 import { env } from "./config/env.js";
 import { CustomersController } from "./controllers/CustomersController.js";
@@ -34,6 +35,7 @@ import { buildOpenApiDocument } from "./docs/openapi.js";
 import { PrismaCustomerRepository } from "./infrastructure/repositories/PrismaCustomerRepository.js";
 import { PrismaDailyDeliveryNotesReportUploadRepository } from "./infrastructure/repositories/PrismaDailyDeliveryNotesReportUploadRepository.js";
 import { PrismaDeliveryNoteRepository } from "./infrastructure/repositories/PrismaDeliveryNoteRepository.js";
+import { PrismaTelegramDeliveryNoteSessionRepository } from "./infrastructure/repositories/PrismaTelegramDeliveryNoteSessionRepository.js";
 import { PrismaInvoiceRepository } from "./infrastructure/repositories/PrismaInvoiceRepository.js";
 import { DailyDeliveryNotesReportScheduler } from "./infrastructure/services/DailyDeliveryNotesReportScheduler.js";
 import { InvoiceReconciliationScheduler } from "./infrastructure/services/InvoiceReconciliationScheduler.js";
@@ -45,6 +47,7 @@ import { GetInvoicePdfUseCase } from "./application/use-cases/invoices/getInvoic
 import { ListInvoicesUseCase } from "./application/use-cases/invoices/listInvoices.js";
 import { InvoicesController } from "./controllers/InvoicesController.js";
 import { GeminiVoiceTranscriber } from "./infrastructure/services/GeminiVoiceTranscriber.js";
+import { GoogleChirpVoiceTranscriber } from "./infrastructure/services/GoogleChirpVoiceTranscriber.js";
 import { GoogleIdTokenVerifier } from "./infrastructure/services/GoogleIdTokenVerifier.js";
 import { JwtAccessTokenIssuer } from "./infrastructure/services/JwtAccessTokenIssuer.js";
 import { NodemailerEmailNotifier } from "./infrastructure/services/NodemailerEmailNotifier.js";
@@ -53,6 +56,8 @@ import { OpenAiVoiceTranscriber } from "./infrastructure/services/OpenAiVoiceTra
 import { PdfKitDailyDeliveryNotesReportGenerator } from "./infrastructure/services/PdfKitDailyDeliveryNotesReportGenerator.js";
 import { R2DriveUploader } from "./infrastructure/services/R2DriveUploader.js";
 import { createVoiceAlbaranParser } from "./infrastructure/services/VoiceAlbaranParserFactory.js";
+import { TelegramBotClient } from "./infrastructure/services/TelegramBotClient.js";
+import { TelegramDeliveryNoteBot } from "./infrastructure/services/TelegramDeliveryNoteBot.js";
 import { asyncHandler } from "./middleware/asyncHandler.js";
 import { authMiddleware } from "./middleware/authMiddleware.js";
 import { errorHandler } from "./middleware/errorHandler.js";
@@ -72,6 +77,7 @@ export interface AppContext {
   app: express.Express;
   dailyDeliveryNotesReportScheduler: DailyDeliveryNotesReportScheduler;
   invoiceReconciliationScheduler: InvoiceReconciliationScheduler;
+  telegramDeliveryNoteBot: TelegramDeliveryNoteBot | null;
 }
 
 export const createAppContext = (): AppContext => {
@@ -144,6 +150,14 @@ export const createAppContext = (): AppContext => {
           model: env.VOICE_TRANSCRIBER_MODEL!,
           timeoutMs: env.VOICE_TRANSCRIBER_TIMEOUT_MS!
         })
+      : env.VOICE_TRANSCRIBER_PROVIDER === "google-chirp"
+        ? new GoogleChirpVoiceTranscriber({
+            projectId: env.GOOGLE_CLOUD_PROJECT!,
+            location: env.GOOGLE_CLOUD_LOCATION,
+            model: env.VOICE_TRANSCRIBER_MODEL!,
+            language: env.VOICE_TRANSCRIBER_LANGUAGE,
+            timeoutMs: env.VOICE_TRANSCRIBER_TIMEOUT_MS!
+          })
       : env.VOICE_TRANSCRIBER_PROVIDER === "gemini"
         ? new GeminiVoiceTranscriber({
             apiKey: env.VOICE_TRANSCRIBER_API_KEY!,
@@ -234,6 +248,29 @@ export const createAppContext = (): AppContext => {
     env.ALLOWED_EMAILS
   );
   const parseVoiceAlbaranUseCase = new ParseVoiceAlbaranUseCase(voiceAlbaranParser, customerRepository);
+  const telegramDeliveryNoteBot = env.EPOXIRON_TELEGRAM_BOT_ENABLED
+    ? new TelegramDeliveryNoteBot(
+        new TelegramBotClient(env.EPOXIRON_TELEGRAM_BOT_TOKEN),
+        voiceTranscriber,
+        new TelegramDeliveryNoteAssistant(
+          new PrismaTelegramDeliveryNoteSessionRepository(),
+          customerRepository,
+          parseVoiceAlbaranUseCase,
+          calculatePriceUseCase,
+          createDeliveryNoteUseCase,
+          {
+            proposalTtlMs: env.EPOXIRON_TELEGRAM_PROPOSAL_TTL_MINUTES * 60_000,
+            writesEnabled: env.EPOXIRON_TELEGRAM_WRITES_ENABLED
+          }
+        ),
+        {
+          allowedUserIds: env.EPOXIRON_TELEGRAM_ALLOWED_USER_IDS,
+          pollTimeoutSeconds: env.EPOXIRON_TELEGRAM_POLL_TIMEOUT_SECONDS,
+          maxAudioBytes: env.EPOXIRON_TELEGRAM_MAX_AUDIO_BYTES,
+          echoTranscripts: env.EPOXIRON_TELEGRAM_ECHO_TRANSCRIPTS
+        }
+      )
+    : null;
   const parseVoiceAlbaranAudioUseCase = new ParseVoiceAlbaranAudioUseCase(
     voiceTranscriber,
     parseVoiceAlbaranUseCase
@@ -328,7 +365,8 @@ export const createAppContext = (): AppContext => {
   return {
     app,
     dailyDeliveryNotesReportScheduler,
-    invoiceReconciliationScheduler
+    invoiceReconciliationScheduler,
+    telegramDeliveryNoteBot
   };
 };
 

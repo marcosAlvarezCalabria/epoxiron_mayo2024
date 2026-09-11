@@ -46,37 +46,56 @@ describe("normalizeParsedVoiceAlbaran", () => {
     });
   });
 
-  it("defaults quantity and primer when values are invalid", () => {
+  it("rejects non-positive quantities instead of changing their sign or defaulting them", () => {
+    expect(() =>
+      normalizeParsedVoiceAlbaran({
+        customerName: null,
+        date: "2026-06-11T10:00:00.000Z",
+        notes: null,
+        items: [
+          {
+            description: "perfil",
+            color: null,
+            specialPieceIntent: null,
+            texture: null,
+            linearMeters: -1,
+            squareMeters: "",
+            thickness: null,
+            primer: "no",
+            quantity: "0"
+          }
+        ]
+      })
+    ).toThrow();
+  });
+
+  it("normalizes common colors and discards dictated prices", () => {
     const result = normalizeParsedVoiceAlbaran({
-      customerName: null,
-      date: "2026-06-11T10:00:00.000Z",
+      customerName: "Cliente Uno",
+      date: "2026-06-11",
       notes: null,
       items: [
         {
-          description: "perfil",
-          color: null,
-          specialPieceIntent: null,
-          texture: null,
-          linearMeters: -1,
-          squareMeters: "",
-          thickness: null,
-          primer: "no",
-          quantity: "0"
+          description: "chapa",
+          color: "negro",
+          specialPieceIntent: false,
+          pricingMode: "unit",
+          customUnitPrice: 99,
+          texture: "normal",
+          linearMeters: null,
+          squareMeters: 0.5,
+          hasThickness: false,
+          hasPrimer: false,
+          saveAsSpecialPiece: false,
+          quantity: 1
         }
       ]
     });
 
     expect(result.items[0]).toMatchObject({
-      description: "PERFIL",
-      customUnitPrice: null,
+      color: "RAL 9005",
       pricingMode: "DIMENSIONS",
-      specialPieceIntent: false,
-      texture: "NORMAL",
-      linearMeters: null,
-      squareMeters: null,
-      hasPrimer: false,
-      hasThickness: false,
-      saveAsSpecialPiece: false,
+      customUnitPrice: null,
       quantity: 1
     });
   });

@@ -1,0 +1,38 @@
+services:
+  albaranes:
+    build:
+      context: ../..
+      dockerfile: api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - path: /opt/epoxiron/api/.env.production
+        required: true
+      - path: .env
+        required: true
+    volumes:
+      - /opt/epoxiron-albaranes/secrets/telegram-bot-token:/run/secrets/telegram-bot-token:ro
+      - /opt/epoxiron-albaranes/secrets/google-cloud-credentials.json:/run/secrets/google-cloud-credentials.json:ro
+    environment:
+      PORT: 3102
+      NODE_ENV: production
+      EPOXIRON_TELEGRAM_BOT_ENABLED: "true"
+      EPOXIRON_TELEGRAM_WRITES_ENABLED: "true"
+      EPOXIRON_TELEGRAM_BOT_ENVIRONMENT: production
+      DAILY_REPORT_AUTOMATION_ENABLED: "false"
+      ODOO_RECONCILIATION_ENABLED: "false"
+      EMAIL_NOTIFICATIONS_ENABLED: "false"
+    command:
+      - sh
+      - -lc
+      - |
+        export EPOXIRON_TELEGRAM_BOT_TOKEN="$$(tr -d '\r\n' < /run/secrets/telegram-bot-token)"
+        cd /app/api
+        ./node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma
+        node dist/src/server.js
+    networks:
+      - epoxiron_production
+
+networks:
+  epoxiron_production:
+    external: true
+    name: epoxiron_epoxiron_net

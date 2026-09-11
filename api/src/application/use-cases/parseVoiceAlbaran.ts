@@ -15,6 +15,10 @@ const uppercaseSpanish = (value: string): string => value.toLocaleUpperCase("es-
 const dimensionPattern = /\b\d+(?:[.,]\d+)?\s*(?:x|\*|por)\s*\d+(?:[.,]\d+)?\b/i;
 const explicitSquareMetersPattern =
   /\b\d+(?:[.,]\d+)?\s*(?:m2|m\^2|metros?\s+cuadrados?)\b/i;
+const spokenDimensionPattern =
+  /\b(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)?\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)\b/i;
+const descriptionDimensionPattern =
+  /\d+(?:[.,]\d+)?\s*(?:MM|CM|M)?\s*(?:X|\*|POR)\s*\d+(?:[.,]\d+)?\s*(?:MM|CM|M)?/i;
 
 const scoreCustomerMatch = (customerName: string, spokenName: string): number => {
   const normalizedCustomer = normalizeText(customerName);
@@ -78,6 +82,60 @@ const sanitizeDerivedMeasurements = (
   };
 };
 
+const toCentimeters = (value: string, unit: string): number => {
+  const parsed = Number.parseFloat(value.replace(",", "."));
+  const normalizedUnit = normalizeText(unit);
+  if (normalizedUnit === "mm" || normalizedUnit.startsWith("milimetro")) {
+    return parsed / 10;
+  }
+  if (normalizedUnit === "m" || normalizedUnit.startsWith("metro")) {
+    return parsed * 100;
+  }
+  return parsed;
+};
+
+const formatDimension = (value: number): string =>
+  Number.isInteger(value)
+    ? value.toString()
+    : value.toFixed(2).replace(/\.?0+$/u, "").replace(".", ",");
+
+const normalizeSpokenDimensions = (
+  transcript: string,
+  parsed: ParsedVoiceAlbaran
+): ParsedVoiceAlbaran => {
+  const matches = [
+    ...transcript.matchAll(new RegExp(spokenDimensionPattern.source, "gi"))
+  ];
+  const normalizedDimensions = matches.flatMap((match) => {
+    if (!match[1] || !match[3] || !match[4]) return [];
+    const firstUnit = match[2] ?? match[4];
+    const widthCm = toCentimeters(match[1], firstUnit);
+    const heightCm = toCentimeters(match[3], match[4]);
+    if (!Number.isFinite(widthCm) || !Number.isFinite(heightCm)) return [];
+    return [`${formatDimension(widthCm)}X${formatDimension(heightCm)}`];
+  });
+  if (normalizedDimensions.length === 0) return parsed;
+  let dimensionIndex = 0;
+
+  return {
+    ...parsed,
+    items: parsed.items.map((item) => {
+      if (!descriptionDimensionPattern.test(item.description)) return item;
+      const normalizedDimension = normalizedDimensions[dimensionIndex];
+      dimensionIndex += 1;
+      return normalizedDimension
+        ? {
+            ...item,
+            description: item.description.replace(
+              descriptionDimensionPattern,
+              normalizedDimension
+            )
+          }
+        : item;
+    })
+  };
+};
+
 export class ParseVoiceAlbaranUseCase {
   public constructor(
     private readonly parser: VoiceAlbaranParser,
@@ -99,7 +157,10 @@ export class ParseVoiceAlbaranUseCase {
       customerNames: customers.map((customer) => customer.name),
       specialPieceNames
     });
-    const sanitized = sanitizeDerivedMeasurements(transcript, parsed);
+    const sanitized = normalizeSpokenDimensions(
+      transcript,
+      sanitizeDerivedMeasurements(transcript, parsed)
+    );
 
     return {
       ...sanitized,
