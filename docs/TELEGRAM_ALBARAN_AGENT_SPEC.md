@@ -162,6 +162,10 @@ caducidad e identificador del albarán creado.
 ### 8.3 Medidas
 
 - Se normalizan medidas en milímetros, centímetros y metros.
+- Una pareja sin unidad, por ejemplo "500X500", se interpreta en milímetros
+  según la convención del taller.
+- El agente conserva ancho y alto como datos numéricos en milímetros.
+- La API calcula la superficie con ancho × alto / 1.000.000.
 - Las descripciones dimensionales se expresan consistentemente en centímetros
   cuando procede.
 - "1000 x 500 mm" se convierte en "100X50".
@@ -184,10 +188,23 @@ Antes de preparar la propuesta, el agente informa de los datos ausentes. El
 usuario puede completarlos con una frase como "El color es 9005". La corrección
 se aplica a la línea incompleta correspondiente.
 
+### 8.6 Piezas especiales
+
+- Las piezas especiales se buscan únicamente dentro del cliente seleccionado.
+- La coincidencia exacta de nombre tiene prioridad.
+- También se admite una coincidencia canónica por nombre, RAL y medidas.
+- Una coincidencia única usa el nombre y el precio fijo guardados en el cliente.
+- La propuesta muestra expresamente la etiqueta "PIEZA ESPECIAL".
+- Si varias piezas son posibles, el agente muestra opciones numeradas y pide el
+  nombre exacto.
+- La selección sustituye la línea ambigua; no añade una línea nueva.
+- Telegram no crea ni modifica automáticamente el catálogo de piezas especiales.
+
 ## 9. Precios
 
 La lógica de precios vive exclusivamente en la API.
 
+- El orden de prioridad es: pieza especial, dimensiones y tarifa mínima.
 - Toda entrada del agente usa pricingMode "DIMENSIONS".
 - customUnitPrice se fuerza a null.
 - saveAsSpecialPiece se fuerza a false.
@@ -196,7 +213,9 @@ La lógica de precios vive exclusivamente en la API.
 - Una propuesta antigua se sanea y recalcula antes de confirmar.
 - Si una propuesta heredada contiene un precio manual distinto, se bloquea.
 
-El agente solo muestra precios devueltos por la API.
+El agente solo muestra precios devueltos por la API. Cuando existen widthMm y
+heightMm, la API deriva squareMeters antes de aplicar la tarifa por metro
+cuadrado.
 
 ## 10. Confirmación, cancelación e idempotencia
 
@@ -331,6 +350,10 @@ La cobertura debe verificar:
 - precio dictado ignorado;
 - cantidades negativas rechazadas;
 - correcciones de cantidad, color, acabado y cliente;
+- cálculo de superficies a partir de medidas explícitas o medidas de taller sin
+  unidad;
+- selección automática de una pieza especial única;
+- listado y resolución de piezas especiales ambiguas sin duplicar líneas;
 - cliente desconocido conservando líneas;
 - eliminación de líneas y cancelación con "NO";
 - completar colores ausentes;

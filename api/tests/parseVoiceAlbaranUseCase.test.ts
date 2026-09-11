@@ -80,6 +80,8 @@ describe("ParseVoiceAlbaranUseCase", () => {
 
     expect(result.customerName).toBe("Ditrametal");
     expect(result.items[0]?.squareMeters).toBeNull();
+    expect(result.items[0]?.widthMm).toBe(3000);
+    expect(result.items[0]?.heightMm).toBe(1000);
   });
 
   it("preserves square meters when they are spoken explicitly", async () => {
@@ -139,6 +141,8 @@ describe("ParseVoiceAlbaranUseCase", () => {
     const result = await useCase.execute("una chapa de 1000 x 500 milímetros");
 
     expect(result.items[0]?.description).toBe("CHAPA 100X50");
+    expect(result.items[0]?.widthMm).toBe(1000);
+    expect(result.items[0]?.heightMm).toBe(500);
   });
 
   it("normalizes mixed meter and centimeter dimensions", async () => {
@@ -169,5 +173,39 @@ describe("ParseVoiceAlbaranUseCase", () => {
     const result = await useCase.execute("una chapa de 1 m x 50 cm");
 
     expect(result.items[0]?.description).toBe("CHAPA 100X50");
+    expect(result.items[0]?.widthMm).toBe(1000);
+    expect(result.items[0]?.heightMm).toBe(500);
+  });
+
+  it("interprets workshop dimensions without a unit as millimeters", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2026-07-09",
+      notes: null,
+      items: [{
+        description: "MESA 500X500",
+        color: "RAL 9005",
+        specialPieceIntent: false,
+        customUnitPrice: null,
+        pricingMode: "DIMENSIONS",
+        texture: "TEXTURADO",
+        linearMeters: null,
+        squareMeters: null,
+        hasThickness: false,
+        hasPrimer: false,
+        saveAsSpecialPiece: false,
+        quantity: 1
+      }]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")])
+    );
+
+    const result = await useCase.execute("una mesa de 500 x 500 RAL 9005");
+
+    expect(result.items[0]?.description).toBe("MESA 50X50");
+    expect(result.items[0]?.widthMm).toBe(500);
+    expect(result.items[0]?.heightMm).toBe(500);
   });
 });

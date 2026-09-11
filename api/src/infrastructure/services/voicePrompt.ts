@@ -17,6 +17,8 @@ Estructura obligatoria:
       "texture": "mate | texturado | gofrado | normal | null",
       "linearMeters": number o null,
       "squareMeters": number o null,
+      "widthMm": number o null,
+      "heightMm": number o null,
       "hasThickness": boolean,
       "hasPrimer": boolean,
       "saveAsSpecialPiece": boolean,
@@ -40,9 +42,10 @@ Reglas:
 - Si el color RAL llega fragmentado por la transcripcion, por ejemplo 9000 6, 900 6, 9 0 0 6 o 5000 3, reconstruyelo como un unico codigo RAL de 4 cifras: 9006, 9006, 9006 y 5003.
 - Si detectas un posible RAL fragmentado, prioriza reconstruir el color antes que inventar otro campo.
 - Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida dentro de description con formato compacto tipo "3000X1000". No sustituyas la medida en description por el total calculado en M2.
-- Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida en description con formato "3000X1000", pero no calcules squareMeters ni linearMeters a partir de ella.
-- Solo rellena squareMeters o linearMeters cuando el usuario indique explícitamente el valor en m2 o metros lineales.
-- Si el usuario da solo una dimension lineal ("3 metros", "3 ml"), usa linearMeters. Si da dos dimensiones en mm, calcula squareMeters aunque no diga "M2" explicitamente.
+- Cuando el usuario diga dos dimensiones, conserva la medida en description y rellena widthMm y heightMm convirtiendo ambas a milímetros.
+- En el contexto del taller, una pareja sin unidad como 500X500 se interpreta en milímetros.
+- Solo rellena squareMeters cuando el usuario indique explícitamente el valor en m2.
+- Si el usuario da solo una dimensión lineal ("3 metros", "3 ml"), usa linearMeters.
 - Usa siempre pricingMode = "dimensions" y customUnitPrice = null.
 - Ignora cualquier precio dictado por el usuario. Los precios se calculan exclusivamente en la API.
 - "Una unidad", "dos unidades" o expresiones equivalentes solo indican quantity.

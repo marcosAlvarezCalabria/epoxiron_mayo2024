@@ -19,6 +19,7 @@ export interface TelegramDeliveryNoteProposalLine {
   item: DeliveryNoteItemDraft;
   unitPrice: number;
   totalPrice: number;
+  pricingSource?: "SPECIAL" | "DIMENSIONS";
 }
 
 export interface TelegramDeliveryNoteProposal {

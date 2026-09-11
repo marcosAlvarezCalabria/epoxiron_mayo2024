@@ -16,7 +16,7 @@ const dimensionPattern = /\b\d+(?:[.,]\d+)?\s*(?:x|\*|por)\s*\d+(?:[.,]\d+)?\b/i
 const explicitSquareMetersPattern =
   /\b\d+(?:[.,]\d+)?\s*(?:m2|m\^2|metros?\s+cuadrados?)\b/i;
 const spokenDimensionPattern =
-  /\b(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)?\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)\b/i;
+  /\b(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)?\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)?\b/i;
 const descriptionDimensionPattern =
   /\d+(?:[.,]\d+)?\s*(?:MM|CM|M)?\s*(?:X|\*|POR)\s*\d+(?:[.,]\d+)?\s*(?:MM|CM|M)?/i;
 
@@ -94,6 +94,9 @@ const toCentimeters = (value: string, unit: string): number => {
   return parsed;
 };
 
+const toMillimeters = (value: string, unit: string): number =>
+  toCentimeters(value, unit) * 10;
+
 const formatDimension = (value: number): string =>
   Number.isInteger(value)
     ? value.toString()
@@ -107,12 +110,26 @@ const normalizeSpokenDimensions = (
     ...transcript.matchAll(new RegExp(spokenDimensionPattern.source, "gi"))
   ];
   const normalizedDimensions = matches.flatMap((match) => {
-    if (!match[1] || !match[3] || !match[4]) return [];
-    const firstUnit = match[2] ?? match[4];
+    if (!match[1] || !match[3]) return [];
+    const firstUnit = match[2] ?? match[4] ?? "mm";
+    const secondUnit = match[4] ?? match[2] ?? "mm";
     const widthCm = toCentimeters(match[1], firstUnit);
-    const heightCm = toCentimeters(match[3], match[4]);
-    if (!Number.isFinite(widthCm) || !Number.isFinite(heightCm)) return [];
-    return [`${formatDimension(widthCm)}X${formatDimension(heightCm)}`];
+    const heightCm = toCentimeters(match[3], secondUnit);
+    const widthMm = toMillimeters(match[1], firstUnit);
+    const heightMm = toMillimeters(match[3], secondUnit);
+    if (
+      !Number.isFinite(widthCm) ||
+      !Number.isFinite(heightCm) ||
+      !Number.isFinite(widthMm) ||
+      !Number.isFinite(heightMm) ||
+      widthMm <= 0 ||
+      heightMm <= 0
+    ) return [];
+    return [{
+      description: formatDimension(widthCm) + "X" + formatDimension(heightCm),
+      widthMm,
+      heightMm
+    }];
   });
   if (normalizedDimensions.length === 0) return parsed;
   let dimensionIndex = 0;
@@ -128,8 +145,10 @@ const normalizeSpokenDimensions = (
             ...item,
             description: item.description.replace(
               descriptionDimensionPattern,
-              normalizedDimension
-            )
+              normalizedDimension.description
+            ),
+            widthMm: normalizedDimension.widthMm,
+            heightMm: normalizedDimension.heightMm
           }
         : item;
     })

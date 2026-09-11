@@ -62,9 +62,13 @@ export class CalculatePriceUseCase {
     } else if (specialPiece) {
       totalPrice = specialPiece.price * quantity;
     } else {
+      const squareMeters =
+        item.widthMm != null && item.heightMm != null
+          ? (item.widthMm * item.heightMm) / 1_000_000
+          : (item.squareMeters ?? 0);
       const pricePerPiece =
         (item.linearMeters ?? 0) * customer.pricePerLinearMeter +
-        (item.squareMeters ?? 0) * customer.pricePerSquareMeter;
+        squareMeters * customer.pricePerSquareMeter;
 
       totalPrice = pricePerPiece * quantity;
     }

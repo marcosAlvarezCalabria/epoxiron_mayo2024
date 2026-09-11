@@ -261,6 +261,155 @@ describe("TelegramDeliveryNoteAssistant", () => {
     expect(proposal[0]).not.toContain("99,00");
   });
 
+  it("reconoce una pieza especial única por nombre, color y medidas", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      specialPieces: [{ name: "PUERTA 9003 500X800", price: 3.8 }]
+    };
+    const specialParsed: ParsedVoiceAlbaran = {
+      ...parsed,
+      items: [{
+        ...parsed.items[0]!,
+        description: "UNA PUERTA 50X80",
+        color: "RAL 9003",
+        widthMm: 500,
+        heightMm: 800,
+        linearMeters: null,
+        squareMeters: null,
+        quantity: 1
+      }]
+    };
+    const { assistant, calculate } = buildAssistant(
+      false,
+      specialParsed,
+      [specialCustomer]
+    );
+
+    await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "una puerta de 500 x 800 RAL 9003"
+    });
+    const proposal = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "YA ESTÁ"
+    });
+
+    expect(proposal[0]).toContain("PUERTA 9003 500X800");
+    expect(proposal[0]).toContain("PIEZA ESPECIAL");
+    expect(calculate.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "PUERTA 9003 500X800" }),
+      specialCustomer
+    );
+  });
+
+  it("no elige automáticamente entre varias piezas especiales posibles", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      specialPieces: [
+        { name: "GONDOLA 9005 2000X770", price: 38.56 },
+        { name: "GONDOLA 9005 1900X700", price: 35 }
+      ]
+    };
+    const ambiguousParsed: ParsedVoiceAlbaran = {
+      ...parsed,
+      items: [{
+        ...parsed.items[0]!,
+        description: "GONDOLA",
+        color: "RAL 9005",
+        linearMeters: null,
+        squareMeters: null,
+        quantity: 1
+      }]
+    };
+    const { assistant, sessions } = buildAssistant(
+      false,
+      ambiguousParsed,
+      [specialCustomer]
+    );
+
+    await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "una góndola RAL 9005"
+    });
+    const result = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "YA ESTÁ"
+    });
+
+    expect(result[0]).toContain("coincide con varias piezas especiales");
+    expect(result[0]).toContain("1. GONDOLA 9005 2000X770");
+    expect(result[0]).toContain("GONDOLA 9005 2000X770");
+    expect(sessions.session.status).toBe("COLLECTING");
+
+    const selected = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 3,
+      text: "GONDOLA 9005 2000X770"
+    });
+    const proposal = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 4,
+      text: "YA ESTÁ"
+    });
+
+    expect(selected[0]).toContain("Pieza especial seleccionada");
+    expect(sessions.session.draft.items).toHaveLength(1);
+    expect(proposal[0]).toContain("PIEZA ESPECIAL");
+  });
+
+  it("reconoce una pieza especial única por metros lineales", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      specialPieces: [{ name: "TUBO 9005+7024 2.02MLIN", price: 6.26 }]
+    };
+    const specialParsed: ParsedVoiceAlbaran = {
+      ...parsed,
+      items: [{
+        ...parsed.items[0]!,
+        description: "TUBO 2,02M",
+        color: "RAL 9005",
+        linearMeters: 2.02,
+        squareMeters: null,
+        quantity: 1
+      }]
+    };
+    const { assistant, calculate } = buildAssistant(
+      false,
+      specialParsed,
+      [specialCustomer]
+    );
+
+    await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "un tubo de 2,02 metros RAL 9005"
+    });
+    const proposal = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "YA ESTÁ"
+    });
+
+    expect(proposal[0]).toContain("TUBO 9005+7024 2.02MLIN");
+    expect(proposal[0]).toContain("PIEZA ESPECIAL");
+    expect(calculate.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ description: "TUBO 9005+7024 2.02MLIN" }),
+      specialCustomer
+    );
+  });
+
   it("corrige cantidad y color sin añadir líneas", async () => {
     const { assistant, sessions, parser } = buildAssistant(false);
 

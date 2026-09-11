@@ -84,10 +84,103 @@ const findCustomer = (
   return customers.find((customer) => normalizeText(customer.name) === normalized) ?? null;
 };
 
+interface SpecialPieceResolution {
+  piece: Customer["specialPieces"][number] | null;
+  ambiguous: Customer["specialPieces"];
+}
+
+const SPECIAL_SEARCH_STOP_WORDS = new Set([
+  "un", "una", "uno", "el", "la", "los", "las", "de", "del", "ral",
+  "normal", "mate", "texturado", "texturizado", "gofrado", "x", "por"
+]);
+
+const dimensionsInTextPattern =
+  /\b\d+(?:[.,]\d+)?\s*(?:x|\*|por)\s*\d+(?:[.,]\d+)?\b/giu;
+const linearMeasureInTextPattern =
+  /\b\d+(?:[.,]\d+)?\s*(?:mlineal|mlin|ml|metros?|m)\b/giu;
+
+const singularizeSpecialToken = (value: string): string => {
+  if (value.length > 4 && value.endsWith("es")) return value.slice(0, -2);
+  if (value.length > 3 && value.endsWith("s")) return value.slice(0, -1);
+  return value;
+};
+
+const specialSearchTokens = (value: string): string[] =>
+  normalizeText(value.replace(/(\d)\s*[xX*]\s*(?=\d)/g, "$1 "))
+    .split(" ")
+    .filter((token) => token.length > 0 && !SPECIAL_SEARCH_STOP_WORDS.has(token))
+    .map(singularizeSpecialToken);
+
+const ralCodeFromColor = (value: string | null): string | null =>
+  normalizeText(value ?? "").match(/\b(?:ral\s*)?([1-9]\d{3})\b/)?.[1] ?? null;
+
+const sameDimensionToken = (tokens: Set<string>, value: number): boolean =>
+  tokens.has(Number.isInteger(value) ? value.toString() : String(value));
+
+const resolveSpecialPiece = (
+  customer: Customer,
+  item: TelegramDeliveryNoteDraft["items"][number]
+): SpecialPieceResolution => {
+  const exact =
+    customer.specialPieces.find(
+      (piece) =>
+        normalizeSpecialPieceName(piece.name) ===
+        normalizeSpecialPieceName(item.description)
+    ) ?? null;
+  if (exact) return { piece: exact, ambiguous: [] };
+
+  const descriptionWithoutMeasures = item.description
+    .replace(dimensionsInTextPattern, " ")
+    .replace(linearMeasureInTextPattern, " ");
+  const coreTokens = specialSearchTokens(descriptionWithoutMeasures);
+  const colorCode = ralCodeFromColor(item.color);
+  if (coreTokens.length === 0 || !colorCode) {
+    return { piece: null, ambiguous: [] };
+  }
+
+  const scored = customer.specialPieces.flatMap((piece) => {
+    const tokens = new Set(specialSearchTokens(piece.name));
+    if (!coreTokens.every((token) => tokens.has(token)) || !tokens.has(colorCode)) {
+      return [];
+    }
+
+    let score = coreTokens.length * 10 + 10;
+    if (item.widthMm != null && item.heightMm != null) {
+      if (
+        !sameDimensionToken(tokens, item.widthMm) ||
+        !sameDimensionToken(tokens, item.heightMm)
+      ) return [];
+      score += 20;
+    }
+    if (item.linearMeters != null) {
+      const compactName = normalizeText(piece.name).replace(/\s+/g, "");
+      const linearValue = String(item.linearMeters).replace(".", "[.,]?");
+      if (!new RegExp(linearValue + "(?:mlineal|mlin|ml)").test(compactName)) {
+        return [];
+      }
+      score += 20;
+    }
+    return [{ piece, score }];
+  });
+  if (scored.length === 0) return { piece: null, ambiguous: [] };
+
+  const bestScore = Math.max(...scored.map((candidate) => candidate.score));
+  const best = scored
+    .filter((candidate) => candidate.score === bestScore)
+    .map((candidate) => candidate.piece);
+  return best.length === 1
+    ? { piece: best[0] ?? null, ambiguous: [] }
+    : { piece: null, ambiguous: best };
+};
+
 const toDraftItem = (
   customer: Customer,
   item: TelegramDeliveryNoteDraft["items"][number]
-): { item: DeliveryNoteItemDraft | null; error: string | null } => {
+): {
+  item: DeliveryNoteItemDraft | null;
+  error: string | null;
+  pricingSource?: "SPECIAL" | "DIMENSIONS";
+} => {
   if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
     return { item: null, error: `${item.description}: la cantidad debe ser mayor que cero.` };
   }
@@ -97,12 +190,22 @@ const toDraftItem = (
     return { item: null, error: `${item.description}: falta el color.` };
   }
 
-  const specialPiece =
-    customer.specialPieces.find(
-      (piece) =>
-        normalizeSpecialPieceName(piece.name) ===
-        normalizeSpecialPieceName(item.description)
-    ) ?? null;
+  const specialResolution = resolveSpecialPiece(customer, item);
+  const specialPiece = specialResolution.piece;
+
+  if (specialResolution.ambiguous.length > 1) {
+    return {
+      item: null,
+      error:
+        item.description +
+        ": coincide con varias piezas especiales:\n" +
+        specialResolution.ambiguous
+          .slice(0, 5)
+          .map((piece, index) => (index + 1) + ". " + piece.name)
+          .join("\n") +
+        "\nIndica el nombre exacto de la pieza especial."
+    };
+  }
 
   if (item.specialPieceIntent && !specialPiece) {
     return {
@@ -121,11 +224,14 @@ const toDraftItem = (
       customUnitPrice: null,
       linearMeters: item.linearMeters,
       squareMeters: item.squareMeters,
+      widthMm: item.widthMm ?? null,
+      heightMm: item.heightMm ?? null,
       thickness: item.hasThickness ? 1 : null,
       primer: item.hasPrimer,
       quantity: item.quantity,
       saveAsSpecialPiece: false
-    }
+    },
+    pricingSource: specialPiece ? "SPECIAL" : "DIMENSIONS"
   };
 };
 
@@ -134,6 +240,9 @@ const proposalText = (proposal: TelegramDeliveryNoteProposal): string => {
     const measures = [
       line.item.linearMeters != null ? `${line.item.linearMeters} ml` : null,
       line.item.squareMeters != null ? `${line.item.squareMeters} m²` : null,
+      line.item.widthMm != null && line.item.heightMm != null
+        ? line.item.widthMm + "×" + line.item.heightMm + " mm"
+        : null,
       line.item.thickness ? "con grosor" : null,
       line.item.primer ? "con imprimación" : null
     ].filter((value): value is string => value !== null);
@@ -142,6 +251,7 @@ const proposalText = (proposal: TelegramDeliveryNoteProposal): string => {
       `${index + 1}. ${line.item.description}`,
       line.item.color,
       line.item.texture ?? "NORMAL",
+      line.pricingSource === "SPECIAL" ? "PIEZA ESPECIAL" : null,
       `${line.item.quantity} ud.`,
       measures.join(", "),
       `${formatMoney(line.unitPrice)}/ud.`,
@@ -357,6 +467,40 @@ export class TelegramDeliveryNoteAssistant {
     const normalized = normalizeText(input.text);
     const items = session.draft.items.map(sanitizeAgentItem);
 
+    const availableCustomers = await this.customers.findAll();
+    const draftCustomer = findCustomer(availableCustomers, session.draft.customerName);
+    const selectedSpecialPiece =
+      draftCustomer?.specialPieces.find(
+        (piece) =>
+          normalizeSpecialPieceName(piece.name) ===
+          normalizeSpecialPieceName(input.text)
+      ) ?? null;
+    if (draftCustomer && selectedSpecialPiece) {
+      const candidates = items
+        .map((item, index) => ({ item, index, resolution: resolveSpecialPiece(draftCustomer, item) }))
+        .filter(({ resolution }) =>
+          resolution.ambiguous.some(
+            (piece) =>
+              normalizeSpecialPieceName(piece.name) ===
+              normalizeSpecialPieceName(selectedSpecialPiece.name)
+          )
+        );
+      if (candidates.length === 1) {
+        const target = candidates[0];
+        if (!target) return null;
+        items[target.index] = {
+          ...target.item,
+          description: selectedSpecialPiece.name,
+          specialPieceIntent: true
+        };
+        await this.sessions.saveDraft(session.id, input.updateId, {
+          ...session.draft,
+          items
+        });
+        return ["Pieza especial seleccionada: " + selectedSpecialPiece.name + "."];
+      }
+    }
+
     const quantityCommand = normalized.match(
       /\b(?:cambia|corrige|pon|establece)\b.*\bcantidad\b(?:\s+de\s+(\w+))?\s+a\s+(\w+)/
     );
@@ -473,7 +617,7 @@ export class TelegramDeliveryNoteAssistant {
       /^(?:el\s+)?cliente(?:\s+correcto)?\s+es\s+(.+)$/
     );
     {
-      const customers = await this.customers.findAll();
+      const customers = availableCustomers;
       const requestedName = customerCommand?.[1] ?? customerOnly?.[1] ?? normalized;
       const exactCustomer = customers.find(
         (candidate) => normalizeText(candidate.name) === normalized
@@ -531,19 +675,24 @@ export class TelegramDeliveryNoteAssistant {
     }
 
     const items: DeliveryNoteItemDraft[] = [];
+    const pricingSources: Array<"SPECIAL" | "DIMENSIONS"> = [];
     const errors: string[] = [];
     for (const parsedItem of session.draft.items) {
       const resolved = toDraftItem(customer, sanitizeAgentItem(parsedItem));
       if (resolved.error) errors.push(resolved.error);
-      if (resolved.item) items.push(resolved.item);
+      if (resolved.item) {
+        items.push(resolved.item);
+        pricingSources.push(resolved.pricingSource ?? "DIMENSIONS");
+      }
     }
     if (errors.length > 0) {
       await this.sessions.markProcessed(session.id, updateId);
       return ["Faltan datos:\n" + errors.map((error) => `- ${error}`).join("\n")];
     }
 
-    const lines = items.map((item) => ({
+    const lines = items.map((item, index) => ({
       item,
+      pricingSource: pricingSources[index] ?? "DIMENSIONS",
       ...this.calculatePrice.execute(item, customer)
     }));
     const totalAmount =
