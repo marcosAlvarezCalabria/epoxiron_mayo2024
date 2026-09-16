@@ -248,6 +248,54 @@ describe("TelegramDeliveryNoteAssistant", () => {
     });
   });
 
+  it("añade botones para avanzar y retroceder por las páginas de piezas especiales", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      name: "DITRAMETAL",
+      specialPieces: Array.from({ length: 44 }, (_, index) => ({
+        id: `${String(index + 1).padStart(8, "0")}-1111-4111-8111-111111111111`,
+        name: `PIEZA ${String(index + 1).padStart(2, "0")}`,
+        price: index + 1
+      }))
+    };
+    const { assistant, sessions } = buildAssistant(false, parsed, [specialCustomer]);
+
+    const firstPage = await assistant.getSpecialPieceButtons({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "/especiales DITRAMETAL"
+    });
+    expect(firstPage).toHaveLength(21);
+    expect(firstPage?.at(-1)).toEqual([{
+      text: "Siguiente ➡️",
+      callbackData: `special-page:${specialCustomer.id}:2`
+    }]);
+
+    const secondPage = await assistant.getSpecialPiecesPage(specialCustomer.id, 2);
+    expect(secondPage?.text).toContain("Página 2/3 · 44 pieza(s).");
+    expect(secondPage?.buttons).toHaveLength(21);
+    expect(secondPage?.buttons.at(-1)).toEqual([
+      {
+        text: "⬅️ Anterior",
+        callbackData: `special-page:${specialCustomer.id}:1`
+      },
+      {
+        text: "Siguiente ➡️",
+        callbackData: `special-page:${specialCustomer.id}:3`
+      }
+    ]);
+
+    const thirdPage = await assistant.getSpecialPiecesPage(specialCustomer.id, 3);
+    expect(thirdPage?.buttons).toHaveLength(5);
+    expect(thirdPage?.buttons.at(-1)).toEqual([{
+      text: "⬅️ Anterior",
+      callbackData: `special-page:${specialCustomer.id}:2`
+    }]);
+    expect(sessions.session.draft).toEqual(emptyDraft());
+  });
+
   it("pregunta la cantidad y después añade la pieza especial pulsada", async () => {
     const specialCustomer: Customer = {
       ...customer,

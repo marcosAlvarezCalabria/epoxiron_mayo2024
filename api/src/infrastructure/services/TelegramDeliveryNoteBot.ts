@@ -146,7 +146,18 @@ export class TelegramDeliveryNoteBot {
     }
 
     const pieceId = callback.data?.match(/^special:([0-9a-f-]{36})$/i)?.[1];
+    const pageMatch = callback.data?.match(/^special-page:([0-9a-f-]{36}):(\d+)$/i);
     try {
+      if (pageMatch?.[1] && pageMatch[2]) {
+        const page = Number.parseInt(pageMatch[2], 10);
+        const result = await this.assistant.getSpecialPiecesPage(pageMatch[1], page);
+        if (!result) {
+          await this.client.sendMessage(chatId, "Esa página ya no está disponible. Vuelve a abrir /especiales.");
+          return;
+        }
+        await this.sendChunked(chatId, result.text, result.buttons);
+        return;
+      }
       if (!pieceId) {
         await this.client.sendMessage(chatId, "Esa selección no es válida.");
         return;

@@ -168,6 +168,39 @@ const sortedSpecialPieces = (customer: Customer): Customer["specialPieces"] =>
     left.name.localeCompare(right.name, "es", { sensitivity: "base" })
   );
 
+const specialPieceButtons = (
+  customer: Customer,
+  requestedPage: number
+): TelegramAssistantButton[][] => {
+  const pieces = sortedSpecialPieces(customer);
+  const totalPages = Math.max(1, Math.ceil(pieces.length / SPECIAL_PIECES_PAGE_SIZE));
+  if (requestedPage > totalPages) return [];
+
+  const offset = (requestedPage - 1) * SPECIAL_PIECES_PAGE_SIZE;
+  const pieceRows = pieces
+    .slice(offset, offset + SPECIAL_PIECES_PAGE_SIZE)
+    .flatMap((piece) => piece.id
+      ? [[{
+          text: `${piece.name} · ${formatMoney(piece.price)}`.slice(0, 64),
+          callbackData: `special:${piece.id}`
+        }]]
+      : []);
+  const navigation: TelegramAssistantButton[] = [];
+  if (requestedPage > 1) {
+    navigation.push({
+      text: "⬅️ Anterior",
+      callbackData: `special-page:${customer.id}:${requestedPage - 1}`
+    });
+  }
+  if (requestedPage < totalPages) {
+    navigation.push({
+      text: "Siguiente ➡️",
+      callbackData: `special-page:${customer.id}:${requestedPage + 1}`
+    });
+  }
+  return navigation.length > 0 ? [...pieceRows, navigation] : pieceRows;
+};
+
 interface SpecialPieceResolution {
   piece: Customer["specialPieces"][number] | null;
   ambiguous: Customer["specialPieces"];
@@ -584,16 +617,28 @@ export class TelegramDeliveryNoteAssistant {
     const customer = candidates.length === 1 ? candidates[0] : null;
     if (!customer) return null;
 
-    const pieces = sortedSpecialPieces(customer);
-    const offset = (query.page - 1) * SPECIAL_PIECES_PAGE_SIZE;
-    return pieces
-      .slice(offset, offset + SPECIAL_PIECES_PAGE_SIZE)
-      .flatMap((piece) => piece.id
-        ? [[{
-            text: `${piece.name} · ${formatMoney(piece.price)}`.slice(0, 64),
-            callbackData: `special:${piece.id}`
-          }]]
-        : []);
+    return specialPieceButtons(customer, query.page);
+  }
+
+  public async getSpecialPiecesPage(
+    customerId: string,
+    requestedPage: number
+  ): Promise<{ text: string; buttons: TelegramAssistantButton[][] } | null> {
+    const customers = await this.customers.findAll();
+    const customer = customers.find((candidate) => candidate.id === customerId);
+    if (!customer) return null;
+
+    const totalPages = Math.max(
+      1,
+      Math.ceil(customer.specialPieces.length / SPECIAL_PIECES_PAGE_SIZE)
+    );
+    if (!Number.isInteger(requestedPage) || requestedPage < 1 || requestedPage > totalPages) {
+      return null;
+    }
+    return {
+      text: specialPiecesText(customer, requestedPage),
+      buttons: specialPieceButtons(customer, requestedPage)
+    };
   }
 
   public async selectSpecialPiece(
