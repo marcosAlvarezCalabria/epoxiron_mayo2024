@@ -102,6 +102,33 @@ describe("normalizeParsedVoiceAlbaran", () => {
     });
   });
 
+  it.each([
+    ["oro", "ORO"],
+    ["RAL oro", "ORO"],
+    ["oro v200", "ORO V200"],
+    ["esmerilado", "ESMERILADO"],
+    ["oro envejecido esmerilado", "ORO ENVEJECIDO ESMERILADO"],
+    ["bronce satinado", "BRONCE SATINADO"],
+    ["9000 6", "RAL 9006"]
+  ])("preserves the commercial color %s", (color, expected) => {
+    const result = normalizeParsedVoiceAlbaran({
+      customerName: "Cliente Uno",
+      date: "2026-06-11",
+      notes: null,
+      items: [{
+        description: "pieza",
+        color,
+        specialPieceIntent: false,
+        texture: "normal",
+        linearMeters: null,
+        squareMeters: null,
+        quantity: 1
+      }]
+    });
+
+    expect(result.items[0]?.color).toBe(expected);
+  });
+
   it("throws when no valid items remain", () => {
     expect(() =>
       normalizeParsedVoiceAlbaran({

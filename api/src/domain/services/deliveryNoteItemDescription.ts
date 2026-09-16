@@ -119,7 +119,7 @@ const descriptionContainsExplicitDimensions = (description: string) => {
 const descriptionContainsCalculatedMeasures = (description: string) => {
   const normalizedDescription = normalizeEmbeddedValue(description);
 
-  return /\b\d+(?:[.,]\d+)?\s*MLIN\b/.test(normalizedDescription) ||
+  return /\b\d+(?:[.,]\d+)?\s*(?:MLIN|M\s*LINEAL(?:ES)?|METROS?\s+LINEALES?)\b/.test(normalizedDescription) ||
     /\b\d+(?:[.,]\d+)?\s*M2\b/.test(normalizedDescription);
 };
 

@@ -646,6 +646,36 @@ describe("TelegramDeliveryNoteAssistant", () => {
     expect(sessions.session.draft.items[0]?.color).toBe("RAL 9005");
   });
 
+  it.each([
+    ["oro", "ORO"],
+    ["RAL oro", "ORO"],
+    ["oro v200", "ORO V200"],
+    ["esmerilado", "ESMERILADO"],
+    ["oro envejecido esmerilado", "ORO ENVEJECIDO ESMERILADO"]
+  ])("completa el color comercial %s sin crear otra linea", async (input, expected) => {
+    const { assistant, sessions, parser } = buildAssistant(false);
+    sessions.session.draft = {
+      ...emptyDraft(),
+      customerName: customer.name,
+      items: [{ ...parsed.items[0]!, description: `TUBO RAL ${expected}`, color: null }]
+    };
+
+    const result = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: input
+    });
+
+    expect(result[0]).toContain(`Color corregido a ${expected}`);
+    expect(sessions.session.draft.items).toHaveLength(1);
+    expect(sessions.session.draft.items[0]).toMatchObject({
+      description: "TUBO",
+      color: expected
+    });
+    expect(parser.execute).not.toHaveBeenCalled();
+  });
+
   it("aplica una corrección corta de color y acabado sin crear otra línea", async () => {
     const { assistant, sessions, parser } = buildAssistant(false);
     sessions.session.draft = {

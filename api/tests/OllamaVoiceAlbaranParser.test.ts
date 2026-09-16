@@ -68,6 +68,8 @@ describe("OllamaVoiceAlbaranParser", () => {
           texture: "MATE",
           linearMeters: null,
           squareMeters: 8,
+          widthMm: null,
+          heightMm: null,
           hasThickness: false,
           hasPrimer: false,
           saveAsSpecialPiece: false,

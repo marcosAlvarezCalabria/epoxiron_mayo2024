@@ -10,6 +10,11 @@ import type {
   TelegramDeliveryNoteSessionRepository
 } from "../../domain/repositories/TelegramDeliveryNoteSessionRepository.js";
 import { normalizeSpecialPieceName } from "../../domain/services/deliveryNoteItemDescription.js";
+import {
+  findSpecialDeliveryNoteColor,
+  normalizeDeliveryNoteColor,
+  SPECIAL_DELIVERY_NOTE_COLORS
+} from "../../domain/services/deliveryNoteColor.js";
 
 export interface TelegramAssistantInput {
   chatId: string;
@@ -387,21 +392,17 @@ const parseSpecialPieceQuantity = (value: string): number | null => {
   return parsePositiveInteger(match?.[1]);
 };
 
-const normalizeAgentColor = (value: string | null): string | null => {
-  if (!value) return null;
-  const normalized = normalizeText(value);
-  if (/^ral\s*9005$/.test(normalized) || /^(?:negro|negra)$/.test(normalized)) {
-    return "RAL 9005";
-  }
-  if (/^ral\s*9010$/.test(normalized) || /^(?:blanco|blanca)$/.test(normalized)) {
-    return "RAL 9010";
-  }
-  const ral = normalized.match(/\bral\s*(\d{4})\b/);
-  return ral ? `RAL ${ral[1]}` : null;
-};
+const specialColorsPattern = SPECIAL_DELIVERY_NOTE_COLORS
+  .map((color) => color.replace(/\s+/g, "\\s+"))
+  .join("|");
+
+const normalizeAgentColor = (value: string | null): string | null =>
+  normalizeDeliveryNoteColor(value);
 
 const extractRequestedColor = (value: string): string | null => {
   const normalized = normalizeText(value);
+  const specialColor = findSpecialDeliveryNoteColor(normalized);
+  if (specialColor) return specialColor;
   const ralMatches = [...normalized.matchAll(/\bral\s*(\d{4})\b/g)];
   const lastRal = ralMatches.at(-1);
   if (lastRal?.[1]) return `RAL ${lastRal[1]}`;
@@ -434,8 +435,22 @@ const isShortTextureCorrection = (value: string): boolean => {
   return residue.length === 0;
 };
 
+const isShortColorCorrection = (value: string): boolean => {
+  const normalized = normalizeText(value);
+  const residue = normalized
+    .replace(new RegExp(`\\b(?:ral\\s+)?(?:${specialColorsPattern})\\b`, "giu"), " ")
+    .replace(/\bral\s*[1-9]\d{3}\b/g, " ")
+    .replace(/\b[1-9]\d{3}\b/g, " ")
+    .replace(/\b(?:negro|negra|blanco|blanca)\b/g, " ")
+    .replace(/\b(?:el|la|color|es|pon|cambia|cambiar|a)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return residue.length === 0;
+};
+
 const withoutCommonColor = (description: string): string =>
   description
+    .replace(new RegExp(`\\b(?:RAL\\s+)?(?:${specialColorsPattern})\\b`, "giu"), " ")
     .replace(/\b(?:NEGRO|NEGRA|BLANCO|BLANCA|ROJO|ROJA|ROJOS|ROJAS)\b/giu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -787,6 +802,39 @@ export class TelegramDeliveryNoteAssistant {
     }
 
     const requestedTexture = extractRequestedTexture(input.text);
+
+    {
+      const requestedColor = extractRequestedColor(input.text);
+      const missingColorCandidates = items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => normalizeAgentColor(item.color) === null);
+      const namedMissingColorCandidates = requestedColor
+        ? missingColorCandidates.filter(({ item }) =>
+            normalized.includes(normalizeText(item.description))
+          )
+        : [];
+      const shortColorTarget =
+        requestedColor &&
+        isShortColorCorrection(input.text) &&
+        missingColorCandidates.length === 1
+          ? missingColorCandidates[0]
+          : null;
+      const namedColorTarget =
+        namedMissingColorCandidates.length === 1 ? namedMissingColorCandidates[0] : null;
+      const colorTarget = namedColorTarget ?? shortColorTarget;
+      if (requestedColor && colorTarget) {
+        items[colorTarget.index] = {
+          ...colorTarget.item,
+          color: requestedColor,
+          description: withoutCommonColor(colorTarget.item.description)
+        };
+        await this.sessions.saveDraft(session.id, input.updateId, {
+          ...session.draft,
+          items
+        });
+        return [`Color corregido a ${requestedColor} en ${colorTarget.item.description}.`];
+      }
+    }
     if (requestedTexture && isShortTextureCorrection(input.text) && items.length > 0) {
       const requestedColor = extractRequestedColor(input.text);
       const candidates = items

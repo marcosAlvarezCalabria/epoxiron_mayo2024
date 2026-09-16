@@ -70,6 +70,8 @@ describe("OpenAiCompatibleVoiceAlbaranParser", () => {
           texture: "NORMAL",
           linearMeters: 4,
           squareMeters: null,
+          widthMm: null,
+          heightMm: null,
           hasThickness: false,
           hasPrimer: false,
           saveAsSpecialPiece: false,

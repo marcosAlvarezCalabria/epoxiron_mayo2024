@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { DomainException } from "../domain/exceptions/DomainException.js";
 import type { ParsedVoiceAlbaran } from "../domain/ports/VoiceAlbaranParser.js";
+import { normalizeDeliveryNoteColor } from "../domain/services/deliveryNoteColor.js";
 
 const parsedVoiceTextureSchema = z.enum(["NORMAL", "MATE", "TEXTURADO", "GOFRADO"]);
 const parsedVoicePricingModeSchema = z.enum(["DIMENSIONS", "UNIT"]);
@@ -72,42 +73,6 @@ const llmBooleanSchema = z
     return false;
   });
 
-const normalizeVoiceColor = (value: string | null): string | null => {
-  if (!value) {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const numericCandidate = trimmed.replace(/\D/g, "");
-  if (numericCandidate) {
-    if (numericCandidate.length === 4) {
-      return `RAL ${numericCandidate}`;
-    }
-
-    if (numericCandidate.length === 5 && numericCandidate[1] === "0") {
-      return `RAL ${numericCandidate[0]}${numericCandidate.slice(-3)}`;
-    }
-
-    return null;
-  }
-
-  const normalizedName = trimmed
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
-  if (/^(?:negro|negra)$/.test(normalizedName)) {
-    return "RAL 9005";
-  }
-  if (/^(?:blanco|blanca)$/.test(normalizedName)) {
-    return "RAL 9010";
-  }
-
-  return null;
-};
 
 const normalizeVoiceText = (value: string | null): string | null => {
   if (!value) {
@@ -186,7 +151,7 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
 
   const items = parsed.items
     .map((item) => ({
-      color: normalizeVoiceColor(item.color),
+      color: normalizeDeliveryNoteColor(item.color),
       description: uppercaseSpanish(item.description),
       hasPrimer: item.hasPrimer || item.primer,
       hasThickness: item.hasThickness || (item.thickness != null && item.thickness > 0),
