@@ -59,7 +59,7 @@ export const inferEmbeddedColorAndTexture = (
     return { color, texture: "TEXTURADO" };
   }
 
-  if (/\bGOFRADO\b/.test(normalized)) {
+  if (/\bGOF(?:RADO)?\b/.test(normalized)) {
     return { color, texture: "GOFRADO" };
   }
 
@@ -95,7 +95,7 @@ export const descriptionContainsTexture = (
     case "TEXTURADO":
       return /\bTEXT(?:URADO)?\b/.test(normalizedDescription);
     case "GOFRADO":
-      return /\bGOFRADO\b/.test(normalizedDescription);
+      return /\bGOF(?:RADO)?\b/.test(normalizedDescription);
     case "MATE":
       return /\bMATE\b/.test(normalizedDescription);
     default:

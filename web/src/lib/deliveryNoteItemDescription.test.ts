@@ -19,6 +19,11 @@ describe("deliveryNoteItemDescription helpers", () => {
       color: "RAL 9016",
       texture: "TEXTURADO"
     });
+
+    expect(inferEmbeddedColorAndTexture("ARMARIO 7032 GOF 1550X1680")).toEqual({
+      color: "RAL 7032",
+      texture: "GOFRADO"
+    });
   });
 
   it("does not duplicate color or texture already embedded in the description", () => {
@@ -39,6 +44,15 @@ describe("deliveryNoteItemDescription helpers", () => {
         pricingMode: "UNIT"
       })
     ).toBe("BARRA Z 9016 TEXT");
+
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "ARMARIO 7032 GOF 1550X1680",
+        color: "RAL 7032",
+        texture: "GOFRADO",
+        pricingMode: "UNIT"
+      })
+    ).toBe("ARMARIO 7032 GOF 1550X1680");
   });
 
   it("normalizes manual descriptions removing ral and unidad from line text", () => {

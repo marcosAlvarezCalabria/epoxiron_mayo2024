@@ -25,4 +25,15 @@ describe("buildDeliveryNoteItemDescription", () => {
       "CHAPA 7035 GOFRADO \u00B7 0,48MLIN"
     );
   });
+
+  it("treats GOF as an embedded GOFRADO texture", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "ARMARIO 7032 GOF 1550X1680",
+        color: "RAL 7032",
+        texture: "GOFRADO",
+        pricingMode: "UNIT"
+      })
+    ).toBe("ARMARIO 7032 GOF 1550X1680");
+  });
 });
