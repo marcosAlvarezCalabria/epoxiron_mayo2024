@@ -1,6 +1,5 @@
 import { clearDeliveryNoteDraft } from "@/services/deliveryNoteDraftStorage";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+import { API_URL } from "@/config/api";
 const tokenStorageKey = "epoxiron_token";
 const userStorageKey = "epoxiron_user";
 

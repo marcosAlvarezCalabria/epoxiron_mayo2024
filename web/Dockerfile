@@ -9,7 +9,7 @@ RUN pnpm install --filter @epoxiron/web... --frozen-lockfile
 
 FROM deps AS build
 COPY web ./web
-ARG VITE_API_URL=https://app.example.com
+ARG VITE_API_URL=https://api.wwwmarcos-alvarez.com
 ENV VITE_API_URL=${VITE_API_URL}
 RUN pnpm --filter @epoxiron/web build
 

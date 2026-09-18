@@ -1,6 +1,5 @@
 import { authService } from "@/services/auth.service";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+import { API_URL } from "@/config/api";
 
 export class ApiError extends Error {
   public constructor(message: string, public readonly status: number) {
