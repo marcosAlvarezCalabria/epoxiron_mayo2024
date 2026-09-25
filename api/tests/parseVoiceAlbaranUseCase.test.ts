@@ -162,6 +162,29 @@ describe("ParseVoiceAlbaranUseCase", () => {
     expect(result.items[0]?.squareMeters).toBe(3);
   });
 
+  it("preserves linear and square meters spoken for the same item", async () => {
+    const parsedItem = buildParsedItem("PERFIL MIXTO", 1.5);
+    parsedItem.linearMeters = 2;
+    const parser = buildParser({
+      customerName: null,
+      date: "2026-07-09",
+      notes: null,
+      items: [parsedItem]
+    });
+
+    const useCase = new ParseVoiceAlbaranUseCase(parser, buildRepository([]));
+    const result = await useCase.execute(
+      "un perfil mixto de 2 metros lineales y 1,5 metros cuadrados"
+    );
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      description: "PERFIL MIXTO",
+      linearMeters: 2,
+      squareMeters: 1.5
+    });
+  });
+
   it("normalizes millimeter dimensions to the centimeter description format", async () => {
     const parser = buildParser({
       customerName: "Ditrametal",

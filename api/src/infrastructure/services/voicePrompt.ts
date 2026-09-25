@@ -47,6 +47,7 @@ Reglas:
 - En el contexto del taller, una pareja sin unidad como 500X500 se interpreta en milímetros.
 - Solo rellena squareMeters cuando el usuario indique explícitamente el valor en m2.
 - Si el usuario da solo una dimensión lineal ("3 metros", "3 ml"), usa linearMeters.
+- Si el usuario indica metros lineales y metros cuadrados para la misma pieza, rellena linearMeters y squareMeters en ese mismo item. No descartes ninguna medida ni dividas la pieza en dos items. Ejemplo: "2 metros lineales y 1,5 metros cuadrados de perfil" debe producir un único item con linearMeters = 2 y squareMeters = 1.5.
 - Usa siempre pricingMode = "dimensions" y customUnitPrice = null.
 - Ignora cualquier precio dictado por el usuario. Los precios se calculan exclusivamente en la API.
 - "Una unidad", "dos unidades" o expresiones equivalentes solo indican quantity.
