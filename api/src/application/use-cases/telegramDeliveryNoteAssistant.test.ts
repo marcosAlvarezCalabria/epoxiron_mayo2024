@@ -464,6 +464,48 @@ describe("TelegramDeliveryNoteAssistant", () => {
     expect(proposal[0]).not.toContain("99,00");
   });
 
+  it("suma todas las superficies de una medida compuesta", async () => {
+    const compoundParsed: ParsedVoiceAlbaran = {
+      ...parsed,
+      items: [{
+        ...parsed.items[0]!,
+        description: "CHAPA 7021 TEXTURADO 1200X630+500X150X2",
+        color: "RAL 7021",
+        texture: "TEXTURADO",
+        linearMeters: null,
+        squareMeters: null,
+        widthMm: 1200,
+        heightMm: 630,
+        quantity: 3
+      }]
+    };
+    const { assistant, calculate } = buildAssistant(false, compoundParsed);
+
+    await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "tres chapas 7021 texturado de 1200 por 630 mas dos de 500 por 150"
+    });
+    await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "YA ESTÁ"
+    });
+
+    expect(calculate.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: "CHAPA 7021 TEXTURADO 1200X630+500X150X2",
+        squareMeters: 0.906,
+        widthMm: null,
+        heightMm: null,
+        quantity: 3
+      }),
+      customer
+    );
+  });
+
   it("reconoce una pieza especial única por nombre, color y medidas", async () => {
     const specialCustomer: Customer = {
       ...customer,

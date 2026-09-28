@@ -488,6 +488,37 @@ const withoutCommonColor = (description: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
+const compoundDimensionTermPattern =
+  /(\d+(?:[.,]\d+)?)\s*(?:x|\*)\s*(\d+(?:[.,]\d+)?)(?:\s*(?:x|\*)\s*(\d+))?\s*(?:mm)?/giu;
+
+const compoundSquareMeters = (description: string): number | null => {
+  if (!/(?:\+|\bmas\b)/iu.test(description)) return null;
+
+  const terms = [...description.matchAll(compoundDimensionTermPattern)];
+  if (terms.length < 2) return null;
+
+  const squareMeters = terms.reduce((total, term) => {
+    const widthMm = Number.parseFloat((term[1] ?? "").replace(",", "."));
+    const heightMm = Number.parseFloat((term[2] ?? "").replace(",", "."));
+    const multiplier = term[3] ? Number.parseInt(term[3], 10) : 1;
+    if (
+      !Number.isFinite(widthMm) ||
+      !Number.isFinite(heightMm) ||
+      !Number.isInteger(multiplier) ||
+      widthMm <= 0 ||
+      heightMm <= 0 ||
+      multiplier <= 0
+    ) {
+      return Number.NaN;
+    }
+    return total + (widthMm * heightMm * multiplier) / 1_000_000;
+  }, 0);
+
+  return Number.isFinite(squareMeters)
+    ? Math.round(squareMeters * 1_000_000) / 1_000_000
+    : null;
+};
+
 const containsNegativeQuantity = (value: string): boolean =>
   /(?:^|\s)-\s*\d+\b/.test(value) ||
   /\bmenos\s+(?:\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/i.test(value);
@@ -496,12 +527,16 @@ const sanitizeAgentItem = (
   item: TelegramDeliveryNoteDraft["items"][number]
 ): TelegramDeliveryNoteDraft["items"][number] => {
   const description = withoutCommonColor(item.description);
+  const derivedCompoundSquareMeters = compoundSquareMeters(description);
   return {
     ...item,
     description: description || item.description.trim(),
     color: normalizeAgentColor(item.color),
     pricingMode: "DIMENSIONS",
     customUnitPrice: null,
+    squareMeters: derivedCompoundSquareMeters ?? item.squareMeters,
+    widthMm: derivedCompoundSquareMeters == null ? item.widthMm : null,
+    heightMm: derivedCompoundSquareMeters == null ? item.heightMm : null,
     saveAsSpecialPiece: false
   };
 };

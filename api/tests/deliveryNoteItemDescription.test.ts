@@ -36,4 +36,20 @@ describe("buildDeliveryNoteItemDescription", () => {
       })
     ).toBe("ARMARIO 7032 GOF 1550X1680");
   });
+
+  it.each(["TEXTURIZADO", "TEXTURARO"])(
+    "normalizes %s and does not append TEXTURADO twice",
+    (recognizedTexture) => {
+      expect(
+        buildDeliveryNoteItemDescription({
+          description: `BANDEJA 9005 ${recognizedTexture} 980X454`,
+          color: "RAL 9005",
+          texture: "TEXTURADO",
+          pricingMode: "DIMENSIONS",
+          widthMm: 980,
+          heightMm: 454
+        })
+      ).toBe("BANDEJA 9005 TEXTURADO 980X454");
+    }
+  );
 });
