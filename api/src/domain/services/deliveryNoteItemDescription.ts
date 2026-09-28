@@ -38,6 +38,7 @@ export const normalizeDeliveryNoteDescriptionInput = (value: string): string => 
 
   return value
     .toLocaleUpperCase("es-ES")
+    .replace(/\bTEXTUR(?:IZADO|IZADA|ARO|ADA)\b/gu, "TEXTURADO")
     .replace(separatorPattern, " · ")
     .replace(ralPrefixPattern, "")
     .replace(unitWordPattern, "")
@@ -99,7 +100,7 @@ const descriptionContainsTexture = (
 
   switch (texture) {
     case "TEXTURADO":
-      return /\bTEXT(?:URADO)?\b/.test(normalizedDescription);
+      return /\bTEXT(?:UR(?:ADO|IZADO|ARO))?\b/.test(normalizedDescription);
     case "GOFRADO":
       return /\bGOF(?:RADO)?\b/.test(normalizedDescription);
     case "MATE":
