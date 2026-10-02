@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DomainException } from "../domain/exceptions/DomainException.js";
 import type { ParsedVoiceAlbaran } from "../domain/ports/VoiceAlbaranParser.js";
 import { normalizeDeliveryNoteColor } from "../domain/services/deliveryNoteColor.js";
+import { isKnownRalCode } from "../domain/services/ralColorCodes.js";
 
 const parsedVoiceTextureSchema = z.enum(["NORMAL", "MATE", "TEXTURADO", "GOFRADO"]);
 const parsedVoicePricingModeSchema = z.enum(["DIMENSIONS", "UNIT"]);
@@ -83,6 +84,47 @@ const normalizeVoiceText = (value: string | null): string | null => {
   return trimmed ? uppercaseSpanish(trimmed) : null;
 };
 
+const texturePattern = (texture: "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO") => {
+  switch (texture) {
+    case "MATE":
+      return /\bMATE\b/iu;
+    case "TEXTURADO":
+      return /\bTEXT(?:UR(?:ADO|IZADO|ARO))?\b/iu;
+    case "GOFRADO":
+      return /\bGOF(?:RADO)?\b/iu;
+    default:
+      return null;
+  }
+};
+
+const inferKnownRalColor = (
+  description: string,
+  texture: "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO"
+): { color: string; description: string } | null => {
+  const candidates = [...description.matchAll(/\b(RAL\s*)?([1-9]\d{3})\b/giu)]
+    .filter((match) => isKnownRalCode(match[2] ?? ""));
+
+  if (candidates.length !== 1) return null;
+
+  const candidate = candidates[0];
+  const code = candidate?.[2];
+  const finishPattern = texturePattern(texture);
+  const hasExplicitRalPrefix = Boolean(candidate?.[1]);
+  const hasMatchingFinish = finishPattern?.test(description) ?? false;
+  if (!code || (!hasExplicitRalPrefix && !hasMatchingFinish)) return null;
+
+  const colorPattern = new RegExp(`\\b(?:RAL\\s*)?${code}\\b`, "giu");
+  const descriptionWithoutColor = description.replace(colorPattern, " ");
+  const cleanedDescription = (finishPattern
+    ? descriptionWithoutColor.replace(finishPattern, " ")
+    : descriptionWithoutColor)
+    .replace(/\s+/gu, " ")
+    .trim();
+
+  if (!cleanedDescription) return null;
+  return { color: `RAL ${code}`, description: cleanedDescription };
+};
+
 const llmItemSchema = z.object({
   description: z.string().trim().min(1),
   color: z.string().trim().min(1).nullable(),
@@ -150,20 +192,28 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
   const parsed = llmParsedVoiceAlbaranSchema.parse(rawValue);
 
   const items = parsed.items
-    .map((item) => ({
-      color: normalizeDeliveryNoteColor(item.color),
-      description: uppercaseSpanish(item.description),
-      hasPrimer: item.hasPrimer || item.primer,
-      hasThickness: item.hasThickness || (item.thickness != null && item.thickness > 0),
-      linearMeters: item.linearMeters && item.linearMeters > 0 ? item.linearMeters : null,
-      widthMm: item.widthMm && item.widthMm > 0 ? item.widthMm : null,
-      heightMm: item.heightMm && item.heightMm > 0 ? item.heightMm : null,
-      quantity: item.quantity,
-      saveAsSpecialPiece: item.saveAsSpecialPiece,
-      specialPieceIntent: item.specialPieceIntent,
-      squareMeters: item.squareMeters && item.squareMeters > 0 ? item.squareMeters : null,
-      texture: item.texture
-    }))
+    .map((item) => {
+      const normalizedColor = normalizeDeliveryNoteColor(item.color);
+      const normalizedDescription = uppercaseSpanish(item.description);
+      const inferred = normalizedColor
+        ? null
+        : inferKnownRalColor(normalizedDescription, item.texture);
+
+      return {
+        color: normalizedColor ?? inferred?.color ?? null,
+        description: inferred?.description ?? normalizedDescription,
+        hasPrimer: item.hasPrimer || item.primer,
+        hasThickness: item.hasThickness || (item.thickness != null && item.thickness > 0),
+        linearMeters: item.linearMeters && item.linearMeters > 0 ? item.linearMeters : null,
+        widthMm: item.widthMm && item.widthMm > 0 ? item.widthMm : null,
+        heightMm: item.heightMm && item.heightMm > 0 ? item.heightMm : null,
+        quantity: item.quantity,
+        saveAsSpecialPiece: item.saveAsSpecialPiece,
+        specialPieceIntent: item.specialPieceIntent,
+        squareMeters: item.squareMeters && item.squareMeters > 0 ? item.squareMeters : null,
+        texture: item.texture
+      };
+    })
     .map((item) => ({
       color: item.color,
       customUnitPrice: null,

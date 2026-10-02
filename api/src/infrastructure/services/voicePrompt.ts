@@ -38,7 +38,7 @@ Reglas:
 - Palabras como "y", "con", "mas" o equivalentes pueden formar parte del nombre compuesto de la pieza, no siempre separan piezas distintas.
 - Abreviaturas frecuentes del taller deben entenderse como vocabulario normal: GOF = gofrado, TUBO = tubo, CHAPA = chapa, IMPRIMACION = imprimacion, UND/UNID/UNIDADES = cantidad.
 - Si una descripcion hablada se parece claramente a una pieza especial conocida del sistema, prioriza conservar ese nombre compuesto completo en description.
-- Si el usuario dice un numero de 4 cifras aislado como 9005, 7016 o 7006, interpretalo como un color RAL y devuelvelo como "RAL XXXX".
+- Si el usuario dice "RAL" seguido de un codigo conocido, o un codigo RAL conocido junto a MATE, TEXTURADO o GOFRADO, interpretalo como color y devuelvelo como "RAL XXXX". No conviertas automaticamente cualquier numero de 4 cifras: podria ser una medida, referencia o codigo de pieza.
 - Si el color RAL llega fragmentado por la transcripcion, por ejemplo 9000 6, 900 6, 9 0 0 6 o 5000 3, reconstruyelo como un unico codigo RAL de 4 cifras: 9006, 9006, 9006 y 5003.
 - Si detectas un posible RAL fragmentado, prioriza reconstruir el color antes que inventar otro campo.
 - Los colores comerciales ORO, ORO V200, ESMERILADO y ORO ENVEJECIDO ESMERILADO son colores validos aunque no tengan codigo RAL. Devuelve su nombre exacto en color. Si el usuario dice "RAL ORO", devuelve "ORO".

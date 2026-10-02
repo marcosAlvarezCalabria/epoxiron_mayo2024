@@ -129,6 +129,78 @@ describe("normalizeParsedVoiceAlbaran", () => {
     expect(result.items[0]?.color).toBe(expected);
   });
 
+  it("recovers a known RAL color beside a finish when the model leaves color empty", () => {
+    const result = normalizeParsedVoiceAlbaran({
+      customerName: "Eigherdeco",
+      date: "2026-10-02",
+      notes: null,
+      items: [
+        {
+          description: "tubo 8019 mate",
+          color: null,
+          texture: "mate",
+          linearMeters: 2.79,
+          squareMeters: null,
+          quantity: 1
+        },
+        {
+          description: "soporte 8019 mate",
+          color: null,
+          texture: "mate",
+          linearMeters: null,
+          squareMeters: null,
+          quantity: 2
+        }
+      ]
+    });
+
+    expect(result.items).toMatchObject([
+      { description: "TUBO", color: "RAL 8019", texture: "MATE", linearMeters: 2.79 },
+      { description: "SOPORTE", color: "RAL 8019", texture: "MATE", quantity: 2 }
+    ]);
+  });
+
+  it.each([
+    ["TUBO 9999 MATE", "MATE"],
+    ["TUBO 8019", "NORMAL"],
+    ["CHAPA 1400X630 TEXTURADO", "TEXTURADO"]
+  ])("does not infer an unsafe color from %s", (description, texture) => {
+    const result = normalizeParsedVoiceAlbaran({
+      customerName: "Cliente Uno",
+      date: "2026-10-02",
+      notes: null,
+      items: [{
+        description,
+        color: null,
+        texture: texture.toLowerCase(),
+        linearMeters: null,
+        squareMeters: null,
+        quantity: 1
+      }]
+    });
+
+    expect(result.items[0]?.color).toBeNull();
+    expect(result.items[0]?.description).toBe(description);
+  });
+
+  it("recovers an explicitly labelled known RAL without requiring a finish", () => {
+    const result = normalizeParsedVoiceAlbaran({
+      customerName: "Cliente Uno",
+      date: "2026-10-02",
+      notes: null,
+      items: [{
+        description: "TUBO RAL 8019",
+        color: null,
+        texture: "normal",
+        linearMeters: 2.79,
+        squareMeters: null,
+        quantity: 1
+      }]
+    });
+
+    expect(result.items[0]).toMatchObject({ description: "TUBO", color: "RAL 8019" });
+  });
+
   it("throws when no valid items remain", () => {
     expect(() =>
       normalizeParsedVoiceAlbaran({
