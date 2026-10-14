@@ -76,6 +76,45 @@ describe("deliveryNoteItemDescription helpers", () => {
         pricingMode: "DIMENSIONS",
         squareMeters: 3
       })
-    ).toBe(`CHAPA 3000X1000 ${middleDot} 9005`);
+    ).toBe("CHAPA 9005 3000X1000");
+  });
+
+  it("orders color and texture before dimensions without duplicating them", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "CHAPA TEXTURADO 1400X630",
+        color: "RAL 7021",
+        texture: "TEXTURADO",
+        pricingMode: "DIMENSIONS",
+        widthMm: 1400,
+        heightMm: 630
+      })
+    ).toBe("CHAPA 7021 TEXTURADO 1400X630");
+  });
+
+  it("renders linear meters only once when they were also embedded in the description", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "TUBO 2M",
+        color: "RAL 9005",
+        texture: "MATE",
+        pricingMode: "DIMENSIONS",
+        linearMeters: 2
+      })
+    ).toBe(`TUBO 9005 MATE ${middleDot} 2MLIN`);
+  });
+
+  it("keeps linear meters when the description also contains explicit dimensions", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "TABURETE 220X220",
+        color: "RAL 9005",
+        texture: "NORMAL",
+        pricingMode: "DIMENSIONS",
+        linearMeters: 4.5,
+        widthMm: 220,
+        heightMm: 220
+      })
+    ).toBe(`TABURETE 9005 220X220 ${middleDot} 4.5MLIN`);
   });
 });
