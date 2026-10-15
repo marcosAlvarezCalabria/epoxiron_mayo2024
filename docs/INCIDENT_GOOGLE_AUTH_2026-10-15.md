@@ -30,6 +30,15 @@ El despliegue anterior `5822a706-5f2f-424e-b7da-cb77fe0667cb`, construido desde
 - La pantalla de acceso muestra un error explícito si falta la configuración en
   un entorno de desarrollo.
 
-El ID y el hash del despliegue corregido se completarán tras su publicación y
-verificación funcional.
+## Despliegue y verificación
+
+- Commit de código: `baf1a65`.
+- Primer despliegue corregido: `3d95ed4c-78d7-4fbf-8ccb-e9038a799ab4`.
+- Artefacto web: `index-y00oG1DS.js`.
+- SHA-256 del artefacto local publicado:
+  `8854c5b0e9133f3f75838fd822c8797b0ffe37ce3b791b5dc65ea05951d8795c`.
+- El dominio público sirve la API correcta, un único Google Client ID y ninguna
+  referencia a `localhost`.
+- Google Identity Services crea el botón de acceso con el Client ID esperado y
+  no registra un error nuevo de origen en el dominio de producción.
 
