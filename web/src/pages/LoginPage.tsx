@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { GOOGLE_CLIENT_ID } from "@/config/googleAuth";
 import { authService } from "@/services/auth.service";
 
 interface LocationState {
@@ -46,10 +47,14 @@ export const LoginPage = () => {
       if (!buttonContainerRef.current || !window.google?.accounts.id) {
         return;
       }
+      if (!GOOGLE_CLIENT_ID) {
+        setErrorMessage("Google Sign-In no está configurado. Contacta con el administrador.");
+        return;
+      }
 
       buttonContainerRef.current.innerHTML = "";
       window.google.accounts.id.initialize({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        client_id: GOOGLE_CLIENT_ID,
         callback: ({ credential }) => {
           void handleCredential(credential);
         }
