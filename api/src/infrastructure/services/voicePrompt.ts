@@ -17,6 +17,8 @@ Estructura obligatoria:
       "texture": "mate | texturado | gofrado | normal | null",
       "linearMeters": number o null,
       "squareMeters": number o null,
+      "widthMm": number o null,
+      "heightMm": number o null,
       "hasThickness": boolean,
       "hasPrimer": boolean,
       "saveAsSpecialPiece": boolean,
@@ -35,18 +37,21 @@ Reglas:
 - Interpreta nombres compuestos de pieza como una sola descripcion cuando encajen semanticamente: ejemplos tipicos son "gondola kado con cajon y chapa", "mueble tubo y chapa", "bastidor lateral", "escalerillas".
 - Palabras como "y", "con", "mas" o equivalentes pueden formar parte del nombre compuesto de la pieza, no siempre separan piezas distintas.
 - Abreviaturas frecuentes del taller deben entenderse como vocabulario normal: GOF = gofrado, TUBO = tubo, CHAPA = chapa, IMPRIMACION = imprimacion, UND/UNID/UNIDADES = cantidad.
-- Si una descripcion hablada se parece claramente a una pieza especial conocida del sistema, prioriza conservar ese nombre compuesto completo en description.
-- Si el usuario dice un numero de 4 cifras aislado como 9005, 7016 o 7006, interpretalo como un color RAL y devuelvelo como "RAL XXXX".
+- La semejanza con una pieza especial conocida no demuestra que sea especial. No sustituyas la descripcion dictada por el nombre de una pieza especial solo porque se parezcan.
+- Solo usa el nombre exacto de una pieza especial conocida cuando el usuario diga expresamente "especial", "pieza especial", "del listado especial" o pronuncie ese nombre/codigo exacto.
+- Si el usuario dice "RAL" seguido de un codigo conocido, o un codigo RAL conocido junto a MATE, TEXTURADO o GOFRADO, interpretalo como color y devuelvelo como "RAL XXXX". No conviertas automaticamente cualquier numero de 4 cifras: podria ser una medida, referencia o codigo de pieza.
 - Si el color RAL llega fragmentado por la transcripcion, por ejemplo 9000 6, 900 6, 9 0 0 6 o 5000 3, reconstruyelo como un unico codigo RAL de 4 cifras: 9006, 9006, 9006 y 5003.
 - Si detectas un posible RAL fragmentado, prioriza reconstruir el color antes que inventar otro campo.
+- Los colores comerciales ORO, ORO V200, ESMERILADO y ORO ENVEJECIDO ESMERILADO son colores validos aunque no tengan codigo RAL. Devuelve su nombre exacto en color. Si el usuario dice "RAL ORO", devuelve "ORO".
 - Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida dentro de description con formato compacto tipo "3000X1000". No sustituyas la medida en description por el total calculado en M2.
-- Cuando el usuario diga una medida tipo 3000x1000, 3000 x 1000 o 3000 por 1000, conserva esa medida en description con formato "3000X1000", pero no calcules squareMeters ni linearMeters a partir de ella.
-- Solo rellena squareMeters o linearMeters cuando el usuario indique explícitamente el valor en m2 o metros lineales.
-- Si el usuario da solo una dimension lineal ("3 metros", "3 ml"), usa linearMeters. Si da dos dimensiones en mm, calcula squareMeters aunque no diga "M2" explicitamente.
-- Si el usuario dice "por unidad", "precio por unidad", "a 5 euros", "cinco euros la unidad" o equivalente, usa pricingMode = "unit" y customUnitPrice con ese valor.
-- No uses pricingMode = "unit" solo porque el usuario diga "una unidad", "dos unidades" o la cantidad de piezas. Eso solo indica quantity.
-- Si pricingMode = "unit", no inventes linearMeters ni squareMeters salvo que el usuario los haya dado como informacion descriptiva clara. Prioriza el precio unitario.
-- Si el usuario dice metros lineales pero tambien dice expresamente "por unidad" y da un precio por unidad, conserva el precio unitario como fuente principal de precio.
+- Cuando el usuario diga dos dimensiones, conserva la medida en description y rellena widthMm y heightMm convirtiendo ambas a milímetros.
+- En el contexto del taller, una pareja sin unidad como 500X500 se interpreta en milímetros.
+- Solo rellena squareMeters cuando el usuario indique explícitamente el valor en m2.
+- Si el usuario da solo una dimensión lineal ("3 metros", "3 ml"), usa linearMeters.
+- Si el usuario indica metros lineales y metros cuadrados para la misma pieza, rellena linearMeters y squareMeters en ese mismo item. No descartes ninguna medida ni dividas la pieza en dos items. Ejemplo: "2 metros lineales y 1,5 metros cuadrados de perfil" debe producir un único item con linearMeters = 2 y squareMeters = 1.5.
+- Usa siempre pricingMode = "dimensions" y customUnitPrice = null.
+- Ignora cualquier precio dictado por el usuario. Los precios se calculan exclusivamente en la API.
+- "Una unidad", "dos unidades" o expresiones equivalentes solo indican quantity.
 - Si el usuario dice "grosor", "con grosor", "grosor incluido" o equivalente, usa hasThickness = true. Si no, false.
 - Si el usuario dice "imprimacion", "imprimacion incluida", "con imprimacion" o equivalente, usa hasPrimer = true. Si no, false.
 - Si el usuario dice "guardar como especial", "pieza especial", "guardala como especial" o equivalente, usa saveAsSpecialPiece = true. Si no, false.
@@ -89,7 +94,8 @@ export const buildVoiceAlbaranUserPrompt = (
       "Piezas especiales conocidas en el sistema:",
       trimmedSpecialPieceNames.join(", "),
       "",
-      "Si una descripcion hablada se parece claramente a una de estas piezas especiales, conserva ese nombre compuesto completo en description.",
+      "La semejanza no basta para clasificar una pieza como especial ni para sustituir su descripcion.",
+      "Solo usa un nombre de esta lista si el usuario expresa intencion de pieza especial o pronuncia el nombre/codigo exacto.",
       ""
     );
   }

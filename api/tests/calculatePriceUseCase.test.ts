@@ -98,6 +98,23 @@ describe("CalculatePriceUseCase", () => {
     expect(result.unitPrice).toBe(50);
   });
 
+  it("derives square meters from width and height in millimeters", () => {
+    const result = useCase.execute(
+      {
+        description: "Mesa 50X50",
+        color: "RAL 9005",
+        widthMm: 500,
+        heightMm: 500,
+        texture: "TEXTURADO",
+        quantity: 1
+      },
+      { ...customer, pricePerSquareMeter: 9.5, minimumRate: 0.65 }
+    );
+
+    expect(result.totalPrice).toBe(2.38);
+    expect(result.unitPrice).toBe(2.38);
+  });
+
   it("uses custom unit pricing for a regular piece", () => {
     const result = useCase.execute(
       {

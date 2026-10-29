@@ -10,3 +10,4 @@ allowBuilds:
   '@scarf/scarf': true
   esbuild: true
   prisma: true
+  protobufjs: true

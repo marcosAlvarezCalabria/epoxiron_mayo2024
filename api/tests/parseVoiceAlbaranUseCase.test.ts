@@ -51,7 +51,56 @@ const buildParser = (parsed: ParsedVoiceAlbaran): VoiceAlbaranParser => ({
   )
 });
 
+const buildParsedItem = (
+  description: string,
+  squareMeters: number | null = null
+): ParsedVoiceAlbaran["items"][number] => ({
+  description,
+  color: "RAL 9005",
+  specialPieceIntent: false,
+  customUnitPrice: null,
+  pricingMode: "DIMENSIONS",
+  texture: "NORMAL",
+  linearMeters: null,
+  squareMeters,
+  widthMm: null,
+  heightMm: null,
+  hasThickness: false,
+  hasPrimer: false,
+  saveAsSpecialPiece: false,
+  quantity: 1
+});
+
 describe("ParseVoiceAlbaranUseCase", () => {
+  it("conserva en milímetros varias medidas de vallas dictadas sin unidad", async () => {
+    const parser = {
+      parseTranscript: vi.fn(async () => ({
+        customerName: "Krzysztof Hodorowicz",
+        date: "2026-09-11",
+        notes: null,
+        items: [
+          buildParsedItem("VALLA", 1.938),
+          buildParsedItem("VALLA", 1.805),
+          buildParsedItem("VALLA", 2.1)
+        ]
+      }))
+    };
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("KRZYSZTOF HÓDOROWICZ")])
+    );
+
+    const result = await useCase.execute(
+      "Albarán para Christoph. Valla de lama 9005 2040 x 950 1 unidad. " +
+      "Valla lama 9005 1900 x 950 1 unidad. Valla lama 9005 2100 x 1000 1 unidad."
+    );
+
+    expect(result.items).toMatchObject([
+      { description: "VALLA", widthMm: 2040, heightMm: 950 },
+      { description: "VALLA", widthMm: 1900, heightMm: 950 },
+      { description: "VALLA", widthMm: 2100, heightMm: 1000 }
+    ]);
+  });
   it("removes square meters derived only from spoken dimensions", async () => {
     const parser = buildParser({
       customerName: "ditrametal",
@@ -80,6 +129,8 @@ describe("ParseVoiceAlbaranUseCase", () => {
 
     expect(result.customerName).toBe("Ditrametal");
     expect(result.items[0]?.squareMeters).toBeNull();
+    expect(result.items[0]?.widthMm).toBe(3000);
+    expect(result.items[0]?.heightMm).toBe(1000);
   });
 
   it("preserves square meters when they are spoken explicitly", async () => {
@@ -109,5 +160,128 @@ describe("ParseVoiceAlbaranUseCase", () => {
     const result = await useCase.execute("chapa 9005 texturado 3000 por 1000 y 3 m2");
 
     expect(result.items[0]?.squareMeters).toBe(3);
+  });
+
+  it("normalizes millimeter dimensions to the millimeter description format", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2026-07-09",
+      notes: null,
+      items: [{
+        description: "CHAPA 1000X500",
+        color: "RAL 9005",
+        specialPieceIntent: false,
+        customUnitPrice: null,
+        pricingMode: "DIMENSIONS",
+        texture: "NORMAL",
+        linearMeters: null,
+        squareMeters: null,
+        hasThickness: false,
+        hasPrimer: false,
+        saveAsSpecialPiece: false,
+        quantity: 1
+      }]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")])
+    );
+
+    const result = await useCase.execute("una chapa de 1000 x 500 milímetros");
+
+    expect(result.items[0]?.description).toBe("CHAPA 1000X500");
+    expect(result.items[0]?.widthMm).toBe(1000);
+    expect(result.items[0]?.heightMm).toBe(500);
+  });
+
+  it("normalizes mixed meter and centimeter dimensions", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2026-07-09",
+      notes: null,
+      items: [{
+        description: "CHAPA 1 M X 50 CM",
+        color: "RAL 9010",
+        specialPieceIntent: false,
+        customUnitPrice: null,
+        pricingMode: "DIMENSIONS",
+        texture: "NORMAL",
+        linearMeters: null,
+        squareMeters: null,
+        hasThickness: false,
+        hasPrimer: false,
+        saveAsSpecialPiece: false,
+        quantity: 1
+      }]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")])
+    );
+
+    const result = await useCase.execute("una chapa de 1 m x 50 cm");
+
+    expect(result.items[0]?.description).toBe("CHAPA 1000X500");
+    expect(result.items[0]?.widthMm).toBe(1000);
+    expect(result.items[0]?.heightMm).toBe(500);
+  });
+
+  it("interprets workshop dimensions without a unit as millimeters", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2026-07-09",
+      notes: null,
+      items: [{
+        description: "MESA 500X500",
+        color: "RAL 9005",
+        specialPieceIntent: false,
+        customUnitPrice: null,
+        pricingMode: "DIMENSIONS",
+        texture: "TEXTURADO",
+        linearMeters: null,
+        squareMeters: null,
+        hasThickness: false,
+        hasPrimer: false,
+        saveAsSpecialPiece: false,
+        quantity: 1
+      }]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")])
+    );
+
+    const result = await useCase.execute("una mesa de 500 x 500 RAL 9005");
+
+    expect(result.items[0]?.description).toBe("MESA 500X500");
+    expect(result.items[0]?.widthMm).toBe(500);
+    expect(result.items[0]?.heightMm).toBe(500);
+  });
+
+  it("keeps centimeter input but renders every description in millimeters", async () => {
+    const parser = buildParser({
+      customerName: "Cliente Uno",
+      date: "2026-09-14",
+      notes: null,
+      items: [
+        buildParsedItem("BARANDILLA 532X93"),
+        buildParsedItem("BARANDILLA 260X90"),
+        buildParsedItem("BARANDILLA 444X90")
+      ]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Cliente Uno")])
+    );
+
+    const result = await useCase.execute(
+      "barandilla 532 x 93 cm, barandilla 260 x 90 cm, barandilla 444 x 90 cm"
+    );
+
+    expect(result.items).toMatchObject([
+      { description: "BARANDILLA 5320X930", widthMm: 5320, heightMm: 930 },
+      { description: "BARANDILLA 2600X900", widthMm: 2600, heightMm: 900 },
+      { description: "BARANDILLA 4440X900", widthMm: 4440, heightMm: 900 }
+    ]);
   });
 });

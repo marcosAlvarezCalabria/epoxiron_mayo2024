@@ -130,107 +130,12 @@ const formatMillimeters = (value: number) =>
     : value.toFixed(2).replace(".", ",").replace(/,?0+$/u, "");
 const normalizeRenderedColor = (value: string) => value.replace(/^RAL\s+/u, "").trim();
 
-const escapeRegularExpression = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-
-const trailingDimensionsPattern =
-  /\b\d+(?:[.,]\d+)?(?:\s*(?:X|\*)\s*\d+(?:[.,]\d+)?)+(?:\s*MM)?(?:\s*\+\s*\d+(?:[.,]\d+)?(?:\s*(?:X|\*)\s*\d+(?:[.,]\d+)?)+(?:\s*MM)?)*$/u;
-
-const embeddedLinearMeasurePattern =
-  /\b\d+(?:[.,]\d+)?\s*(?:MLIN|M\s*LINEAL(?:ES)?|METROS?\s+LINEALES?|M)\b/gu;
-const bareLinearMeasurePattern = /\b\d+(?:[.,]\d+)?\s*M\b/u;
-
-const removeEmbeddedTexture = (description: string, texture?: DeliveryNoteTexture | string) => {
-  switch (texture) {
-    case "TEXTURADO":
-      return description.replace(/\bTEXT(?:UR(?:ADO|IZADO|ARO))?\b/gu, " ");
-    case "GOFRADO":
-      return description.replace(/\bGOF(?:RADO)?\b/gu, " ");
-    case "MATE":
-      return description.replace(/\bMATE\b/gu, " ");
-    default:
-      return description;
-  }
-};
-
-const embeddedTextureLabel = (
-  description: string,
-  texture?: DeliveryNoteTexture | string
-): string | null => {
-  switch (texture) {
-    case "TEXTURADO":
-      return description.match(/\bTEXT(?:UR(?:ADO|IZADO|ARO))?\b/u)?.[0] ?? null;
-    case "GOFRADO":
-      return description.match(/\bGOF(?:RADO)?\b/u)?.[0] ?? null;
-    case "MATE":
-      return description.match(/\bMATE\b/u)?.[0] ?? null;
-    default:
-      return null;
-  }
-};
-
-const canonicalizeCommercialDescription = (
-  description: string,
-  color: string,
-  texture: DeliveryNoteTexture | string | undefined,
-  linearMeters: number | null | undefined
-) => {
-  let workingDescription = description.replace(/\s*·\s*/gu, " ").trim();
-  const originalTextureLabel = embeddedTextureLabel(workingDescription, texture);
-  const dimensionsMatch = workingDescription.match(trailingDimensionsPattern);
-  const hasEmbeddedLinearMeasure =
-    (linearMeters ?? 0) > 0 &&
-    (descriptionContainsCalculatedMeasures(workingDescription) ||
-      bareLinearMeasurePattern.test(workingDescription));
-
-  if (hasEmbeddedLinearMeasure) {
-    workingDescription = workingDescription.replace(embeddedLinearMeasurePattern, " ");
-  }
-
-  const dimensions = dimensionsMatch?.[0].replace(/\s+/gu, "") ?? null;
-
-  if (dimensionsMatch?.index != null) {
-    workingDescription = workingDescription.slice(0, dimensionsMatch.index);
-  }
-
-  const renderedColor = normalizeRenderedColor(color);
-  let renderedColorSegment: string | null = renderedColor || null;
-  if (renderedColor) {
-    const colorPattern = new RegExp(
-      `(^|\\s)${escapeRegularExpression(renderedColor)}(?=\\s|$)`,
-      "gu"
-    );
-    if (colorPattern.test(workingDescription)) {
-      colorPattern.lastIndex = 0;
-      workingDescription = workingDescription.replace(colorPattern, "$1");
-    } else if (descriptionContainsColor(workingDescription, color)) {
-      renderedColorSegment = null;
-    }
-  }
-
-  workingDescription = removeEmbeddedTexture(workingDescription, texture)
-    .replace(/\s+/gu, " ")
-    .trim();
-
-  return [
-    workingDescription,
-    renderedColorSegment,
-    originalTextureLabel ?? formatArticleTexture(texture),
-    dimensions
-  ].filter(Boolean).join(" · ");
-};
-
 export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemDescriptionInput) => {
-  const normalizedDescription = canonicalizeCommercialDescription(
-    normalizeDeliveryNoteDescriptionInput(item.description),
-    item.color,
-    item.texture,
-    item.linearMeters
-  );
+  const normalizedDescription = normalizeDeliveryNoteDescriptionInput(item.description);
   const segments = [normalizedDescription];
   const texture = formatArticleTexture(item.texture);
-  const keepsOriginalDimensions = descriptionContainsExplicitDimensions(normalizedDescription);
-  const keepsOriginalCalculatedMeasures = descriptionContainsCalculatedMeasures(normalizedDescription);
+  const keepsOriginalDimensions =
+    descriptionContainsExplicitDimensions(normalizedDescription) || descriptionContainsCalculatedMeasures(normalizedDescription);
 
   if (item.color && !descriptionContainsColor(normalizedDescription, item.color)) {
     segments.push(normalizeRenderedColor(item.color));
@@ -240,16 +145,16 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemDescripti
     segments.push(texture);
   }
 
-  if (item.pricingMode !== "UNIT") {
-    if ((item.linearMeters ?? 0) > 0 && !keepsOriginalCalculatedMeasures) {
+  if (item.pricingMode !== "UNIT" && !keepsOriginalDimensions) {
+    if ((item.linearMeters ?? 0) > 0) {
       segments.push(`${formatDocumentNumber(item.linearMeters ?? 0)}MLIN`);
     }
 
-    if (!keepsOriginalDimensions && (item.widthMm ?? 0) > 0 && (item.heightMm ?? 0) > 0) {
+    if ((item.widthMm ?? 0) > 0 && (item.heightMm ?? 0) > 0) {
       segments.push(
         `${formatMillimeters(item.widthMm ?? 0)}X${formatMillimeters(item.heightMm ?? 0)}MM`
       );
-    } else if (!keepsOriginalDimensions && (item.squareMeters ?? 0) > 0) {
+    } else if ((item.squareMeters ?? 0) > 0) {
       segments.push(`${formatDocumentNumber(item.squareMeters ?? 0)}M2`);
     }
   }
