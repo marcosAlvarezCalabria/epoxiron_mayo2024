@@ -8,6 +8,7 @@ import type {
   TelegramDeliveryNoteSession,
   TelegramDeliveryNoteSessionRepository
 } from "../../domain/repositories/TelegramDeliveryNoteSessionRepository.js";
+import { VoiceExtractionIntegrityError } from "./parseVoiceAlbaran.js";
 import { TelegramDeliveryNoteAssistant } from "./telegramDeliveryNoteAssistant.js";
 
 const customer: Customer = {
@@ -210,6 +211,24 @@ describe("TelegramDeliveryNoteAssistant", () => {
     expect(result[0]).toContain("YA ESTÁ");
     expect(result[0]).toContain("Nada se crea hasta que respondas SI");
     expect(create).not.toHaveBeenCalled();
+    expect(sessions.session.draft.items).toHaveLength(0);
+  });
+
+  it("does not append partial lines when multiline extraction loses explicit data", async () => {
+    const { assistant, sessions, parser } = buildAssistant(false);
+    parser.execute.mockRejectedValueOnce(new VoiceExtractionIntegrityError());
+
+    const result = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text:
+        "tapa 7016 mate dos unidades chapa 7016 mate 420 x 400 tres unidades " +
+        "chapa 7016 mate 120 x 120 tres unidades perfil 7016 mate 460 x 200 dos unidades"
+    });
+
+    expect(result[0]).toContain("No he añadido ninguna línea");
+    expect(result[0]).toContain("extracción perdió o cambió datos");
     expect(sessions.session.draft.items).toHaveLength(0);
   });
 
@@ -506,6 +525,57 @@ describe("TelegramDeliveryNoteAssistant", () => {
     );
   });
 
+  it("keeps a similar catalogue piece as normal without explicit special intent", async () => {
+    const specialCustomer: Customer = {
+      ...customer,
+      name: "SGF",
+      specialPieces: [
+        { name: "CHAPA 7035 GOF 45X40", price: 0.75 },
+        { name: "CHAPA 7035 GOF 130X40", price: 0.75 }
+      ]
+    };
+    const normalParsed: ParsedVoiceAlbaran = {
+      ...parsed,
+      customerName: "SGF",
+      items: [{
+        ...parsed.items[0]!,
+        description: "CHAPA GOFRADO 40X40",
+        color: "RAL 7035",
+        specialPieceIntent: false,
+        texture: "GOFRADO",
+        widthMm: 40,
+        heightMm: 40,
+        linearMeters: null,
+        squareMeters: null,
+        quantity: 1
+      }]
+    };
+    const { assistant, calculate } = buildAssistant(false, normalParsed, [specialCustomer]);
+
+    await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 1,
+      text: "SGF, una chapa gofrada 40 por 40 RAL 7035"
+    });
+    const proposal = await assistant.handle({
+      chatId: "chat-1",
+      userId: "user-1",
+      updateId: 2,
+      text: "YA ESTÁ"
+    });
+
+    expect(proposal[0]).not.toContain("PIEZA ESPECIAL");
+    expect(calculate.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: "CHAPA GOFRADO 40X40",
+        widthMm: 40,
+        heightMm: 40
+      }),
+      specialCustomer
+    );
+  });
+
   it("reconoce una pieza especial única por nombre, color y medidas", async () => {
     const specialCustomer: Customer = {
       ...customer,
@@ -517,6 +587,7 @@ describe("TelegramDeliveryNoteAssistant", () => {
         ...parsed.items[0]!,
         description: "UNA PUERTA 50X80",
         color: "RAL 9003",
+        specialPieceIntent: true,
         widthMm: 500,
         heightMm: 800,
         linearMeters: null,
@@ -534,7 +605,7 @@ describe("TelegramDeliveryNoteAssistant", () => {
       chatId: "chat-1",
       userId: "user-1",
       updateId: 1,
-      text: "una puerta de 500 x 800 RAL 9003"
+      text: "una puerta especial de 500 x 800 RAL 9003"
     });
     const proposal = await assistant.handle({
       chatId: "chat-1",
@@ -565,6 +636,7 @@ describe("TelegramDeliveryNoteAssistant", () => {
         ...parsed.items[0]!,
         description: "GONDOLA",
         color: "RAL 9005",
+        specialPieceIntent: true,
         linearMeters: null,
         squareMeters: null,
         quantity: 1
@@ -580,7 +652,7 @@ describe("TelegramDeliveryNoteAssistant", () => {
       chatId: "chat-1",
       userId: "user-1",
       updateId: 1,
-      text: "una góndola RAL 9005"
+      text: "una góndola especial RAL 9005"
     });
     const result = await assistant.handle({
       chatId: "chat-1",
@@ -623,6 +695,7 @@ describe("TelegramDeliveryNoteAssistant", () => {
         ...parsed.items[0]!,
         description: "TUBO 2,02M",
         color: "RAL 9005",
+        specialPieceIntent: true,
         linearMeters: 2.02,
         squareMeters: null,
         quantity: 1
@@ -638,7 +711,7 @@ describe("TelegramDeliveryNoteAssistant", () => {
       chatId: "chat-1",
       userId: "user-1",
       updateId: 1,
-      text: "un tubo de 2,02 metros RAL 9005"
+      text: "un tubo especial de 2,02 metros RAL 9005"
     });
     const proposal = await assistant.handle({
       chatId: "chat-1",

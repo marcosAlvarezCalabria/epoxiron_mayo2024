@@ -37,7 +37,8 @@ Reglas:
 - Interpreta nombres compuestos de pieza como una sola descripcion cuando encajen semanticamente: ejemplos tipicos son "gondola kado con cajon y chapa", "mueble tubo y chapa", "bastidor lateral", "escalerillas".
 - Palabras como "y", "con", "mas" o equivalentes pueden formar parte del nombre compuesto de la pieza, no siempre separan piezas distintas.
 - Abreviaturas frecuentes del taller deben entenderse como vocabulario normal: GOF = gofrado, TUBO = tubo, CHAPA = chapa, IMPRIMACION = imprimacion, UND/UNID/UNIDADES = cantidad.
-- Si una descripcion hablada se parece claramente a una pieza especial conocida del sistema, prioriza conservar ese nombre compuesto completo en description.
+- La semejanza con una pieza especial conocida no demuestra que sea especial. No sustituyas la descripcion dictada por el nombre de una pieza especial solo porque se parezcan.
+- Solo usa el nombre exacto de una pieza especial conocida cuando el usuario diga expresamente "especial", "pieza especial", "del listado especial" o pronuncie ese nombre/codigo exacto.
 - Si el usuario dice "RAL" seguido de un codigo conocido, o un codigo RAL conocido junto a MATE, TEXTURADO o GOFRADO, interpretalo como color y devuelvelo como "RAL XXXX". No conviertas automaticamente cualquier numero de 4 cifras: podria ser una medida, referencia o codigo de pieza.
 - Si el color RAL llega fragmentado por la transcripcion, por ejemplo 9000 6, 900 6, 9 0 0 6 o 5000 3, reconstruyelo como un unico codigo RAL de 4 cifras: 9006, 9006, 9006 y 5003.
 - Si detectas un posible RAL fragmentado, prioriza reconstruir el color antes que inventar otro campo.
@@ -93,7 +94,8 @@ export const buildVoiceAlbaranUserPrompt = (
       "Piezas especiales conocidas en el sistema:",
       trimmedSpecialPieceNames.join(", "),
       "",
-      "Si una descripcion hablada se parece claramente a una de estas piezas especiales, conserva ese nombre compuesto completo en description.",
+      "La semejanza no basta para clasificar una pieza como especial ni para sustituir su descripcion.",
+      "Solo usa un nombre de esta lista si el usuario expresa intencion de pieza especial o pronuncia el nombre/codigo exacto.",
       ""
     );
   }

@@ -1,6 +1,7 @@
 import type { Customer } from "../../domain/entities/Customer.js";
 import type { VoiceAlbaranParser, ParsedVoiceAlbaran } from "../../domain/ports/VoiceAlbaranParser.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
+import { isKnownRalCode } from "../../domain/services/ralColorCodes.js";
 
 const normalizeText = (value: string): string =>
   value
@@ -19,6 +20,128 @@ const spokenDimensionPattern =
   /\b(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)?\s*(?:x|\*|por)\s*(\d+(?:[.,]\d+)?)\s*(mil[ií]metros?|mm|cent[ií]metros?|cm|metros?|m)?\b/i;
 const descriptionDimensionPattern =
   /\d+(?:[.,]\d+)?\s*(?:MM|CM|M)?\s*(?:X|\*|POR)\s*\d+(?:[.,]\d+)?\s*(?:MM|CM|M)?/i;
+const specialPieceIntentPattern =
+  /\b(?:especial|especiales|pieza\s+especial|piezas\s+especiales|listado\s+especial)\b/i;
+const quantityPattern =
+  /\b(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieciseis|diecisiete|dieciocho|diecinueve|veinte)\s*(?:ud|uds|unidad|unidades)\b/giu;
+const explicitRalPattern =
+  /\b(?:(ral)\s*)?([1-9]\d{3})\b(?:\s+(mate|texturad[oa]|texturizad[oa]|gofrad[oa]|gof))?/giu;
+const explicitTexturePattern = /\b(mate|texturad[oa]|texturizad[oa]|gofrad[oa]|gof)\b/giu;
+
+const SPANISH_QUANTITIES: Readonly<Record<string, number>> = {
+  un: 1,
+  una: 1,
+  uno: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+  siete: 7,
+  ocho: 8,
+  nueve: 9,
+  diez: 10,
+  once: 11,
+  doce: 12,
+  trece: 13,
+  catorce: 14,
+  quince: 15,
+  dieciseis: 16,
+  diecisiete: 17,
+  dieciocho: 18,
+  diecinueve: 19,
+  veinte: 20
+};
+
+export class VoiceExtractionIntegrityError extends Error {
+  public constructor() {
+    super("La extracción no conservó todas las líneas o sus datos explícitos.");
+    this.name = "VoiceExtractionIntegrityError";
+  }
+}
+
+const spokenQuantities = (transcript: string): number[] =>
+  [...transcript.matchAll(quantityPattern)].flatMap((match) => {
+    const value = normalizeText(match[1] ?? "");
+    const quantity = /^\d+$/.test(value)
+      ? Number.parseInt(value, 10)
+      : SPANISH_QUANTITIES[value];
+    return quantity != null && quantity > 0 ? [quantity] : [];
+  });
+
+const spokenRalCodes = (transcript: string): string[] =>
+  [...transcript.matchAll(explicitRalPattern)].flatMap((match) => {
+    const code = match[2] ?? "";
+    const isExplicit = Boolean(match[1]) || Boolean(match[3]);
+    return isExplicit && isKnownRalCode(code) ? [code] : [];
+  });
+
+const spokenTextures = (transcript: string): ParsedVoiceAlbaran["items"][number]["texture"][] =>
+  [...transcript.matchAll(explicitTexturePattern)].map((match) => {
+    const texture = normalizeText(match[1] ?? "");
+    if (texture === "mate") return "MATE" as const;
+    if (texture.startsWith("gof")) return "GOFRADO" as const;
+    return "TEXTURADO" as const;
+  });
+
+const parsedRalCode = (color: string | null): string | null =>
+  color?.match(/\b(?:RAL\s*)?([1-9]\d{3})\b/i)?.[1] ?? null;
+
+const validateExplicitTranscriptEvidence = (
+  transcript: string,
+  parsed: ParsedVoiceAlbaran
+): ParsedVoiceAlbaran => {
+  const quantities = spokenQuantities(transcript);
+  const ralCodes = spokenRalCodes(transcript);
+  const textures = spokenTextures(transcript);
+  const itemCount = parsed.items.length;
+
+  if (quantities.length >= 2 && quantities.length !== itemCount) {
+    throw new VoiceExtractionIntegrityError();
+  }
+  if (
+    quantities.length === itemCount &&
+    quantities.some((quantity, index) => parsed.items[index]?.quantity !== quantity)
+  ) {
+    throw new VoiceExtractionIntegrityError();
+  }
+  if (
+    ralCodes.length === itemCount &&
+    ralCodes.some((code, index) => parsedRalCode(parsed.items[index]?.color ?? null) !== code)
+  ) {
+    throw new VoiceExtractionIntegrityError();
+  }
+  if (
+    textures.length === itemCount &&
+    textures.some((texture, index) => parsed.items[index]?.texture !== texture)
+  ) {
+    throw new VoiceExtractionIntegrityError();
+  }
+
+  return parsed;
+};
+
+const specialPieceNamesForTranscript = (
+  transcript: string,
+  customers: Customer[]
+): string[] => {
+  const names = Array.from(
+    new Set(
+      customers.flatMap((customer) =>
+        customer.specialPieces
+          .map((piece) => piece.name.trim())
+          .filter((pieceName) => pieceName.length > 0)
+      )
+    )
+  );
+  const normalizedTranscript = ` ${normalizeText(transcript)} `;
+  const exactNames = names.filter((name) => {
+    const normalizedName = normalizeText(name);
+    return normalizedName.length > 0 && normalizedTranscript.includes(` ${normalizedName} `);
+  });
+  if (exactNames.length > 0) return exactNames.slice(0, 20);
+  return specialPieceIntentPattern.test(transcript) ? names.slice(0, 200) : [];
+};
 
 const scoreCustomerMatch = (customerName: string, spokenName: string): number => {
   const normalizedCustomer = normalizeText(customerName);
@@ -113,20 +236,16 @@ const normalizeSpokenDimensions = (
     if (!match[1] || !match[3]) return [];
     const firstUnit = match[2] ?? match[4] ?? "mm";
     const secondUnit = match[4] ?? match[2] ?? "mm";
-    const widthCm = toCentimeters(match[1], firstUnit);
-    const heightCm = toCentimeters(match[3], secondUnit);
     const widthMm = toMillimeters(match[1], firstUnit);
     const heightMm = toMillimeters(match[3], secondUnit);
     if (
-      !Number.isFinite(widthCm) ||
-      !Number.isFinite(heightCm) ||
       !Number.isFinite(widthMm) ||
       !Number.isFinite(heightMm) ||
       widthMm <= 0 ||
       heightMm <= 0
     ) return [];
     return [{
-      description: formatDimension(widthCm) + "X" + formatDimension(heightCm),
+      description: formatDimension(widthMm) + "X" + formatDimension(heightMm),
       widthMm,
       heightMm
     }];
@@ -184,23 +303,15 @@ export class ParseVoiceAlbaranUseCase {
 
   public async execute(transcript: string): Promise<ParsedVoiceAlbaran> {
     const customers = await this.customerRepository.findAll();
-    const specialPieceNames = Array.from(
-      new Set(
-        customers.flatMap((customer) =>
-          customer.specialPieces
-            .map((piece) => piece.name.trim())
-            .filter((pieceName) => pieceName.length > 0)
-        )
-      )
-    ).slice(0, 200);
+    const specialPieceNames = specialPieceNamesForTranscript(transcript, customers);
     const parsed = await this.parser.parseTranscript(transcript, {
       customerNames: customers.map((customer) => customer.name),
       specialPieceNames
     });
-    const sanitized = normalizeSpokenDimensions(
+    const sanitized = validateExplicitTranscriptEvidence(transcript, normalizeSpokenDimensions(
       transcript,
       sanitizeDerivedMeasurements(transcript, parsed)
-    );
+    ));
 
     return {
       ...sanitized,

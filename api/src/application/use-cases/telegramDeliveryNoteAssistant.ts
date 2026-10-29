@@ -1,5 +1,8 @@
 import type { CalculatePriceUseCase, CreateDeliveryNoteUseCase } from "./deliveryNotes.js";
-import type { ParseVoiceAlbaranUseCase } from "./parseVoiceAlbaran.js";
+import {
+  VoiceExtractionIntegrityError,
+  type ParseVoiceAlbaranUseCase
+} from "./parseVoiceAlbaran.js";
 import type { Customer } from "../../domain/entities/Customer.js";
 import type { DeliveryNoteItemDraft } from "../../domain/entities/DeliveryNote.js";
 import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
@@ -245,6 +248,7 @@ const resolveSpecialPiece = (
         normalizeSpecialPieceName(item.description)
     ) ?? null;
   if (exact) return { piece: exact, ambiguous: [] };
+  if (!item.specialPieceIntent) return { piece: null, ambiguous: [] };
 
   const descriptionWithoutMeasures = item.description
     .replace(dimensionsInTextPattern, " ")
@@ -631,8 +635,14 @@ export class TelegramDeliveryNoteAssistant {
       return [
         `Anotado: ${draft.items.length} línea(s)${draft.customerName ? ` para ${draft.customerName}` : ""}. Envía más piezas o escribe YA ESTÁ.`
       ];
-    } catch {
+    } catch (error: unknown) {
       await this.sessions.markProcessed(session.id, input.updateId);
+      if (error instanceof VoiceExtractionIntegrityError) {
+        return [
+          "No he añadido ninguna línea porque la extracción perdió o cambió datos del audio. " +
+          "Divide el audio en mensajes más cortos y vuelve a enviarlo."
+        ];
+      }
       return [
         "No pude convertir ese mensaje en una pieza. Repítelo indicando descripción, color, cantidad y medidas. El precio lo calcula la API."
       ];

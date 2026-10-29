@@ -72,6 +72,146 @@ const buildParsedItem = (
 });
 
 describe("ParseVoiceAlbaranUseCase", () => {
+  it("preserves every explicit field in a multiline workshop transcript", async () => {
+    const customer = {
+      ...buildCustomer("DITRAMETAL"),
+      specialPieces: [
+        { name: "PERFIL 1023 460X200", price: 10 },
+        { name: "PERFIL 1023 1460X200", price: 12 }
+      ]
+    };
+    const parsedItems: ParsedVoiceAlbaran["items"] = [
+      { ...buildParsedItem("TAPA"), color: "RAL 7016", texture: "MATE", quantity: 2 },
+      {
+        ...buildParsedItem("CHAPA 420X400"),
+        color: "RAL 7016",
+        texture: "MATE",
+        widthMm: 420,
+        heightMm: 400,
+        quantity: 3
+      },
+      {
+        ...buildParsedItem("CHAPA 120X120"),
+        color: "RAL 7016",
+        texture: "MATE",
+        widthMm: 120,
+        heightMm: 120,
+        quantity: 3
+      },
+      {
+        ...buildParsedItem("PERFIL 460X200"),
+        color: "RAL 7016",
+        texture: "MATE",
+        widthMm: 460,
+        heightMm: 200,
+        quantity: 2
+      }
+    ];
+    const parser = buildParser({
+      customerName: "DITRAMETAL",
+      date: "2026-10-29",
+      notes: null,
+      items: parsedItems
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(parser, buildRepository([customer]));
+    const transcript =
+      "tapa 7016 mate dos unidades " +
+      "chapa 7016 mate 420 x 400 tres unidades " +
+      "chapa 7016 mate 120 x 120 tres unidades " +
+      "perfil 7016 mate 460 x 200 dos unidades";
+
+    const result = await useCase.execute(transcript);
+
+    expect(result.items).toHaveLength(4);
+    expect(result.items).toMatchObject([
+      { description: "TAPA", color: "RAL 7016", texture: "MATE", quantity: 2 },
+      { description: "CHAPA 420X400", color: "RAL 7016", texture: "MATE", quantity: 3 },
+      { description: "CHAPA 120X120", color: "RAL 7016", texture: "MATE", quantity: 3 },
+      { description: "PERFIL 460X200", color: "RAL 7016", texture: "MATE", quantity: 2 }
+    ]);
+    expect(parser.parseTranscript).toHaveBeenCalledWith(
+      transcript,
+      expect.objectContaining({ specialPieceNames: [] })
+    );
+  });
+
+  it("rejects a multiline extraction that changes an explicit color", async () => {
+    const badItems: ParsedVoiceAlbaran["items"] = [
+      { ...buildParsedItem("TAPA"), color: "RAL 7016", texture: "MATE", quantity: 2 },
+      { ...buildParsedItem("CHAPA 420X400"), color: "RAL 7016", texture: "MATE", quantity: 3 },
+      { ...buildParsedItem("CHAPA 120X120"), color: "RAL 7016", texture: "MATE", quantity: 3 },
+      { ...buildParsedItem("PERFIL 1023 460X200"), color: null, texture: "MATE", quantity: 2 }
+    ];
+    const parser = buildParser({
+      customerName: "DITRAMETAL",
+      date: "2026-10-29",
+      notes: null,
+      items: badItems
+    });
+    const customer = {
+      ...buildCustomer("DITRAMETAL"),
+      specialPieces: [{ name: "PERFIL 1023 460X200", price: 10 }]
+    };
+    const useCase = new ParseVoiceAlbaranUseCase(parser, buildRepository([customer]));
+
+    await expect(useCase.execute(
+      "tapa 7016 mate dos unidades " +
+      "chapa 7016 mate 420 x 400 tres unidades " +
+      "chapa 7016 mate 120 x 120 tres unidades " +
+      "perfil 7016 mate 460 x 200 dos unidades"
+    )).rejects.toMatchObject({ name: "VoiceExtractionIntegrityError" });
+  });
+
+  it("rejects a multiline extraction that drops one dictated line", async () => {
+    const parser = buildParser({
+      customerName: "DITRAMETAL",
+      date: "2026-10-29",
+      notes: null,
+      items: [
+        { ...buildParsedItem("TAPA"), color: "RAL 7016", texture: "MATE", quantity: 2 },
+        { ...buildParsedItem("CHAPA"), color: "RAL 7016", texture: "MATE", quantity: 3 },
+        { ...buildParsedItem("PERFIL"), color: "RAL 7016", texture: "MATE", quantity: 2 }
+      ]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("DITRAMETAL")])
+    );
+
+    await expect(useCase.execute(
+      "tapa 7016 mate dos unidades " +
+      "chapa 7016 mate 420 x 400 tres unidades " +
+      "chapa 7016 mate 120 x 120 tres unidades " +
+      "perfil 7016 mate 460 x 200 dos unidades"
+    )).rejects.toMatchObject({ name: "VoiceExtractionIntegrityError" });
+  });
+
+  it("only includes the special-piece catalogue when special intent is explicit", async () => {
+    const customer = {
+      ...buildCustomer("DITRAMETAL"),
+      specialPieces: [
+        { name: "PERFIL 1023 460X200", price: 10 },
+        { name: "TAPA ESPECIAL", price: 5 }
+      ]
+    };
+    const parser = buildParser({
+      customerName: "DITRAMETAL",
+      date: "2026-10-29",
+      notes: null,
+      items: [{ ...buildParsedItem("TAPA ESPECIAL"), specialPieceIntent: true }]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(parser, buildRepository([customer]));
+
+    await useCase.execute("una pieza especial para DITRAMETAL");
+
+    expect(parser.parseTranscript).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        specialPieceNames: ["PERFIL 1023 460X200", "TAPA ESPECIAL"]
+      })
+    );
+  });
+
   it("conserva en milímetros varias medidas de vallas dictadas sin unidad", async () => {
     const parser = {
       parseTranscript: vi.fn(async () => ({
@@ -185,7 +325,7 @@ describe("ParseVoiceAlbaranUseCase", () => {
     });
   });
 
-  it("normalizes millimeter dimensions to the centimeter description format", async () => {
+  it("keeps millimeter dimensions in the description", async () => {
     const parser = buildParser({
       customerName: "Ditrametal",
       date: "2026-07-09",
@@ -212,7 +352,7 @@ describe("ParseVoiceAlbaranUseCase", () => {
 
     const result = await useCase.execute("una chapa de 1000 x 500 milímetros");
 
-    expect(result.items[0]?.description).toBe("CHAPA 100X50");
+    expect(result.items[0]?.description).toBe("CHAPA 1000X500");
     expect(result.items[0]?.widthMm).toBe(1000);
     expect(result.items[0]?.heightMm).toBe(500);
   });
@@ -244,7 +384,7 @@ describe("ParseVoiceAlbaranUseCase", () => {
 
     const result = await useCase.execute("una chapa de 1 m x 50 cm");
 
-    expect(result.items[0]?.description).toBe("CHAPA 100X50");
+    expect(result.items[0]?.description).toBe("CHAPA 1000X500");
     expect(result.items[0]?.widthMm).toBe(1000);
     expect(result.items[0]?.heightMm).toBe(500);
   });
@@ -276,7 +416,7 @@ describe("ParseVoiceAlbaranUseCase", () => {
 
     const result = await useCase.execute("una mesa de 500 x 500 RAL 9005");
 
-    expect(result.items[0]?.description).toBe("MESA 50X50");
+    expect(result.items[0]?.description).toBe("MESA 500X500");
     expect(result.items[0]?.widthMm).toBe(500);
     expect(result.items[0]?.heightMm).toBe(500);
   });
