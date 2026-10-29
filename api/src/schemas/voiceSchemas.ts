@@ -110,7 +110,7 @@ const inferKnownRalColor = (
   const code = candidate?.[2];
   const finishPattern = texturePattern(texture);
   const hasExplicitRalPrefix = Boolean(candidate?.[1]);
-  const hasMatchingFinish = finishPattern?.test(description) ?? false;
+  const hasMatchingFinish = texture !== "NORMAL";
   if (!code || (!hasExplicitRalPrefix && !hasMatchingFinish)) return null;
 
   const colorPattern = new RegExp(`\\b(?:RAL\\s*)?${code}\\b`, "giu");

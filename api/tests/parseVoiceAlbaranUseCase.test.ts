@@ -7,6 +7,7 @@ import type {
   VoiceAlbaranParserContext
 } from "../src/domain/ports/VoiceAlbaranParser.js";
 import type { CustomerRepository } from "../src/domain/repositories/CustomerRepository.js";
+import { normalizeParsedVoiceAlbaran } from "../src/schemas/voiceSchemas.js";
 
 const buildCustomer = (name: string): Customer => ({
   id: name,
@@ -186,43 +187,41 @@ describe("ParseVoiceAlbaranUseCase", () => {
     )).rejects.toMatchObject({ name: "VoiceExtractionIntegrityError" });
   });
 
-  it("accepts four-digit piece references followed by a finish without treating them as RAL colors", async () => {
-    const parsedItems: ParsedVoiceAlbaran["items"] = [
-      {
-        ...buildParsedItem("ÁNGULO 7035"),
-        color: null,
-        texture: "MATE",
-        pricingMode: "DIMENSIONS",
-        linearMeters: 3,
-        quantity: 3
-      },
-      {
-        ...buildParsedItem("ÁNGULO 1021"),
-        color: null,
-        texture: "MATE",
-        pricingMode: "DIMENSIONS",
-        linearMeters: 3,
-        quantity: 8
-      },
-      {
-        ...buildParsedItem("PERFIL 1023 1460X200"),
-        color: null,
-        texture: "MATE",
-        quantity: 32
-      },
-      {
-        ...buildParsedItem("PERFIL 1023 460X200"),
-        color: null,
-        texture: "MATE",
-        quantity: 12
-      }
-    ];
-    const parser = buildParser({
+  it("recovers known RAL colors when the model separates the finish from the description", async () => {
+    const normalized = normalizeParsedVoiceAlbaran({
       customerName: "DITRAMETAL",
       date: "2026-10-29",
       notes: null,
-      items: parsedItems
+      items: [
+        {
+          description: "ángulo 7035",
+          color: null,
+          texture: "mate",
+          linearMeters: 3,
+          quantity: 3
+        },
+        {
+          description: "ángulo 1021",
+          color: null,
+          texture: "mate",
+          linearMeters: 3,
+          quantity: 8
+        },
+        {
+          description: "perfil 1023 1460x200",
+          color: null,
+          texture: "mate",
+          quantity: 32
+        },
+        {
+          description: "perfil 1023 460x200",
+          color: null,
+          texture: "mate",
+          quantity: 12
+        }
+      ]
     });
+    const parser = buildParser(normalized);
     const useCase = new ParseVoiceAlbaranUseCase(
       parser,
       buildRepository([buildCustomer("DITRAMETAL")])
@@ -236,10 +235,10 @@ describe("ParseVoiceAlbaranUseCase", () => {
     );
 
     expect(result.items).toMatchObject([
-      { description: "ÁNGULO 7035", color: null, texture: "MATE", quantity: 3 },
-      { description: "ÁNGULO 1021", color: null, texture: "MATE", quantity: 8 },
-      { description: "PERFIL 1023 1460X200", color: null, texture: "MATE", quantity: 32 },
-      { description: "PERFIL 1023 460X200", color: null, texture: "MATE", quantity: 12 }
+      { description: "ÁNGULO", color: "RAL 7035", texture: "MATE", quantity: 3 },
+      { description: "ÁNGULO", color: "RAL 1021", texture: "MATE", quantity: 8 },
+      { description: "PERFIL 1460X200", color: "RAL 1023", texture: "MATE", quantity: 32 },
+      { description: "PERFIL 460X200", color: "RAL 1023", texture: "MATE", quantity: 12 }
     ]);
   });
 

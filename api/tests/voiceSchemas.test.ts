@@ -160,6 +160,34 @@ describe("normalizeParsedVoiceAlbaran", () => {
     ]);
   });
 
+  it("recovers known RAL colors when the model already separated the finish field", () => {
+    const result = normalizeParsedVoiceAlbaran({
+      customerName: "DITRAMETAL",
+      date: "2026-10-29",
+      notes: null,
+      items: [
+        {
+          description: "ángulo 7035",
+          color: null,
+          texture: "mate",
+          linearMeters: 3,
+          quantity: 3
+        },
+        {
+          description: "perfil 1023 1460x200",
+          color: null,
+          texture: "mate",
+          quantity: 32
+        }
+      ]
+    });
+
+    expect(result.items).toMatchObject([
+      { description: "ÁNGULO", color: "RAL 7035", texture: "MATE" },
+      { description: "PERFIL 1460X200", color: "RAL 1023", texture: "MATE" }
+    ]);
+  });
+
   it.each([
     ["TUBO 9999 MATE", "MATE"],
     ["TUBO 8019", "NORMAL"],
