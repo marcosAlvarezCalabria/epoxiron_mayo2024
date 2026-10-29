@@ -29,7 +29,7 @@ describe("deliveryNoteItemDescription helpers", () => {
         texture: "NORMAL",
         pricingMode: "UNIT"
       })
-    ).toBe("BASTIDOR LATERAL 9005+7024 3000X1500");
+    ).toBe(`BASTIDOR LATERAL ${middleDot} 9005+7024 ${middleDot} 3000X1500`);
 
     expect(
       buildDeliveryNoteItemDescription({
@@ -38,7 +38,16 @@ describe("deliveryNoteItemDescription helpers", () => {
         texture: "TEXTURADO",
         pricingMode: "UNIT"
       })
-    ).toBe("BARRA Z 9016 TEXT");
+    ).toBe(`BARRA Z ${middleDot} 9016 ${middleDot} TEXT`);
+
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "ARMARIO 7032 GOF 1550X1680",
+        color: "RAL 7032",
+        texture: "GOFRADO",
+        pricingMode: "UNIT"
+      })
+    ).toBe(`ARMARIO ${middleDot} 7032 ${middleDot} GOF ${middleDot} 1550X1680`);
   });
 
   it("normalizes manual descriptions removing ral and unidad from line text", () => {
@@ -76,7 +85,7 @@ describe("deliveryNoteItemDescription helpers", () => {
         pricingMode: "DIMENSIONS",
         squareMeters: 3
       })
-    ).toBe("CHAPA 9005 3000X1000");
+    ).toBe(`CHAPA ${middleDot} 9005 ${middleDot} 3000X1000`);
   });
 
   it("orders color and texture before dimensions without duplicating them", () => {
@@ -89,7 +98,7 @@ describe("deliveryNoteItemDescription helpers", () => {
         widthMm: 1400,
         heightMm: 630
       })
-    ).toBe("CHAPA 7021 TEXTURADO 1400X630");
+    ).toBe(`CHAPA ${middleDot} 7021 ${middleDot} TEXTURADO ${middleDot} 1400X630`);
   });
 
   it("renders linear meters only once when they were also embedded in the description", () => {
@@ -101,7 +110,7 @@ describe("deliveryNoteItemDescription helpers", () => {
         pricingMode: "DIMENSIONS",
         linearMeters: 2
       })
-    ).toBe(`TUBO 9005 MATE ${middleDot} 2MLIN`);
+    ).toBe(`TUBO ${middleDot} 9005 ${middleDot} MATE ${middleDot} 2MLIN`);
   });
 
   it("keeps linear meters when the description also contains explicit dimensions", () => {
@@ -115,6 +124,19 @@ describe("deliveryNoteItemDescription helpers", () => {
         widthMm: 220,
         heightMm: 220
       })
-    ).toBe(`TABURETE 9005 220X220 ${middleDot} 4.5MLIN`);
+    ).toBe(`TABURETE ${middleDot} 9005 ${middleDot} 220X220 ${middleDot} 4.5MLIN`);
+  });
+
+  it("uses the same separators for a profile with color, finish and dimensions", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "PERFIL 1460X200",
+        color: "RAL 1023",
+        texture: "MATE",
+        pricingMode: "DIMENSIONS",
+        widthMm: 1460,
+        heightMm: 200
+      })
+    ).toBe(`PERFIL ${middleDot} 1023 ${middleDot} MATE ${middleDot} 1460X200`);
   });
 });

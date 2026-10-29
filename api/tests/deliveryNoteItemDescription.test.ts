@@ -1,0 +1,54 @@
+import { describe, expect, it } from "vitest";
+import { buildDeliveryNoteItemDescription } from "../src/domain/services/deliveryNoteItemDescription.js";
+
+const buildLinearDescription = (description: string) =>
+  buildDeliveryNoteItemDescription({
+    description,
+    color: "RAL 7035",
+    texture: "GOFRADO",
+    pricingMode: "DIMENSIONS",
+    linearMeters: 0.48
+  });
+
+describe("buildDeliveryNoteItemDescription", () => {
+  it.each([
+    "CHAPA 7035 GOFRADO 0,48MLIN",
+    "CHAPA 7035 GOFRADO 0,48MLINEAL",
+    "CHAPA 7035 GOFRADO 0,48 M LINEAL",
+    "CHAPA 7035 GOFRADO 0,48 METROS LINEALES"
+  ])("does not duplicate a linear measure already present in %s", (description) => {
+    expect(buildLinearDescription(description)).toBe(
+      "CHAPA · 7035 · GOFRADO · 0,48MLIN"
+    );
+  });
+
+  it("adds the linear measure when the description does not include it", () => {
+    expect(buildLinearDescription("CHAPA 7035 GOFRADO")).toBe(
+      "CHAPA · 7035 · GOFRADO · 0,48MLIN"
+    );
+  });
+
+  it("treats GOF as an embedded GOFRADO texture", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "ARMARIO 7032 GOF 1550X1680",
+        color: "RAL 7032",
+        texture: "GOFRADO",
+        pricingMode: "UNIT"
+      })
+    ).toBe("ARMARIO · 7032 · GOF · 1550X1680");
+  });
+
+  it("uses the same separators for a profile with color, finish and dimensions", () => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "PERFIL 1460X200",
+        color: "RAL 1023",
+        texture: "MATE",
+        pricingMode: "DIMENSIONS",
+        widthMm: 1460,
+        heightMm: 200
+      })
+    ).toBe("PERFIL · 1023 · MATE · 1460X200");
+  });
+});

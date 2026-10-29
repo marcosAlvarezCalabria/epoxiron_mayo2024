@@ -96,7 +96,7 @@ export const descriptionContainsTexture = (
     case "TEXTURADO":
       return /\bTEXT(?:URADO)?\b/.test(normalizedDescription);
     case "GOFRADO":
-      return /\bGOFRADO\b/.test(normalizedDescription);
+      return /\bGOF(?:RADO)?\b/.test(normalizedDescription);
     case "MATE":
       return /\bMATE\b/.test(normalizedDescription);
     default:
@@ -114,7 +114,7 @@ const descriptionContainsExplicitDimensions = (description: string) => {
 const descriptionContainsCalculatedMeasures = (description: string) => {
   const normalizedDescription = normalizeEmbeddedValue(description);
 
-  return /\b\d+(?:[.,]\d+)?\s*MLIN\b/.test(normalizedDescription) ||
+  return /\b\d+(?:[.,]\d+)?\s*(?:MLIN|M\s*LINEAL(?:ES)?|METROS?\s+LINEALES?)\b/.test(normalizedDescription) ||
     /\b\d+(?:[.,]\d+)?\s*M2\b/.test(normalizedDescription);
 };
 
@@ -176,16 +176,12 @@ const canonicalizeCommercialDescription = (
   let workingDescription = description.replace(/\s*·\s*/gu, " ").trim();
   const originalTextureLabel = embeddedTextureLabel(workingDescription, texture);
   const dimensionsMatch = workingDescription.match(trailingDimensionsPattern);
-  const hasBareLinearMeasure =
+  const hasEmbeddedLinearMeasure =
     (linearMeters ?? 0) > 0 &&
-    bareLinearMeasurePattern.test(workingDescription) &&
-    !descriptionContainsCalculatedMeasures(workingDescription);
+    (descriptionContainsCalculatedMeasures(workingDescription) ||
+      bareLinearMeasurePattern.test(workingDescription));
 
-  if (!dimensionsMatch && !hasBareLinearMeasure) {
-    return description;
-  }
-
-  if (hasBareLinearMeasure) {
+  if (hasEmbeddedLinearMeasure) {
     workingDescription = workingDescription.replace(embeddedLinearMeasurePattern, " ");
   }
 
@@ -221,7 +217,7 @@ const canonicalizeCommercialDescription = (
       texture && texture !== "NORMAL" ? formatDeliveryNoteTexture(texture) : null
     ),
     dimensions
-  ].filter(Boolean).join(" ");
+  ].filter(Boolean).join(" · ");
 };
 
 export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemLike) => {
