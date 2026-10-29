@@ -66,3 +66,24 @@ producción.
 
 No se envió un audio sintético al chat real porque habría modificado el borrador
 del usuario. El texto exacto de la incidencia se cubrió con pruebas aisladas.
+
+## Seguimiento: referencias de pieza confundidas con colores
+
+Al reenviar otro audio real, la transcripción conservó cuatro líneas con
+`ÁNGULO 7035`, `ÁNGULO 1021` y dos `PERFIL 1023`, todas con acabado `MATE`,
+pero la nueva barrera rechazó el resultado. La causa fue que consideraba
+cualquier código RAL conocido seguido de un acabado como color, aunque en este
+caso los números eran referencias de pieza.
+
+La validación ahora distingue los dos casos:
+
+- `RAL 7035` debe conservarse específicamente como color;
+- `7035 mate` debe conservar el código en la descripción o en el color, sin
+  decidir de antemano cuál de los dos significa.
+
+El caso exacto quedó cubierto por una prueba de cuatro líneas. La rama pasó
+41/41 pruebas del flujo, y la copia exacta de producción pasó TypeScript,
+compilación y 12/12 pruebas del caso de uso. Se activó la imagen
+`sha256:3471f8eddd9321c905fd5059b4e7d572329cd920de6cc8489a6e1e179c6ef6c0`
+con cero reinicios y `GET /health` correcto. La imagen anterior quedó como
+`epoxiron-albaranes:rollback-20261029-before-reference-fix`.
