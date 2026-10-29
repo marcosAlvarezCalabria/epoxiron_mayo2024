@@ -186,6 +186,63 @@ describe("ParseVoiceAlbaranUseCase", () => {
     )).rejects.toMatchObject({ name: "VoiceExtractionIntegrityError" });
   });
 
+  it("accepts four-digit piece references followed by a finish without treating them as RAL colors", async () => {
+    const parsedItems: ParsedVoiceAlbaran["items"] = [
+      {
+        ...buildParsedItem("ÁNGULO 7035"),
+        color: null,
+        texture: "MATE",
+        pricingMode: "DIMENSIONS",
+        linearMeters: 3,
+        quantity: 3
+      },
+      {
+        ...buildParsedItem("ÁNGULO 1021"),
+        color: null,
+        texture: "MATE",
+        pricingMode: "DIMENSIONS",
+        linearMeters: 3,
+        quantity: 8
+      },
+      {
+        ...buildParsedItem("PERFIL 1023 1460X200"),
+        color: null,
+        texture: "MATE",
+        quantity: 32
+      },
+      {
+        ...buildParsedItem("PERFIL 1023 460X200"),
+        color: null,
+        texture: "MATE",
+        quantity: 12
+      }
+    ];
+    const parser = buildParser({
+      customerName: "DITRAMETAL",
+      date: "2026-10-29",
+      notes: null,
+      items: parsedItems
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("DITRAMETAL")])
+    );
+
+    const result = await useCase.execute(
+      "pedido para Ditrametal ángulo 7035 mate 3 m lineal tres unidades " +
+      "ángulo 1021 mate 3 m lineal ocho unidades " +
+      "perfil 1023 mate 1460 x 200 32 unidades " +
+      "perfil 1023 mate 460 x 200 12 unidades"
+    );
+
+    expect(result.items).toMatchObject([
+      { description: "ÁNGULO 7035", color: null, texture: "MATE", quantity: 3 },
+      { description: "ÁNGULO 1021", color: null, texture: "MATE", quantity: 8 },
+      { description: "PERFIL 1023 1460X200", color: null, texture: "MATE", quantity: 32 },
+      { description: "PERFIL 1023 460X200", color: null, texture: "MATE", quantity: 12 }
+    ]);
+  });
+
   it("only includes the special-piece catalogue when special intent is explicit", async () => {
     const customer = {
       ...buildCustomer("DITRAMETAL"),

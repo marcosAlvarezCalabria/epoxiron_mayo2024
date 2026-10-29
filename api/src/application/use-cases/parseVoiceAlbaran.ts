@@ -72,8 +72,13 @@ const spokenQuantities = (transcript: string): number[] =>
 const spokenRalCodes = (transcript: string): string[] =>
   [...transcript.matchAll(explicitRalPattern)].flatMap((match) => {
     const code = match[2] ?? "";
-    const isExplicit = Boolean(match[1]) || Boolean(match[3]);
-    return isExplicit && isKnownRalCode(code) ? [code] : [];
+    return Boolean(match[1]) && isKnownRalCode(code) ? [code] : [];
+  });
+
+const spokenFinishCodes = (transcript: string): string[] =>
+  [...transcript.matchAll(explicitRalPattern)].flatMap((match) => {
+    const code = match[2] ?? "";
+    return Boolean(match[3]) && isKnownRalCode(code) ? [code] : [];
   });
 
 const spokenTextures = (transcript: string): ParsedVoiceAlbaran["items"][number]["texture"][] =>
@@ -87,12 +92,22 @@ const spokenTextures = (transcript: string): ParsedVoiceAlbaran["items"][number]
 const parsedRalCode = (color: string | null): string | null =>
   color?.match(/\b(?:RAL\s*)?([1-9]\d{3})\b/i)?.[1] ?? null;
 
+const parsedItemContainsCode = (
+  item: ParsedVoiceAlbaran["items"][number] | undefined,
+  code: string
+): boolean => {
+  if (!item) return false;
+  if (parsedRalCode(item.color) === code) return true;
+  return new RegExp(`\\b${code}\\b`, "i").test(item.description);
+};
+
 const validateExplicitTranscriptEvidence = (
   transcript: string,
   parsed: ParsedVoiceAlbaran
 ): ParsedVoiceAlbaran => {
   const quantities = spokenQuantities(transcript);
   const ralCodes = spokenRalCodes(transcript);
+  const finishCodes = spokenFinishCodes(transcript);
   const textures = spokenTextures(transcript);
   const itemCount = parsed.items.length;
 
@@ -108,6 +123,12 @@ const validateExplicitTranscriptEvidence = (
   if (
     ralCodes.length === itemCount &&
     ralCodes.some((code, index) => parsedRalCode(parsed.items[index]?.color ?? null) !== code)
+  ) {
+    throw new VoiceExtractionIntegrityError();
+  }
+  if (
+    finishCodes.length === itemCount &&
+    finishCodes.some((code, index) => !parsedItemContainsCode(parsed.items[index], code))
   ) {
     throw new VoiceExtractionIntegrityError();
   }
