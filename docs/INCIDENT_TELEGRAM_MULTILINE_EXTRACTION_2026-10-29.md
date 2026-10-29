@@ -49,3 +49,20 @@ Antes del cambio, la imagen activa era
 `sha256:ff7969a9435ef5f71c3021219b1367dd745730fb56941f0567b6b74d2d74d925`.
 Se conservará como referencia de rollback hasta verificar el flujo corregido en
 producción.
+
+## Despliegue de producción
+
+- Rama remota: `codex/fix-telegram-multiline-validation`.
+- Commit del hotfix: `6b8cd65`.
+- Imagen activada: `sha256:ea6841c5963081dc62b425c5e5309fcf5d10c7c748a146294f9496df60719e07`.
+- Inicio del contenedor: `2026-10-29T14:23:57Z`.
+- Imagen anterior etiquetada como `epoxiron-albaranes:rollback-20261029`.
+- El cambio se realizó tras comprobar que la última actualización de una sesión
+  había ocurrido aproximadamente 48 minutos antes.
+- Verificación posterior: contenedor `running`, cero reinicios, migraciones sin
+  cambios pendientes y `GET /health` con `200 {"status":"ok"}`.
+- El JavaScript compilado activo contiene la barrera `specialPieceIntent` y la
+  nueva instrucción que prohíbe sustituir por semejanza.
+
+No se envió un audio sintético al chat real porque habría modificado el borrador
+del usuario. El texto exacto de la incidencia se cubrió con pruebas aisladas.
