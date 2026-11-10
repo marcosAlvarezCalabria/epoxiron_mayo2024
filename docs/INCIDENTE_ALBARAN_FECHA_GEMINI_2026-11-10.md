@@ -57,4 +57,10 @@ Para recuperar la versión anterior, restaurar el código/configuración desde e
 
 ## Estado del dato de prueba
 
-El registro `ALB-2023-0001` no se elimina como parte del despliegue. Su borrado requiere confirmación explícita y debe limitarse a ese ID, junto con el reinicio controlado de la sesión de Telegram asociada.
+El registro `ALB-2023-0001` no se eliminó como parte del despliegue. Tras la confirmación explícita del usuario, se guardó una copia privada en el VPS y se ejecutó una transacción limitada al ID `2a41b822-6018-43ec-ab4b-41ad827e092f`:
+
+- El albarán y su única línea se eliminaron.
+- Se verificó que no existía ningún vínculo con facturas.
+- La sesión de Telegram `29d5d4e9-4e46-407f-a948-4d15a14ea1fb` se reinició a `COLLECTING` con el borrador vacío.
+- El servicio permaneció en ejecución y sin reinicios.
+- Copia recuperable: `/opt/epoxiron-albaranes/backups/deleted-ALB-2023-0001-20261110T202716Z.json`.
