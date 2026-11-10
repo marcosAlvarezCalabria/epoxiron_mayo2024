@@ -62,7 +62,8 @@ Reglas:
 export const buildVoiceAlbaranUserPrompt = (
   transcript: string,
   customerNames: string[] = [],
-  specialPieceNames: string[] = []
+  specialPieceNames: string[] = [],
+  currentDate?: string
 ): string => {
   const trimmedCustomerNames = customerNames
     .map((customerName) => customerName.trim())
@@ -73,11 +74,15 @@ export const buildVoiceAlbaranUserPrompt = (
     .filter((specialPieceName) => specialPieceName.length > 0)
     .slice(0, 200);
 
-  if (trimmedCustomerNames.length === 0 && trimmedSpecialPieceNames.length === 0) {
-    return transcript;
-  }
-
   const sections: string[] = [];
+
+  if (currentDate) {
+    sections.push(
+      `Fecha actual del taller: ${currentDate}.`,
+      "Usa esta fecha cuando el usuario diga hoy o no indique ninguna fecha.",
+      ""
+    );
+  }
 
   if (trimmedCustomerNames.length > 0) {
     sections.push(

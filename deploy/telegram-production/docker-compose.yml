@@ -22,7 +22,7 @@ services:
       EPOXIRON_TELEGRAM_ECHO_IMAGE_TRANSCRIPTIONS: "true"
       IMAGE_READER_PROVIDER: gemini
       IMAGE_READER_BASE_URL: https://generativelanguage.googleapis.com/v1beta
-      IMAGE_READER_MODEL: gemini-2.5-flash
+      IMAGE_READER_MODEL: gemini-3.5-flash-lite
       IMAGE_READER_TIMEOUT_MS: "30000"
       DAILY_REPORT_AUTOMATION_ENABLED: "false"
       ODOO_RECONCILIATION_ENABLED: "false"

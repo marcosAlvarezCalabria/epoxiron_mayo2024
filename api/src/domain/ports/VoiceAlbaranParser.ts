@@ -28,6 +28,7 @@ export interface ParsedVoiceAlbaran {
 export interface VoiceAlbaranParserContext {
   customerNames?: string[];
   specialPieceNames?: string[];
+  currentDate?: string;
 }
 
 export interface VoiceAlbaranParser {

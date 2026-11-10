@@ -27,6 +27,21 @@ const quantityPattern =
 const explicitRalPattern =
   /\b(?:(ral)\s*)?([1-9]\d{3})\b(?:\s+(mate|texturad[oa]|texturizad[oa]|gofrad[oa]|gof))?/giu;
 const explicitTexturePattern = /\b(mate|texturad[oa]|texturizad[oa]|gofrad[oa]|gof)\b/giu;
+const dateReferencePattern =
+  /\b(?:hoy|ayer|anteayer|mañana|pasado\s+mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/.\-]\d{1,2}(?:[\/.\-]\d{2,4})?|\d{1,2}\s+de\s+(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre))\b/i;
+const todayPattern = /\bhoy\b/i;
+
+const madridDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Madrid",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
+const currentBusinessDate = (): string => madridDateFormatter.format(new Date());
+
+const shouldUseCurrentDate = (transcript: string): boolean =>
+  todayPattern.test(transcript) || !dateReferencePattern.test(transcript);
 
 const SPANISH_QUANTITIES: Readonly<Record<string, number>> = {
   un: 1,
@@ -298,15 +313,18 @@ const normalizeSpokenDimensions = (
 export class ParseVoiceAlbaranUseCase {
   public constructor(
     private readonly parser: VoiceAlbaranParser,
-    private readonly customerRepository: CustomerRepository
+    private readonly customerRepository: CustomerRepository,
+    private readonly getCurrentDate: () => string = currentBusinessDate
   ) {}
 
   public async execute(transcript: string): Promise<ParsedVoiceAlbaran> {
     const customers = await this.customerRepository.findAll();
     const specialPieceNames = specialPieceNamesForTranscript(transcript, customers);
+    const currentDate = this.getCurrentDate();
     const parsed = await this.parser.parseTranscript(transcript, {
       customerNames: customers.map((customer) => customer.name),
-      specialPieceNames
+      specialPieceNames,
+      currentDate
     });
     const sanitized = validateExplicitTranscriptEvidence(transcript, normalizeSpokenDimensions(
       transcript,
@@ -315,6 +333,7 @@ export class ParseVoiceAlbaranUseCase {
 
     return {
       ...sanitized,
+      date: shouldUseCurrentDate(transcript) ? currentDate : sanitized.date,
       customerName: resolveCustomerName(customers, sanitized.customerName)
     };
   }

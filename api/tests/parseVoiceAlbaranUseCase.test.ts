@@ -72,6 +72,66 @@ const buildParsedItem = (
 });
 
 describe("ParseVoiceAlbaranUseCase", () => {
+  it("uses the current business date when the message omits a date", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2023-10-25",
+      notes: null,
+      items: [buildParsedItem("CHAPA 1000X500")]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")]),
+      () => "2026-11-10"
+    );
+
+    const result = await useCase.execute(
+      "cliente Ditrametal, dos chapas de 1000 x 500 mm RAL 9005"
+    );
+
+    expect(result.date).toBe("2026-11-10");
+    expect(parser.parseTranscript).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ currentDate: "2026-11-10" })
+    );
+  });
+
+  it("uses the current business date when the message says today", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2023-10-25",
+      notes: null,
+      items: [buildParsedItem("CHAPA 1000X500")]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")]),
+      () => "2026-11-10"
+    );
+
+    const result = await useCase.execute("pedido de hoy para Ditrametal");
+
+    expect(result.date).toBe("2026-11-10");
+  });
+
+  it("preserves an explicit date from the parsed message", async () => {
+    const parser = buildParser({
+      customerName: "Ditrametal",
+      date: "2026-11-08",
+      notes: null,
+      items: [buildParsedItem("CHAPA 1000X500")]
+    });
+    const useCase = new ParseVoiceAlbaranUseCase(
+      parser,
+      buildRepository([buildCustomer("Ditrametal")]),
+      () => "2026-11-10"
+    );
+
+    const result = await useCase.execute("pedido para Ditrametal del 08/11/2026");
+
+    expect(result.date).toBe("2026-11-08");
+  });
+
   it("conserva en milímetros varias medidas de vallas dictadas sin unidad", async () => {
     const parser = {
       parseTranscript: vi.fn(async () => ({
