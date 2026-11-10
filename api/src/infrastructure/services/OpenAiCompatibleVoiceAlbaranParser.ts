@@ -70,7 +70,8 @@ export class OpenAiCompatibleVoiceAlbaranParser implements VoiceAlbaranParser {
               content: buildVoiceAlbaranUserPrompt(
                 transcript,
                 context?.customerNames,
-                context?.specialPieceNames
+                context?.specialPieceNames,
+                context?.currentDate
               )
             }
           ]

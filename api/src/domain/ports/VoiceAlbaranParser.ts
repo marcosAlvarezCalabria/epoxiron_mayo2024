@@ -10,6 +10,8 @@ export interface ParsedVoiceAlbaranItem {
   texture: ParsedVoiceTexture;
   linearMeters: number | null;
   squareMeters: number | null;
+  widthMm?: number | null;
+  heightMm?: number | null;
   hasThickness: boolean;
   hasPrimer: boolean;
   saveAsSpecialPiece: boolean;
@@ -26,6 +28,7 @@ export interface ParsedVoiceAlbaran {
 export interface VoiceAlbaranParserContext {
   customerNames?: string[];
   specialPieceNames?: string[];
+  currentDate?: string;
 }
 
 export interface VoiceAlbaranParser {

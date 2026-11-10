@@ -1,0 +1,1367 @@
+import type { CalculatePriceUseCase, CreateDeliveryNoteUseCase } from "./deliveryNotes.js";
+import {
+  VoiceExtractionIntegrityError,
+  type ParseVoiceAlbaranUseCase
+} from "./parseVoiceAlbaran.js";
+import type { Customer } from "../../domain/entities/Customer.js";
+import type { DeliveryNote, DeliveryNoteItemDraft } from "../../domain/entities/DeliveryNote.js";
+import type { ParsedVoiceAlbaran } from "../../domain/ports/VoiceAlbaranParser.js";
+import type { CustomerRepository } from "../../domain/repositories/CustomerRepository.js";
+import type {
+  TelegramDeliveryNoteDraft,
+  TelegramDeliveryNoteProposal,
+  TelegramDeliveryNoteSession,
+  TelegramDeliveryNoteSessionRepository
+} from "../../domain/repositories/TelegramDeliveryNoteSessionRepository.js";
+import { normalizeSpecialPieceName } from "../../domain/services/deliveryNoteItemDescription.js";
+import {
+  findSpecialDeliveryNoteColor,
+  normalizeDeliveryNoteColor,
+  SPECIAL_DELIVERY_NOTE_COLORS
+} from "../../domain/services/deliveryNoteColor.js";
+
+export interface TelegramAssistantInput {
+  chatId: string;
+  userId: string;
+  updateId: number;
+  text: string;
+}
+
+export interface TelegramParsedOrderInput {
+  chatId: string;
+  userId: string;
+  updateId: number;
+  parsed: ParsedVoiceAlbaran;
+}
+
+export interface TelegramAssistantButton {
+  text: string;
+  callbackData: string;
+}
+
+type CustomerLookup = Pick<CustomerRepository, "findAll" | "findById">;
+type VoiceParser = Pick<ParseVoiceAlbaranUseCase, "execute">;
+type PriceCalculator = Pick<CalculatePriceUseCase, "execute">;
+type DeliveryNoteCreator = Pick<CreateDeliveryNoteUseCase, "execute">;
+
+export interface TelegramDeliveryNoteAssistantOptions {
+  proposalTtlMs: number;
+  writesEnabled: boolean;
+}
+
+const normalizeText = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const isReset = (value: string): boolean =>
+  ["new", "barra new", "nuevo", "empezar de nuevo"].includes(normalizeText(value));
+
+const isFinish = (value: string): boolean =>
+  ["ya esta", "he terminado", "terminado", "fin"].includes(normalizeText(value));
+
+const isConfirmation = (value: string): boolean => normalizeText(value) === "si";
+
+const isRejection = (value: string): boolean => {
+  const normalized = normalizeText(value);
+  return normalized === "no" ||
+    /^(?:no\s+)?(?:cancelar|cancela|cancelalo|descartar|descarta|descartalo)$/.test(normalized);
+};
+
+const isHelp = (value: string): boolean =>
+  ["start", "help", "ayuda"].includes(normalizeText(value));
+
+interface SpecialPiecesQuery {
+  customerName: string | null;
+  page: number;
+}
+
+const SPECIAL_PIECES_PAGE_SIZE = 20;
+
+const parseSpecialPiecesQuery = (value: string): SpecialPiecesQuery | null => {
+  let normalized = normalizeText(value);
+  const pageMatch = normalized.match(/\s+pagina\s+(\d+)$/);
+  const page = pageMatch?.[1] ? Number.parseInt(pageMatch[1], 10) : 1;
+  if (pageMatch) normalized = normalized.slice(0, pageMatch.index).trim();
+
+  const direct = normalized.match(/^especiales(?:\s+(?:de|del)\s+)?(.*)$/);
+  const natural = normalized.match(
+    /^(?:muestra|muestrame|ver|lista|listar|listado de)\s+(?:las\s+)?piezas especiales(?:\s+(?:de|del|cliente)\s+(.+))?$/
+  );
+  const plain = normalized.match(
+    /^piezas especiales(?:\s+(?:de|del|cliente)\s+(.+))?$/
+  );
+  const requestedName = direct?.[1] ?? natural?.[1] ?? plain?.[1];
+  if (!direct && !natural && !plain) return null;
+
+  return {
+    customerName: requestedName?.trim() || null,
+    page: Number.isInteger(page) && page > 0 ? page : 1
+  };
+};
+
+const HELP_TEXT = [
+  "👋 Agente de Albaranes de Epoxiron",
+  "",
+  "Comandos y pasos:",
+  "• /new — empieza un albarán nuevo o descarta el borrador actual.",
+  "• Envía texto, voz o una foto del pedido. Puedes completar datos en varios mensajes.",
+  "• Puedes corregir cantidad, color, acabado, cliente o eliminar líneas.",
+  "• /especiales Cliente — muestra sus piezas especiales y precios.",
+  "• YA ESTÁ — prepara la propuesta para revisarla.",
+  "• SI — confirma la propuesta y crea el albarán en borrador (DRAFT).",
+  "• NO — cancela la propuesta y el borrador.",
+  "• /help — vuelve a mostrar esta guía.",
+  "",
+  "Ejemplo: cliente Ditrametal, dos chapas de 1000 x 500 mm RAL 9005.",
+  "Nada se crea hasta que respondas SI a una propuesta."
+].join("\n");
+
+const formatMoney = (value: number): string =>
+  new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR"
+  }).format(value);
+
+const findCustomer = (
+  customers: Customer[],
+  customerName: string | null
+): Customer | null => {
+  if (!customerName) return null;
+  const normalized = normalizeText(customerName);
+  return customers.find((customer) => normalizeText(customer.name) === normalized) ?? null;
+};
+
+const findCustomerCandidates = (
+  customers: Customer[],
+  customerName: string
+): Customer[] => {
+  const normalized = normalizeText(customerName);
+  const exact = customers.filter(
+    (customer) => normalizeText(customer.name) === normalized
+  );
+  if (exact.length > 0) return exact;
+  return customers.filter((customer) => {
+    const candidate = normalizeText(customer.name);
+    return candidate.startsWith(normalized + " ") || normalized.startsWith(candidate + " ");
+  });
+};
+
+const specialPiecesText = (customer: Customer, requestedPage: number): string => {
+  const pieces = sortedSpecialPieces(customer);
+  if (pieces.length === 0) {
+    return `PIEZAS ESPECIALES · ${customer.name}\nEste cliente no tiene piezas especiales.`;
+  }
+
+  const totalPages = Math.ceil(pieces.length / SPECIAL_PIECES_PAGE_SIZE);
+  if (requestedPage > totalPages) {
+    return `La página ${requestedPage} no existe. ${customer.name} tiene ${totalPages} página(s) de piezas especiales.`;
+  }
+  const offset = (requestedPage - 1) * SPECIAL_PIECES_PAGE_SIZE;
+  const lines = pieces
+    .slice(offset, offset + SPECIAL_PIECES_PAGE_SIZE)
+    .map((piece, index) => `${offset + index + 1}. ${piece.name} — ${formatMoney(piece.price)}/ud.`);
+  const next = requestedPage < totalPages
+    ? `\nSiguiente: /especiales ${customer.name} pagina ${requestedPage + 1}`
+    : "";
+  return [
+    `PIEZAS ESPECIALES · ${customer.name}`,
+    ...lines,
+    `Página ${requestedPage}/${totalPages} · ${pieces.length} pieza(s).${next}`
+  ].join("\n");
+};
+
+const sortedSpecialPieces = (customer: Customer): Customer["specialPieces"] =>
+  [...customer.specialPieces].sort((left, right) =>
+    left.name.localeCompare(right.name, "es", { sensitivity: "base" })
+  );
+
+const specialPieceButtons = (
+  customer: Customer,
+  requestedPage: number
+): TelegramAssistantButton[][] => {
+  const pieces = sortedSpecialPieces(customer);
+  const totalPages = Math.max(1, Math.ceil(pieces.length / SPECIAL_PIECES_PAGE_SIZE));
+  if (requestedPage > totalPages) return [];
+
+  const offset = (requestedPage - 1) * SPECIAL_PIECES_PAGE_SIZE;
+  const pieceRows = pieces
+    .slice(offset, offset + SPECIAL_PIECES_PAGE_SIZE)
+    .flatMap((piece) => piece.id
+      ? [[{
+          text: `${piece.name} · ${formatMoney(piece.price)}`.slice(0, 64),
+          callbackData: `special:${piece.id}`
+        }]]
+      : []);
+  const navigation: TelegramAssistantButton[] = [];
+  if (requestedPage > 1) {
+    navigation.push({
+      text: "⬅️ Anterior",
+      callbackData: `special-page:${customer.id}:${requestedPage - 1}`
+    });
+  }
+  if (requestedPage < totalPages) {
+    navigation.push({
+      text: "Siguiente ➡️",
+      callbackData: `special-page:${customer.id}:${requestedPage + 1}`
+    });
+  }
+  return navigation.length > 0 ? [...pieceRows, navigation] : pieceRows;
+};
+
+interface SpecialPieceResolution {
+  piece: Customer["specialPieces"][number] | null;
+  ambiguous: Customer["specialPieces"];
+}
+
+const SPECIAL_SEARCH_STOP_WORDS = new Set([
+  "un", "una", "uno", "el", "la", "los", "las", "de", "del", "ral",
+  "normal", "mate", "texturado", "texturizado", "gofrado", "x", "por"
+]);
+
+const dimensionsInTextPattern =
+  /\b\d+(?:[.,]\d+)?\s*(?:x|\*|por)\s*\d+(?:[.,]\d+)?\b/giu;
+const linearMeasureInTextPattern =
+  /\b\d+(?:[.,]\d+)?\s*(?:mlineal|mlin|ml|metros?|m)\b/giu;
+
+const singularizeSpecialToken = (value: string): string => {
+  if (value.length > 4 && value.endsWith("es")) return value.slice(0, -2);
+  if (value.length > 3 && value.endsWith("s")) return value.slice(0, -1);
+  return value;
+};
+
+const specialSearchTokens = (value: string): string[] =>
+  normalizeText(value.replace(/(\d)\s*[xX*]\s*(?=\d)/g, "$1 "))
+    .split(" ")
+    .filter((token) => token.length > 0 && !SPECIAL_SEARCH_STOP_WORDS.has(token))
+    .map(singularizeSpecialToken);
+
+const ralCodeFromColor = (value: string | null): string | null =>
+  normalizeText(value ?? "").match(/\b(?:ral\s*)?([1-9]\d{3})\b/)?.[1] ?? null;
+
+const sameDimensionToken = (tokens: Set<string>, value: number): boolean =>
+  tokens.has(Number.isInteger(value) ? value.toString() : String(value));
+
+const resolveSpecialPiece = (
+  customer: Customer,
+  item: TelegramDeliveryNoteDraft["items"][number]
+): SpecialPieceResolution => {
+  const exact =
+    customer.specialPieces.find(
+      (piece) =>
+        normalizeSpecialPieceName(piece.name) ===
+        normalizeSpecialPieceName(item.description)
+    ) ?? null;
+  if (exact) return { piece: exact, ambiguous: [] };
+  if (!item.specialPieceIntent) return { piece: null, ambiguous: [] };
+
+  const descriptionWithoutMeasures = item.description
+    .replace(dimensionsInTextPattern, " ")
+    .replace(linearMeasureInTextPattern, " ");
+  const coreTokens = specialSearchTokens(descriptionWithoutMeasures);
+  const colorCode = ralCodeFromColor(item.color);
+  if (coreTokens.length === 0 || !colorCode) {
+    return { piece: null, ambiguous: [] };
+  }
+
+  const scored = customer.specialPieces.flatMap((piece) => {
+    const tokens = new Set(specialSearchTokens(piece.name));
+    if (!coreTokens.every((token) => tokens.has(token)) || !tokens.has(colorCode)) {
+      return [];
+    }
+
+    let score = coreTokens.length * 10 + 10;
+    if (item.widthMm != null && item.heightMm != null) {
+      if (
+        !sameDimensionToken(tokens, item.widthMm) ||
+        !sameDimensionToken(tokens, item.heightMm)
+      ) return [];
+      score += 20;
+    }
+    if (item.linearMeters != null) {
+      const compactName = normalizeText(piece.name).replace(/\s+/g, "");
+      const linearValue = String(item.linearMeters).replace(".", "[.,]?");
+      if (!new RegExp(linearValue + "(?:mlineal|mlin|ml)").test(compactName)) {
+        return [];
+      }
+      score += 20;
+    }
+    return [{ piece, score }];
+  });
+  if (scored.length === 0) return { piece: null, ambiguous: [] };
+
+  const bestScore = Math.max(...scored.map((candidate) => candidate.score));
+  const best = scored
+    .filter((candidate) => candidate.score === bestScore)
+    .map((candidate) => candidate.piece);
+  return best.length === 1
+    ? { piece: best[0] ?? null, ambiguous: [] }
+    : { piece: null, ambiguous: best };
+};
+
+const toDraftItem = (
+  customer: Customer,
+  item: TelegramDeliveryNoteDraft["items"][number]
+): {
+  item: DeliveryNoteItemDraft | null;
+  error: string | null;
+  pricingSource?: "SPECIAL" | "DIMENSIONS";
+} => {
+  if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+    return { item: null, error: `${item.description}: la cantidad debe ser mayor que cero.` };
+  }
+
+  const color = normalizeAgentColor(item.color);
+  if (!color) {
+    return { item: null, error: `${item.description}: falta el color.` };
+  }
+
+  const specialResolution = resolveSpecialPiece(customer, item);
+  const specialPiece = specialResolution.piece;
+
+  if (specialResolution.ambiguous.length > 1) {
+    return {
+      item: null,
+      error:
+        item.description +
+        ": coincide con varias piezas especiales:\n" +
+        specialResolution.ambiguous
+          .slice(0, 5)
+          .map((piece, index) => (index + 1) + ". " + piece.name)
+          .join("\n") +
+        "\nIndica el nombre exacto de la pieza especial."
+    };
+  }
+
+  if (item.specialPieceIntent && !specialPiece) {
+    return {
+      item: null,
+      error: `${item.description}: no coincide con una pieza especial de ${customer.name}.`
+    };
+  }
+
+  return {
+    error: null,
+    item: {
+      description: specialPiece?.name ?? item.description,
+      color,
+      texture: item.texture,
+      pricingMode: "DIMENSIONS",
+      customUnitPrice: null,
+      linearMeters: item.linearMeters,
+      squareMeters: item.squareMeters,
+      widthMm: item.widthMm ?? null,
+      heightMm: item.heightMm ?? null,
+      thickness: item.hasThickness ? 1 : null,
+      primer: item.hasPrimer,
+      quantity: item.quantity,
+      saveAsSpecialPiece: false
+    },
+    pricingSource: specialPiece ? "SPECIAL" : "DIMENSIONS"
+  };
+};
+
+const proposalText = (proposal: TelegramDeliveryNoteProposal): string => {
+  const lines = proposal.lines.map((line, index) => {
+    const measures = [
+      line.item.linearMeters != null ? `${line.item.linearMeters} ml` : null,
+      line.item.squareMeters != null ? `${line.item.squareMeters} m²` : null,
+      line.item.widthMm != null && line.item.heightMm != null
+        ? line.item.widthMm + "×" + line.item.heightMm + " mm"
+        : null,
+      line.item.thickness ? "con grosor" : null,
+      line.item.primer ? "con imprimación" : null
+    ].filter((value): value is string => value !== null);
+
+    return [
+      `${index + 1}. ${line.item.description}`,
+      line.item.color,
+      line.item.texture ?? "NORMAL",
+      line.pricingSource === "SPECIAL" ? "PIEZA ESPECIAL" : null,
+      `${line.item.quantity} ud.`,
+      measures.join(", "),
+      `${formatMoney(line.unitPrice)}/ud.`,
+      `total ${formatMoney(line.totalPrice)}`
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  });
+
+  return [
+    "PROPUESTA DE ALBARÁN",
+    `Cliente: ${proposal.customerName}`,
+    `Fecha: ${proposal.date}`,
+    ...lines,
+    `TOTAL: ${formatMoney(proposal.totalAmount)}`,
+    "",
+    "Confirma con SI por voz o por escrito. Cualquier otro mensaje no crea el albarán."
+  ].join("\n");
+};
+
+const sameMoney = (left: number, right: number): boolean =>
+  Math.round(left * 100) === Math.round(right * 100);
+
+const canonicalDraftItem = (item: DeliveryNoteItemDraft) => ({
+  description: item.description,
+  color: item.color,
+  texture: item.texture ?? "NORMAL",
+  pricingMode: item.pricingMode ?? "DIMENSIONS",
+  customUnitPrice: item.customUnitPrice ?? null,
+  linearMeters: item.linearMeters ?? null,
+  squareMeters: item.squareMeters ?? null,
+  widthMm: item.widthMm ?? null,
+  heightMm: item.heightMm ?? null,
+  thickness: item.thickness ?? null,
+  primer: item.primer ?? false,
+  quantity: item.quantity,
+  saveAsSpecialPiece: item.saveAsSpecialPiece ?? false
+});
+
+const sameDraftItem = (
+  left: DeliveryNoteItemDraft,
+  right: DeliveryNoteItemDraft
+): boolean =>
+  JSON.stringify(canonicalDraftItem(left)) === JSON.stringify(canonicalDraftItem(right));
+
+const deliveryNoteText = (deliveryNote: DeliveryNote): string => {
+  const lines = deliveryNote.items.map((item, index) => {
+    const measures = [
+      item.linearMeters != null ? `${item.linearMeters} ml/ud.` : null,
+      item.squareMeters != null ? `${item.squareMeters} m²/ud.` : null,
+      item.widthMm != null && item.heightMm != null
+        ? `${item.widthMm}×${item.heightMm} mm`
+        : null,
+      item.thickness ? "con grosor" : null,
+      item.primer ? "con imprimación" : null
+    ].filter((value): value is string => value !== null);
+
+    return [
+      `${index + 1}. ${item.description}`,
+      item.color,
+      item.texture,
+      `${item.quantity} ud.`,
+      measures.join(", "),
+      `${formatMoney(item.unitPrice)}/ud.`,
+      `total ${formatMoney(item.totalPrice)}`
+    ].filter(Boolean).join(" · ");
+  });
+
+  return [
+    "ALBARÁN CREADO",
+    `Número: ${deliveryNote.number}`,
+    `Cliente: ${deliveryNote.customerName}`,
+    `Fecha: ${deliveryNote.date.toISOString().slice(0, 10)}`,
+    `Estado: ${deliveryNote.status}`,
+    ...lines,
+    `TOTAL: ${formatMoney(deliveryNote.totalAmount)}`
+  ].join("\n");
+};
+
+const creationMatchesProposal = (
+  deliveryNote: DeliveryNote,
+  proposal: TelegramDeliveryNoteProposal
+): boolean => {
+  if (
+    deliveryNote.customerId !== proposal.customerId ||
+    deliveryNote.customerName !== proposal.customerName ||
+    deliveryNote.status !== "DRAFT" ||
+    deliveryNote.date.toISOString().slice(0, 10) !== proposal.date ||
+    (deliveryNote.notes ?? null) !== proposal.notes ||
+    deliveryNote.items.length !== proposal.lines.length ||
+    !sameMoney(deliveryNote.totalAmount, proposal.totalAmount)
+  ) return false;
+
+  return deliveryNote.items.every((item, index) => {
+    const proposed = proposal.lines[index];
+    if (!proposed) return false;
+    const persistedDraft: DeliveryNoteItemDraft = {
+      description: item.description,
+      color: item.color,
+      texture: item.texture,
+      pricingMode: item.pricingMode,
+      customUnitPrice: item.customUnitPrice ?? null,
+      linearMeters: item.linearMeters ?? null,
+      squareMeters: item.squareMeters ?? null,
+      widthMm: item.widthMm ?? null,
+      heightMm: item.heightMm ?? null,
+      thickness: item.thickness ?? null,
+      primer: item.primer ?? false,
+      quantity: item.quantity,
+      saveAsSpecialPiece: false
+    };
+    const expected = {
+      ...proposed.item,
+      description: proposed.item.description.trim().toLocaleUpperCase("es-ES"),
+      color: proposed.item.color.trim().toLocaleUpperCase("es-ES")
+    };
+    return sameDraftItem(persistedDraft, expected) &&
+      sameMoney(item.unitPrice, proposed.unitPrice) &&
+      sameMoney(item.totalPrice, proposed.totalPrice);
+  });
+};
+
+const SPANISH_INTEGERS: Readonly<Record<string, number>> = {
+  cero: 0,
+  un: 1,
+  una: 1,
+  uno: 1,
+  dos: 2,
+  tres: 3,
+  cuatro: 4,
+  cinco: 5,
+  seis: 6,
+  siete: 7,
+  ocho: 8,
+  nueve: 9,
+  diez: 10
+};
+
+const parsePositiveInteger = (value: string | undefined): number | null => {
+  if (!value) return null;
+  const normalized = normalizeText(value);
+  const parsed = /^\d+$/.test(normalized)
+    ? Number.parseInt(normalized, 10)
+    : SPANISH_INTEGERS[normalized];
+  return parsed != null && Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
+const parseSpecialPieceQuantity = (value: string): number | null => {
+  const normalized = normalizeText(value);
+  const match = normalized.match(
+    /^(?:cantidad\s+)?(\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)(?:\s+(?:ud|uds|unidad|unidades))?$/
+  );
+  return parsePositiveInteger(match?.[1]);
+};
+
+const specialColorsPattern = SPECIAL_DELIVERY_NOTE_COLORS
+  .map((color) => color.replace(/\s+/g, "\\s+"))
+  .join("|");
+
+const normalizeAgentColor = (value: string | null): string | null =>
+  normalizeDeliveryNoteColor(value);
+
+const extractRequestedColor = (value: string): string | null => {
+  const normalized = normalizeText(value);
+  const specialColor = findSpecialDeliveryNoteColor(normalized);
+  if (specialColor) return specialColor;
+  const ralMatches = [...normalized.matchAll(/\bral\s*(\d{4})\b/g)];
+  const lastRal = ralMatches.at(-1);
+  if (lastRal?.[1]) return `RAL ${lastRal[1]}`;
+  const numericRal = normalized.match(/\b([1-9]\d{3})\b/);
+  if (numericRal?.[1]) return `RAL ${numericRal[1]}`;
+  if (/\b(?:blanco|blanca)\b/.test(normalized)) return "RAL 9010";
+  if (/\b(?:negro|negra)\b/.test(normalized)) return "RAL 9005";
+  return null;
+};
+
+const extractRequestedTexture = (
+  value: string
+): TelegramDeliveryNoteDraft["items"][number]["texture"] | null => {
+  const normalized = normalizeText(value);
+  if (/\b(?:texturado|texturizado)\b/.test(normalized)) return "TEXTURADO";
+  if (/\b(?:gofrado|gof)\b/.test(normalized)) return "GOFRADO";
+  if (/\bmate\b/.test(normalized)) return "MATE";
+  if (/\bnormal\b/.test(normalized)) return "NORMAL";
+  return null;
+};
+
+const isShortTextureCorrection = (value: string): boolean => {
+  const normalized = normalizeText(value);
+  const residue = normalized
+    .replace(/\b(?:ral\s*)?[1-9]\d{3}\b/g, " ")
+    .replace(/\b(?:texturado|texturizado|gofrado|gof|mate|normal)\b/g, " ")
+    .replace(/\b(?:y|el|la|color|acabado|es|pon|cambia|cambiar|a)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return residue.length === 0;
+};
+
+const isShortColorCorrection = (value: string): boolean => {
+  const normalized = normalizeText(value);
+  const residue = normalized
+    .replace(new RegExp(`\\b(?:ral\\s+)?(?:${specialColorsPattern})\\b`, "giu"), " ")
+    .replace(/\bral\s*[1-9]\d{3}\b/g, " ")
+    .replace(/\b[1-9]\d{3}\b/g, " ")
+    .replace(/\b(?:negro|negra|blanco|blanca)\b/g, " ")
+    .replace(/\b(?:el|la|color|es|pon|cambia|cambiar|a)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return residue.length === 0;
+};
+
+const hasUnresolvedDraftMutationIntent = (value: string): boolean =>
+  /\b(?:anula|anular|borra|borrar|cambia|cambiar|corrige|corregir|elimina|eliminar|quita|quitar)\b/.test(
+    normalizeText(value)
+  ) || /^\s*faltan\s+datos\b/i.test(value);
+
+const withoutCommonColor = (description: string): string =>
+  description
+    .replace(new RegExp(`\\b(?:RAL\\s+)?(?:${specialColorsPattern})\\b`, "giu"), " ")
+    .replace(/\b(?:NEGRO|NEGRA|BLANCO|BLANCA|ROJO|ROJA|ROJOS|ROJAS)\b/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const containsNegativeQuantity = (value: string): boolean =>
+  /(?:^|\s)-\s*\d+\b/.test(value) ||
+  /\bmenos\s+(?:\d+|un|una|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/i.test(value);
+
+const sanitizeAgentItem = (
+  item: TelegramDeliveryNoteDraft["items"][number]
+): TelegramDeliveryNoteDraft["items"][number] => {
+  const description = withoutCommonColor(item.description);
+  return {
+    ...item,
+    description: description || item.description.trim(),
+    color: normalizeAgentColor(item.color),
+    pricingMode: "DIMENSIONS",
+    customUnitPrice: null,
+    saveAsSpecialPiece: false
+  };
+};
+
+const singularSearchTerm = (value: string): string => {
+  if (value.endsWith("les")) return value.slice(0, -2);
+  if (value.endsWith("es")) return value.slice(0, -2);
+  if (value.endsWith("s")) return value.slice(0, -1);
+  return value;
+};
+
+export class TelegramDeliveryNoteAssistant {
+  public constructor(
+    private readonly sessions: TelegramDeliveryNoteSessionRepository,
+    private readonly customers: CustomerLookup,
+    private readonly parser: VoiceParser,
+    private readonly calculatePrice: PriceCalculator,
+    private readonly createDeliveryNote: DeliveryNoteCreator,
+    private readonly options: TelegramDeliveryNoteAssistantOptions
+  ) {}
+
+  public async handle(input: TelegramAssistantInput): Promise<string[]> {
+    const session = await this.sessions.getOrCreate(input.chatId, input.userId);
+    if (input.updateId <= session.lastUpdateId) return [];
+
+    if (isReset(input.text)) {
+      await this.sessions.reset(input.chatId, input.userId, input.updateId);
+      return [
+        "Borrador nuevo. Dicta el cliente y las piezas. Cuando termines, escribe YA ESTÁ."
+      ];
+    }
+
+    if (isRejection(input.text)) {
+      await this.sessions.reset(input.chatId, input.userId, input.updateId);
+      return ["Propuesta y borrador cancelados. Puedes dictar un albarán nuevo."];
+    }
+
+    if (isHelp(input.text)) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [HELP_TEXT];
+    }
+
+    const specialPiecesQuery = parseSpecialPiecesQuery(input.text);
+    if (specialPiecesQuery) {
+      return this.listSpecialPieces(session, input.updateId, specialPiecesQuery);
+    }
+
+    if (session.status === "COLLECTING" && session.draft.pendingSpecialPiece) {
+      return this.completeSpecialPieceSelection(session, input);
+    }
+
+    if (isConfirmation(input.text)) {
+      return this.confirm(session, input.updateId);
+    }
+
+    if (isFinish(input.text)) {
+      return this.prepare(session, input.updateId);
+    }
+
+    if (session.status === "PROPOSAL_READY") {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [
+        "Hay una propuesta pendiente. Responde SI para confirmarla o /new para descartarla y empezar de nuevo."
+      ];
+    }
+
+    if (session.status !== "COLLECTING") {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return ["Este flujo ya terminó o quedó bloqueado. Envía /new para empezar otro."];
+    }
+
+    if (containsNegativeQuantity(input.text)) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return ["La cantidad debe ser mayor que cero. Indica una cantidad positiva."];
+    }
+
+    const draftCommand = await this.tryHandleDraftCommand(session, input);
+    if (draftCommand) return draftCommand;
+
+    if (hasUnresolvedDraftMutationIntent(input.text)) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [
+        "No pude identificar con seguridad qué línea quieres corregir o eliminar. " +
+        "No he añadido ninguna línea. Indica una única pieza y el cambio que necesita."
+      ];
+    }
+
+    try {
+      const parsed = await this.parser.execute(input.text);
+      const draft: TelegramDeliveryNoteDraft = {
+        customerName: parsed.customerName ?? session.draft.customerName,
+        date: parsed.date ?? session.draft.date,
+        notes: parsed.notes ?? session.draft.notes,
+        items: [
+          ...session.draft.items.map(sanitizeAgentItem),
+          ...parsed.items.map(sanitizeAgentItem)
+        ]
+      };
+      await this.sessions.saveDraft(session.id, input.updateId, draft);
+      return [
+        `Anotado: ${draft.items.length} línea(s)${draft.customerName ? ` para ${draft.customerName}` : ""}. Envía más piezas o escribe YA ESTÁ.`
+      ];
+    } catch (error: unknown) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      if (error instanceof VoiceExtractionIntegrityError) {
+        return [
+          "No he añadido ninguna línea porque la extracción perdió o cambió datos del audio. " +
+          "Divide el audio en mensajes más cortos y vuelve a enviarlo."
+        ];
+      }
+      return [
+        "No pude convertir ese mensaje en una pieza. Repítelo indicando descripción, color, cantidad y medidas. El precio lo calcula la API."
+      ];
+    }
+  }
+
+
+  public async handleParsedOrder(input: TelegramParsedOrderInput): Promise<string[]> {
+    const session = await this.sessions.getOrCreate(input.chatId, input.userId);
+    if (input.updateId <= session.lastUpdateId) return [];
+
+    if (session.status === "PROPOSAL_READY") {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [
+        "Hay una propuesta pendiente. Responde SI para confirmarla o /new para descartarla."
+      ];
+    }
+    if (session.status !== "COLLECTING") {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return ["No hay un borrador abierto. Envía /new para empezar otro."];
+    }
+
+    const draft: TelegramDeliveryNoteDraft = {
+      customerName: input.parsed.customerName ?? session.draft.customerName,
+      date: input.parsed.date ?? session.draft.date,
+      notes: input.parsed.notes ?? session.draft.notes,
+      items: [
+        ...session.draft.items.map(sanitizeAgentItem),
+        ...input.parsed.items.map(sanitizeAgentItem)
+      ]
+    };
+    await this.sessions.saveDraft(session.id, input.updateId, draft);
+    return [
+      `Anotado desde la imagen: ${draft.items.length} línea(s)${draft.customerName ? ` para ${draft.customerName}` : ""}. Revisa lo leído y escribe YA ESTÁ.`
+    ];
+  }
+  public async getSpecialPieceButtons(
+    input: TelegramAssistantInput
+  ): Promise<TelegramAssistantButton[][] | null> {
+    const query = parseSpecialPiecesQuery(input.text);
+    if (!query) return null;
+    const session = await this.sessions.getOrCreate(input.chatId, input.userId);
+    const requestedName = query.customerName ?? session.draft.customerName;
+    if (!requestedName) return null;
+    const customers = await this.customers.findAll();
+    const candidates = findCustomerCandidates(customers, requestedName);
+    const customer = candidates.length === 1 ? candidates[0] : null;
+    if (!customer) return null;
+
+    return specialPieceButtons(customer, query.page);
+  }
+
+  public async getSpecialPiecesPage(
+    customerId: string,
+    requestedPage: number
+  ): Promise<{ text: string; buttons: TelegramAssistantButton[][] } | null> {
+    const customers = await this.customers.findAll();
+    const customer = customers.find((candidate) => candidate.id === customerId);
+    if (!customer) return null;
+
+    const totalPages = Math.max(
+      1,
+      Math.ceil(customer.specialPieces.length / SPECIAL_PIECES_PAGE_SIZE)
+    );
+    if (!Number.isInteger(requestedPage) || requestedPage < 1 || requestedPage > totalPages) {
+      return null;
+    }
+    return {
+      text: specialPiecesText(customer, requestedPage),
+      buttons: specialPieceButtons(customer, requestedPage)
+    };
+  }
+
+  public async selectSpecialPiece(
+    input: Omit<TelegramAssistantInput, "text"> & { pieceId: string }
+  ): Promise<string[]> {
+    const session = await this.sessions.getOrCreate(input.chatId, input.userId);
+    if (input.updateId <= session.lastUpdateId) return [];
+    if (session.status !== "COLLECTING") {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [
+        session.status === "PROPOSAL_READY"
+          ? "Hay una propuesta pendiente. Cancélala con NO antes de añadir otra pieza."
+          : "No hay un borrador abierto. Envía /new para empezar."
+      ];
+    }
+
+    const customers = await this.customers.findAll();
+    const owner = customers.find((customer) =>
+      customer.specialPieces.some((piece) => piece.id === input.pieceId)
+    );
+    const piece = owner?.specialPieces.find((candidate) => candidate.id === input.pieceId);
+    if (!owner || !piece) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return ["Esa pieza especial ya no está disponible. Vuelve a abrir /especiales."];
+    }
+
+    const currentCustomer = findCustomer(customers, session.draft.customerName);
+    if (session.draft.customerName && currentCustomer?.id !== owner.id) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return [
+        `La pieza pertenece a ${owner.name}, pero el borrador es de ${session.draft.customerName}.`
+      ];
+    }
+
+    await this.sessions.saveDraft(session.id, input.updateId, {
+      ...session.draft,
+      customerName: owner.name,
+      pendingSpecialPiece: {
+        customerId: owner.id,
+        pieceId: input.pieceId
+      },
+      items: session.draft.items.map(sanitizeAgentItem)
+    });
+    return [
+      `Seleccionada: ${piece.name}. ¿Qué cantidad quieres añadir? Responde, por ejemplo, 5 o cinco unidades.`
+    ];
+  }
+
+  private async completeSpecialPieceSelection(
+    session: TelegramDeliveryNoteSession,
+    input: TelegramAssistantInput
+  ): Promise<string[]> {
+    const quantity = parseSpecialPieceQuantity(input.text);
+    if (!quantity) {
+      await this.sessions.markProcessed(session.id, input.updateId);
+      return ["Indica una cantidad entera mayor que cero, por ejemplo: 5 o cinco unidades."];
+    }
+
+    const pending = session.draft.pendingSpecialPiece;
+    if (!pending) return [];
+    const customers = await this.customers.findAll();
+    const owner = customers.find((customer) => customer.id === pending.customerId);
+    const piece = owner?.specialPieces.find((candidate) => candidate.id === pending.pieceId);
+    if (!owner || !piece) {
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        pendingSpecialPiece: null
+      });
+      return ["Esa pieza especial ya no está disponible. Vuelve a abrir /especiales."];
+    }
+
+    const currentCustomer = findCustomer(customers, session.draft.customerName);
+    if (currentCustomer?.id !== owner.id) {
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        pendingSpecialPiece: null
+      });
+      return ["El cliente del borrador cambió. Vuelve a seleccionar la pieza con /especiales."];
+    }
+
+    const color = extractRequestedColor(piece.name);
+    const item: TelegramDeliveryNoteDraft["items"][number] = {
+      description: piece.name,
+      color,
+      specialPieceIntent: true,
+      customUnitPrice: null,
+      pricingMode: "DIMENSIONS",
+      texture: extractRequestedTexture(piece.name) ?? "NORMAL",
+      linearMeters: null,
+      squareMeters: null,
+      hasThickness: false,
+      hasPrimer: false,
+      saveAsSpecialPiece: false,
+      quantity
+    };
+    await this.sessions.saveDraft(session.id, input.updateId, {
+      ...session.draft,
+      customerName: owner.name,
+      pendingSpecialPiece: null,
+      items: [...session.draft.items.map(sanitizeAgentItem), item]
+    });
+    return [
+      `Añadido: ${piece.name} (${quantity} ud.) para ${owner.name}.` +
+      (color ? " Puedes seguir añadiendo piezas o escribir YA ESTÁ." : " Falta indicar el color antes de terminar.")
+    ];
+  }
+
+  private async listSpecialPieces(
+    session: TelegramDeliveryNoteSession,
+    updateId: number,
+    query: SpecialPiecesQuery
+  ): Promise<string[]> {
+    const requestedName = query.customerName ?? session.draft.customerName;
+    if (!requestedName) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return ["Indica el cliente: /especiales Nombre del cliente"];
+    }
+
+    const customers = await this.customers.findAll();
+    const candidates = findCustomerCandidates(customers, requestedName);
+    if (candidates.length === 0) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return [`No encontré el cliente "${requestedName}". Indica su nombre exacto.`];
+    }
+    if (candidates.length > 1) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return [
+        "Encontré varios clientes:\n" +
+        candidates.slice(0, 10).map((customer) => `- ${customer.name}`).join("\n") +
+        "\nRepite /especiales con el nombre exacto."
+      ];
+    }
+
+    const customer = candidates[0];
+    if (!customer) return [];
+    await this.sessions.markProcessed(session.id, updateId);
+    return [specialPiecesText(customer, query.page)];
+  }
+
+  private async tryHandleDraftCommand(
+    session: TelegramDeliveryNoteSession,
+    input: TelegramAssistantInput
+  ): Promise<string[] | null> {
+    const normalized = normalizeText(input.text);
+    const items = session.draft.items.map(sanitizeAgentItem);
+
+    const removeMissingColorLines =
+      /^(?:anula|anular|borra|borrar|elimina|eliminar|quita|quitar)\b/.test(normalized) &&
+      /\blineas\b/.test(normalized) &&
+      /\bfalta\w*\b.*\bcolor\b/.test(normalized);
+    if (removeMissingColorLines) {
+      const remaining = items.filter((item) => normalizeAgentColor(item.color) !== null);
+      const removedCount = items.length - remaining.length;
+      if (removedCount === 0) {
+        await this.sessions.markProcessed(session.id, input.updateId);
+        return ["No hay líneas pendientes de color para eliminar."];
+      }
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        items: remaining
+      });
+      return [
+        `${removedCount} línea(s) sin color eliminada(s). Quedan ${remaining.length} línea(s) en el borrador.`
+      ];
+    }
+
+    const availableCustomers = await this.customers.findAll();
+    const draftCustomer = findCustomer(availableCustomers, session.draft.customerName);
+    const selectedSpecialPiece =
+      draftCustomer?.specialPieces.find(
+        (piece) =>
+          normalizeSpecialPieceName(piece.name) ===
+          normalizeSpecialPieceName(input.text)
+      ) ?? null;
+    if (draftCustomer && selectedSpecialPiece) {
+      const candidates = items
+        .map((item, index) => ({ item, index, resolution: resolveSpecialPiece(draftCustomer, item) }))
+        .filter(({ resolution }) =>
+          resolution.ambiguous.some(
+            (piece) =>
+              normalizeSpecialPieceName(piece.name) ===
+              normalizeSpecialPieceName(selectedSpecialPiece.name)
+          )
+        );
+      if (candidates.length === 1) {
+        const target = candidates[0];
+        if (!target) return null;
+        items[target.index] = {
+          ...target.item,
+          description: selectedSpecialPiece.name,
+          specialPieceIntent: true
+        };
+        await this.sessions.saveDraft(session.id, input.updateId, {
+          ...session.draft,
+          items
+        });
+        return ["Pieza especial seleccionada: " + selectedSpecialPiece.name + "."];
+      }
+    }
+
+    const quantityCommand = normalized.match(
+      /\b(?:cambia|corrige|pon|establece)\b.*\bcantidad\b(?:\s+de\s+(\w+))?\s+a\s+(\w+)/
+    );
+    if (quantityCommand) {
+      const previousQuantity = parsePositiveInteger(quantityCommand[1]);
+      const nextQuantity = parsePositiveInteger(quantityCommand[2]);
+      if (!nextQuantity) {
+        await this.sessions.markProcessed(session.id, input.updateId);
+        return ["La cantidad debe ser un número entero mayor que cero."];
+      }
+      const candidates = items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => previousQuantity == null || item.quantity === previousQuantity);
+      if (candidates.length !== 1) {
+        await this.sessions.markProcessed(session.id, input.updateId);
+        return ["No sé qué línea corregir. Indica también la descripción de la pieza."];
+      }
+      const target = candidates[0];
+      if (!target) return null;
+      items[target.index] = { ...target.item, quantity: nextQuantity };
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        items
+      });
+      return [`Cantidad corregida a ${nextQuantity} en ${target.item.description}.`];
+    }
+
+    {
+      const requestedColor = extractRequestedColor(input.text);
+      const missingColorCandidates = items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => normalizeAgentColor(item.color) === null);
+      const namedMissingColorCandidates = requestedColor
+        ? missingColorCandidates.filter(({ item }) =>
+            normalized.includes(normalizeText(item.description))
+          )
+        : [];
+      const shortColorTarget =
+        requestedColor &&
+        isShortColorCorrection(input.text) &&
+        missingColorCandidates.length === 1
+          ? missingColorCandidates[0]
+          : null;
+      const namedColorTarget =
+        namedMissingColorCandidates.length === 1 ? namedMissingColorCandidates[0] : null;
+      const colorTarget = namedColorTarget ?? shortColorTarget;
+      if (requestedColor && colorTarget) {
+        items[colorTarget.index] = {
+          ...colorTarget.item,
+          color: requestedColor,
+          description: withoutCommonColor(colorTarget.item.description)
+        };
+        await this.sessions.saveDraft(session.id, input.updateId, {
+          ...session.draft,
+          items
+        });
+        return [`Color corregido a ${requestedColor} en ${colorTarget.item.description}.`];
+      }
+    }
+
+    const requestedTexture = extractRequestedTexture(input.text);
+    if (requestedTexture && isShortTextureCorrection(input.text) && items.length > 0) {
+      const requestedColor = extractRequestedColor(input.text);
+      const candidates = items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) =>
+          requestedColor == null || normalizeAgentColor(item.color) === requestedColor
+        );
+      const target = candidates.length === 1
+        ? candidates[0]
+        : items.length === 1
+          ? { item: items[0]!, index: 0 }
+          : null;
+      if (!target) {
+        await this.sessions.markProcessed(session.id, input.updateId);
+        return ["No sé qué línea necesita ese acabado. Indica también la descripción de la pieza."];
+      }
+      items[target.index] = {
+        ...target.item,
+        color: requestedColor ?? target.item.color,
+        texture: requestedTexture
+      };
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        items
+      });
+      return [
+        `Acabado corregido a ${requestedTexture} en ${target.item.description}.`
+      ];
+    }
+
+    if (/\bcolor\b/.test(normalized)) {
+      const requestedColor = extractRequestedColor(input.text);
+      const oldColorWord = normalized.match(/\bno\s+es\s+(\w+)/)?.[1];
+      const oldColor = oldColorWord ? normalizeAgentColor(oldColorWord) : null;
+      const candidates = items
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) =>
+          oldColor ? normalizeAgentColor(item.color) === oldColor : item.color == null
+        );
+      const target = candidates.length === 1
+        ? candidates[0]
+        : items.length === 1
+          ? { item: items[0]!, index: 0 }
+          : null;
+      if (requestedColor && target) {
+        items[target.index] = {
+          ...target.item,
+          color: requestedColor,
+          description: withoutCommonColor(target.item.description)
+        };
+        await this.sessions.saveDraft(session.id, input.updateId, {
+          ...session.draft,
+          items
+        });
+        return [`Color corregido a ${requestedColor} en ${target.item.description}.`];
+      }
+      if (requestedColor && candidates.length === 0) {
+        await this.sessions.markProcessed(session.id, input.updateId);
+        return ["No sé qué línea necesita ese color. Indica también la descripción de la pieza."];
+      }
+    }
+
+    const removeCommand = normalized.match(
+      /^\b(?:anula|anular|borra|borrar|quita|quitar|elimina|eliminar)\b\s+(?:los|las|el|la)?\s*(\w+)/
+    );
+    if (removeCommand?.[1]) {
+      const term = singularSearchTerm(removeCommand[1]);
+      const remaining = items.filter(
+        (item) => !normalizeText(item.description).includes(term)
+      );
+      if (remaining.length === items.length) {
+        await this.sessions.markProcessed(session.id, input.updateId);
+        return [`No encontré ninguna línea que coincida con "${removeCommand[1]}".`];
+      }
+      await this.sessions.saveDraft(session.id, input.updateId, {
+        ...session.draft,
+        items: remaining
+      });
+      return [`Línea eliminada. Quedan ${remaining.length} línea(s) en el borrador.`];
+    }
+
+    const customerCommand = normalized.match(
+      /^\b(?:cambia|corrige|pon)\b(?:\s+el)?\s+cliente(?:\s+a)?\s+(.+)$/
+    );
+    const customerOnly = normalized.match(
+      /^(?:el\s+)?cliente(?:\s+correcto)?\s+es\s+(.+)$/
+    );
+    {
+      const customers = availableCustomers;
+      const requestedName = customerCommand?.[1] ?? customerOnly?.[1] ?? normalized;
+      const exactCustomer = customers.find(
+        (candidate) => normalizeText(candidate.name) === normalized
+      );
+      const requestedCustomer = customers.find(
+        (candidate) => normalizeText(candidate.name) === normalizeText(requestedName)
+      );
+      const currentCustomer = findCustomer(customers, session.draft.customerName);
+      const mentionedCustomers =
+        session.draft.customerName != null && currentCustomer == null
+          ? customers.filter((candidate) =>
+              ` ${normalized} `.includes(` ${normalizeText(candidate.name)} `)
+            )
+          : [];
+      const mentionedCustomer =
+        mentionedCustomers.length === 1 ? mentionedCustomers[0] : null;
+      const customer = exactCustomer ?? requestedCustomer ?? mentionedCustomer;
+      if (customer) {
+        await this.sessions.saveDraft(session.id, input.updateId, {
+          ...session.draft,
+          customerName: customer.name,
+          items
+        });
+        return [`Cliente corregido a ${customer.name}. Se conservaron ${items.length} línea(s).`];
+      }
+      if (customerCommand?.[1] || customerOnly?.[1]) {
+        await this.sessions.markProcessed(session.id, input.updateId);
+        return ["No encontré ese cliente. Indica su nombre exacto sin borrar las piezas."];
+      }
+    }
+
+    return null;
+  }
+
+  private async prepare(
+    session: TelegramDeliveryNoteSession,
+    updateId: number
+  ): Promise<string[]> {
+    if (session.status !== "COLLECTING") {
+      await this.sessions.markProcessed(session.id, updateId);
+      return ["No hay un borrador abierto. Envía /new para empezar."];
+    }
+    if (session.draft.items.length === 0) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return ["El borrador no contiene piezas todavía."];
+    }
+
+    const customers = await this.customers.findAll();
+    const customer = findCustomer(customers, session.draft.customerName);
+    if (!customer) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return [
+        "No pude identificar un único cliente. Indica ahora su nombre exacto; conservaré las piezas del borrador."
+      ];
+    }
+
+    const items: DeliveryNoteItemDraft[] = [];
+    const pricingSources: Array<"SPECIAL" | "DIMENSIONS"> = [];
+    const errors: string[] = [];
+    for (const parsedItem of session.draft.items) {
+      const resolved = toDraftItem(customer, sanitizeAgentItem(parsedItem));
+      if (resolved.error) errors.push(resolved.error);
+      if (resolved.item) {
+        items.push(resolved.item);
+        pricingSources.push(resolved.pricingSource ?? "DIMENSIONS");
+      }
+    }
+    if (errors.length > 0) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return ["Faltan datos:\n" + errors.map((error) => `- ${error}`).join("\n")];
+    }
+
+    const lines = items.map((item, index) => ({
+      item,
+      pricingSource: pricingSources[index] ?? "DIMENSIONS",
+      ...this.calculatePrice.execute(item, customer)
+    }));
+    const totalAmount =
+      Math.round(lines.reduce((sum, line) => sum + line.totalPrice, 0) * 100) / 100;
+    const proposal: TelegramDeliveryNoteProposal = {
+      customerId: customer.id,
+      customerName: customer.name,
+      date: session.draft.date ?? new Date().toISOString().slice(0, 10),
+      notes: session.draft.notes,
+      lines,
+      totalAmount,
+      preparedAt: new Date().toISOString()
+    };
+    const text = proposalText(proposal);
+    await this.sessions.saveProposal(
+      session.id,
+      updateId,
+      proposal,
+      text,
+      new Date(Date.now() + this.options.proposalTtlMs)
+    );
+    return [text];
+  }
+
+  private async confirm(
+    session: TelegramDeliveryNoteSession,
+    updateId: number
+  ): Promise<string[]> {
+    if (
+      session.status !== "PROPOSAL_READY" ||
+      !session.proposal ||
+      !session.proposalExpiresAt ||
+      session.proposalExpiresAt.getTime() <= Date.now()
+    ) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return ["No hay una propuesta vigente para confirmar. Envía YA ESTÁ o /new."];
+    }
+
+    if (!this.options.writesEnabled) {
+      await this.sessions.markProcessed(session.id, updateId);
+      return [
+        "Confirmación validada en modo simulación de staging. No se creó ningún albarán."
+      ];
+    }
+
+    const claimed = await this.sessions.claimProposalForCreation(
+      session.id,
+      updateId,
+      new Date()
+    );
+    if (!claimed?.proposal) {
+      return ["La propuesta ya fue utilizada, expiró o está siendo procesada. No se reintentará."];
+    }
+
+    try {
+      const proposal = claimed.proposal;
+      const customer = await this.customers.findById(proposal.customerId);
+      if (!customer || customer.name !== proposal.customerName) {
+        await this.sessions.markBlocked(claimed.id);
+        return ["El cliente cambió desde la propuesta. No se creó nada; envía /new."];
+      }
+
+      const draftItems: DeliveryNoteItemDraft[] = [];
+      let draftHasErrors = false;
+      for (const sourceItem of claimed.draft.items) {
+        const resolved = toDraftItem(customer, sanitizeAgentItem(sourceItem));
+        if (!resolved.item || resolved.error) {
+          draftHasErrors = true;
+          break;
+        }
+        draftItems.push(resolved.item);
+      }
+      const effectiveDraftDate =
+        claimed.draft.date ?? new Date(proposal.preparedAt).toISOString().slice(0, 10);
+      const proposalTotal = Math.round(
+        proposal.lines.reduce((sum, line) => sum + line.totalPrice, 0) * 100
+      ) / 100;
+      const draftMatchesProposal =
+        !draftHasErrors &&
+        claimed.draft.customerName === proposal.customerName &&
+        effectiveDraftDate === proposal.date &&
+        claimed.draft.notes === proposal.notes &&
+        draftItems.length === proposal.lines.length &&
+        draftItems.every((item, index) => {
+          const line = proposal.lines[index];
+          return line != null && sameDraftItem(item, line.item);
+        }) &&
+        sameMoney(proposalTotal, proposal.totalAmount);
+      if (!draftMatchesProposal) {
+        await this.sessions.markBlocked(claimed.id);
+        return [
+          "El borrador ya no coincide exactamente con la propuesta. No se creó nada; prepara una nueva."
+        ];
+      }
+
+      const safeItems = proposal.lines.map((line) => ({
+        ...line.item,
+        pricingMode: "DIMENSIONS" as const,
+        customUnitPrice: null,
+        saveAsSpecialPiece: false
+      }));
+      if (!safeItems.every((item, index) => sameDraftItem(item, proposal.lines[index]!.item))) {
+        await this.sessions.markBlocked(claimed.id);
+        return ["El payload final no coincide con la propuesta. No se creó nada; prepara una nueva."];
+      }
+      const repriced = safeItems.map((item) =>
+        this.calculatePrice.execute(item, customer)
+      );
+      const pricesChanged = repriced.some(
+        (price, index) =>
+          !sameMoney(price.unitPrice, proposal.lines[index]!.unitPrice) ||
+          !sameMoney(price.totalPrice, proposal.lines[index]!.totalPrice)
+      );
+      if (pricesChanged) {
+        await this.sessions.markBlocked(claimed.id);
+        return ["Los precios cambiaron desde la propuesta. No se creó nada; prepara una nueva."];
+      }
+
+      const deliveryNote = await this.createDeliveryNote.execute({
+        customerId: customer.id,
+        date: new Date(proposal.date),
+        notes: proposal.notes,
+        status: "DRAFT",
+        items: safeItems
+      });
+      if (!creationMatchesProposal(deliveryNote, proposal)) {
+        await this.sessions.markBlocked(claimed.id);
+        return [
+          `${deliveryNote.number} se creó, pero su lectura de verificación no coincide con la propuesta. El flujo quedó bloqueado.`
+        ];
+      }
+      await this.sessions.markCreated(claimed.id, deliveryNote.id);
+      return [deliveryNoteText(deliveryNote)];
+    } catch {
+      await this.sessions.markBlocked(claimed.id);
+      return [
+        "La creación no pudo verificarse. El flujo quedó bloqueado y no se reintentará automáticamente."
+      ];
+    }
+  }
+}

@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { DomainException } from "../domain/exceptions/DomainException.js";
 import type { ParsedVoiceAlbaran } from "../domain/ports/VoiceAlbaranParser.js";
+import { normalizeDeliveryNoteColor } from "../domain/services/deliveryNoteColor.js";
+import { isKnownRalCode } from "../domain/services/ralColorCodes.js";
 
 const parsedVoiceTextureSchema = z.enum(["NORMAL", "MATE", "TEXTURADO", "GOFRADO"]);
 const parsedVoicePricingModeSchema = z.enum(["DIMENSIONS", "UNIT"]);
@@ -72,31 +74,6 @@ const llmBooleanSchema = z
     return false;
   });
 
-const normalizeVoiceColor = (value: string | null): string | null => {
-  if (!value) {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const numericCandidate = trimmed.replace(/\D/g, "");
-  if (numericCandidate) {
-    if (numericCandidate.length === 4) {
-      return `RAL ${numericCandidate}`;
-    }
-
-    if (numericCandidate.length === 5 && numericCandidate[1] === "0") {
-      return `RAL ${numericCandidate[0]}${numericCandidate.slice(-3)}`;
-    }
-
-    return null;
-  }
-
-  return trimmed;
-};
 
 const normalizeVoiceText = (value: string | null): string | null => {
   if (!value) {
@@ -105,6 +82,47 @@ const normalizeVoiceText = (value: string | null): string | null => {
 
   const trimmed = value.trim();
   return trimmed ? uppercaseSpanish(trimmed) : null;
+};
+
+const texturePattern = (texture: "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO") => {
+  switch (texture) {
+    case "MATE":
+      return /\bMATE\b/iu;
+    case "TEXTURADO":
+      return /\bTEXT(?:UR(?:ADO|IZADO|ARO))?\b/iu;
+    case "GOFRADO":
+      return /\bGOF(?:RADO)?\b/iu;
+    default:
+      return null;
+  }
+};
+
+const inferKnownRalColor = (
+  description: string,
+  texture: "NORMAL" | "MATE" | "TEXTURADO" | "GOFRADO"
+): { color: string; description: string } | null => {
+  const candidates = [...description.matchAll(/\b(RAL\s*)?([1-9]\d{3})\b/giu)]
+    .filter((match) => isKnownRalCode(match[2] ?? ""));
+
+  if (candidates.length !== 1) return null;
+
+  const candidate = candidates[0];
+  const code = candidate?.[2];
+  const finishPattern = texturePattern(texture);
+  const hasExplicitRalPrefix = Boolean(candidate?.[1]);
+  const hasMatchingFinish = texture !== "NORMAL";
+  if (!code || (!hasExplicitRalPrefix && !hasMatchingFinish)) return null;
+
+  const colorPattern = new RegExp(`\\b(?:RAL\\s*)?${code}\\b`, "giu");
+  const descriptionWithoutColor = description.replace(colorPattern, " ");
+  const cleanedDescription = (finishPattern
+    ? descriptionWithoutColor.replace(finishPattern, " ")
+    : descriptionWithoutColor)
+    .replace(/\s+/gu, " ")
+    .trim();
+
+  if (!cleanedDescription) return null;
+  return { color: `RAL ${code}`, description: cleanedDescription };
 };
 
 const llmItemSchema = z.object({
@@ -122,6 +140,8 @@ const llmItemSchema = z.object({
   texture: llmTextureSchema,
   linearMeters: llmNumberSchema.optional().default(null),
   squareMeters: llmNumberSchema.optional().default(null),
+  widthMm: llmNumberSchema.optional().default(null),
+  heightMm: llmNumberSchema.optional().default(null),
   thickness: llmNumberSchema.optional().default(null),
   hasThickness: llmBooleanSchema.optional().default(false),
   hasPrimer: llmBooleanSchema.optional().default(false),
@@ -132,13 +152,9 @@ const llmItemSchema = z.object({
     .transform((value) => {
       const parsedValue =
         typeof value === "number" ? value : Number.parseInt(value || "1", 10);
-
-      if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
-        return 1;
-      }
-
       return parsedValue;
     })
+    .pipe(z.number().int().positive())
 });
 
 const llmParsedVoiceAlbaranSchema = z.object({
@@ -162,6 +178,8 @@ export const parsedVoiceAlbaranResponseSchema = z.object({
       texture: parsedVoiceTextureSchema,
       linearMeters: z.number().positive().nullable(),
       squareMeters: z.number().positive().nullable(),
+      widthMm: z.number().positive().nullable().optional(),
+      heightMm: z.number().positive().nullable().optional(),
       hasThickness: z.boolean(),
       hasPrimer: z.boolean(),
       saveAsSpecialPiece: z.boolean(),
@@ -174,37 +192,38 @@ export const normalizeParsedVoiceAlbaran = (rawValue: unknown): ParsedVoiceAlbar
   const parsed = llmParsedVoiceAlbaranSchema.parse(rawValue);
 
   const items = parsed.items
-    .map((item) => ({
-      effectivePricingMode:
-        item.pricingMode === "UNIT" &&
-        (item.customUnitPrice == null || item.customUnitPrice <= 0) &&
-        ((item.linearMeters != null && item.linearMeters > 0) ||
-          (item.squareMeters != null && item.squareMeters > 0))
-          ? "DIMENSIONS"
-          : item.pricingMode,
-      color: normalizeVoiceColor(item.color),
-      customUnitPrice:
-        item.pricingMode === "UNIT" && item.customUnitPrice && item.customUnitPrice > 0
-          ? item.customUnitPrice
-          : null,
-      description: uppercaseSpanish(item.description),
-      hasPrimer: item.hasPrimer || item.primer,
-      hasThickness: item.hasThickness || (item.thickness != null && item.thickness > 0),
-      linearMeters: item.linearMeters && item.linearMeters > 0 ? item.linearMeters : null,
-      quantity: item.quantity,
-      saveAsSpecialPiece: item.saveAsSpecialPiece,
-      specialPieceIntent: item.specialPieceIntent,
-      squareMeters: item.squareMeters && item.squareMeters > 0 ? item.squareMeters : null,
-      texture: item.texture
-    }))
+    .map((item) => {
+      const normalizedColor = normalizeDeliveryNoteColor(item.color);
+      const normalizedDescription = uppercaseSpanish(item.description);
+      const inferred = normalizedColor
+        ? null
+        : inferKnownRalColor(normalizedDescription, item.texture);
+
+      return {
+        color: normalizedColor ?? inferred?.color ?? null,
+        description: inferred?.description ?? normalizedDescription,
+        hasPrimer: item.hasPrimer || item.primer,
+        hasThickness: item.hasThickness || (item.thickness != null && item.thickness > 0),
+        linearMeters: item.linearMeters && item.linearMeters > 0 ? item.linearMeters : null,
+        widthMm: item.widthMm && item.widthMm > 0 ? item.widthMm : null,
+        heightMm: item.heightMm && item.heightMm > 0 ? item.heightMm : null,
+        quantity: item.quantity,
+        saveAsSpecialPiece: item.saveAsSpecialPiece,
+        specialPieceIntent: item.specialPieceIntent,
+        squareMeters: item.squareMeters && item.squareMeters > 0 ? item.squareMeters : null,
+        texture: item.texture
+      };
+    })
     .map((item) => ({
       color: item.color,
-      customUnitPrice: item.effectivePricingMode === "UNIT" ? item.customUnitPrice : null,
+      customUnitPrice: null,
       description: item.description,
       hasPrimer: item.hasPrimer,
       hasThickness: item.hasThickness,
       linearMeters: item.linearMeters,
-      pricingMode: item.effectivePricingMode,
+      widthMm: item.widthMm,
+      heightMm: item.heightMm,
+      pricingMode: "DIMENSIONS" as const,
       quantity: item.quantity,
       saveAsSpecialPiece: item.saveAsSpecialPiece,
       specialPieceIntent: item.specialPieceIntent,

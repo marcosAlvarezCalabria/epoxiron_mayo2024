@@ -66,6 +66,23 @@ model DeliveryNoteNumberSequence {
   lastSequence Int
 }
 
+model TelegramDeliveryNoteSession {
+  id                String   @id @default(uuid())
+  chatId            String
+  userId            String
+  lastUpdateId      Int      @default(0)
+  status            String   @default("COLLECTING")
+  draft             Json
+  proposal          Json?
+  proposalText      String?
+  proposalExpiresAt DateTime?
+  deliveryNoteId    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([chatId, userId])
+}
+
 model DeliveryNoteItem {
   id             String       @id @default(uuid())
   deliveryNoteId String

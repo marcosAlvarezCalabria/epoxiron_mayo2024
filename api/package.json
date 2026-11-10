@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
+    "@google-cloud/speech": "^8.0.1",
     "@prisma/client": "^6.8.0",
     "cors": "^2.8.5",
     "decimal.js": "^10.6.0",
