@@ -139,4 +139,22 @@ describe("deliveryNoteItemDescription helpers", () => {
       })
     ).toBe(`PERFIL ${middleDot} 1023 ${middleDot} MATE ${middleDot} 1460X200`);
   });
+
+  it.each([
+    ["RAL 7016 MATE", "MATE", "MATE"],
+    ["RAL 7016 TEXTURADO", "TEXTURADO", "TEXTURADO"],
+    ["RAL 7016 GOF", "GOFRADO", "GOFRADO"]
+  ] as const)("renders %s without repeating its finish", (color, texture, expectedTexture) => {
+    expect(
+      buildDeliveryNoteItemDescription({
+        description: "PIEZA ESCALERA",
+        color,
+        texture,
+        pricingMode: "DIMENSIONS",
+        linearMeters: 36.96
+      })
+    ).toBe(
+      `PIEZA ESCALERA ${middleDot} 7016 ${middleDot} ${expectedTexture} ${middleDot} 36.96MLIN`
+    );
+  });
 });

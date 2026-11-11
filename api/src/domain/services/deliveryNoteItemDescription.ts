@@ -128,7 +128,29 @@ const formatMillimeters = (value: number) =>
   Number.isInteger(value)
     ? value.toString()
     : value.toFixed(2).replace(".", ",").replace(/,?0+$/u, "");
-const normalizeRenderedColor = (value: string) => value.replace(/^RAL\s+/u, "").trim();
+const normalizeRenderedColor = (
+  value: string,
+  texture?: DeliveryNoteTexture | string
+) => {
+  let renderedColor = value.replace(/^RAL\s+/iu, "").trim();
+
+  switch (texture) {
+    case "TEXTURADO":
+      renderedColor = renderedColor.replace(/\bTEXT(?:UR(?:ADO|IZADO|ARO))?\b/giu, " ");
+      break;
+    case "GOFRADO":
+      renderedColor = renderedColor.replace(/\bGOF(?:RADO)?\b/giu, " ");
+      break;
+    case "MATE":
+      renderedColor = renderedColor.replace(/\bMATE\b/giu, " ");
+      break;
+  }
+
+  return renderedColor
+    .replace(/\s+/gu, " ")
+    .replace(/^[·,;:/_-]+\s*|\s*[·,;:/_+-]+$/gu, "")
+    .trim();
+};
 
 const escapeRegularExpression = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
@@ -193,7 +215,7 @@ const canonicalizeCommercialDescription = (
     workingDescription = workingDescription.slice(0, dimensionsMatch.index);
   }
 
-  const renderedColor = normalizeRenderedColor(color);
+  const renderedColor = normalizeRenderedColor(color, texture);
   let renderedColorSegment: string | null = renderedColor || null;
   if (renderedColor) {
     const colorPattern = new RegExp(
@@ -229,11 +251,12 @@ export const buildDeliveryNoteItemDescription = (item: DeliveryNoteItemDescripti
   );
   const segments = [normalizedDescription];
   const texture = formatArticleTexture(item.texture);
+  const renderedColor = item.color ? normalizeRenderedColor(item.color, item.texture) : null;
   const keepsOriginalDimensions = descriptionContainsExplicitDimensions(normalizedDescription);
   const keepsOriginalCalculatedMeasures = descriptionContainsCalculatedMeasures(normalizedDescription);
 
-  if (item.color && !descriptionContainsColor(normalizedDescription, item.color)) {
-    segments.push(normalizeRenderedColor(item.color));
+  if (renderedColor && !descriptionContainsColor(normalizedDescription, renderedColor)) {
+    segments.push(renderedColor);
   }
 
   if (texture && !descriptionContainsTexture(normalizedDescription, item.texture)) {
