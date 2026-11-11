@@ -24,8 +24,8 @@ Se añadieron regresiones con el caso real. El resultado de la API activa es:
 
 ## Verificación
 
-- Web: 54/54 pruebas y TypeScript correctos.
-- API: 145/145 pruebas y TypeScript correctos.
+- Web: 56/56 pruebas y TypeScript correctos.
+- API: 147/147 pruebas y TypeScript correctos.
 - Builds de web y API correctos.
 - `https://wwwmarcos-alvarez.com` responde HTTP 200.
 - El bundle público `index-C5Vd9gPo.js` coincide byte a byte con el build
